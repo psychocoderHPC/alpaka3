@@ -9,6 +9,7 @@
 #include "alpaka/mem/MdSpan.hpp"
 #include "alpaka/onHost.hpp"
 #include "alpaka/onHost/Handle.hpp"
+#include "alpaka/trait.hpp"
 
 #include <cstdint>
 #include <functional>
@@ -22,27 +23,52 @@ namespace alpaka::onHost
      * This view is only holding a handle to the real data, copying the view is cheap.
      * Owning mean that it is guaranteed that the lifetime of the data is defined by the lifetime of the view.
      */
-    template<typename T_Datahandle, typename T_Extents>
+    template<typename T_Datahandle, typename T_Extents, typename T_Offsets = T_Extents>
     struct View
     {
     public:
-        /** creates a view
-         *
-         * @param data handle to the physical data
-         * @param extents M-dimensional extents in elements of the view. Must be <= number of elements in the dat
-         * handle.
-         */
-        View(T_Datahandle data, T_Extents const& extents) : m_data(std::move(data)), m_extents(extents)
-        {
-        }
+        using value_type = alpaka::trait::GetValueType_t<typename T_Datahandle::element_type>;
+        using size_type = alpaka::trait::GetSizeType_t<typename T_Datahandle::element_type>;
+
+        using pointer = value_type*;
+        using const_pointer = value_type const*;
+        using reference = value_type&;
+        using const_reference = value_type const&;
 
         /** creates a view
          *
-         * Extents will be dirived from the data handle.
+         * @param data handle to the physical data
+         * @param extents M-dimensional extents in elements of the view. Must be <= number of elements in the data
+         * handle.
+         *
+         * @{
+         */
+        View(T_Datahandle data, T_Extents const& extents)
+            : m_data(std::move(data))
+            , m_extents(extents)
+            , m_offsets(T_Offsets::all(0))
+        {
+        }
+
+        /**
+         * @param offset M-dimensional offset in elements with respect to the pointer of data handle.
+         */
+        View(T_Datahandle data, T_Offsets const& offset, T_Extents const& extents)
+            : m_data(std::move(data))
+            , m_extents(extents)
+            , m_offsets(offset)
+        {
+        }
+
+        /** @} */
+
+        /** creates a view
+         *
+         * Extents will be derived from the data handle.
          *
          * @param data handle to the physical data
          */
-        View(T_Datahandle data) : m_data(std::move(data)), m_extents(m_data->m_extents)
+        View(T_Datahandle data) : m_data(std::move(data)), m_extents(m_data->m_extents), m_offsets(T_Offsets::all(0))
         {
         }
 
@@ -60,9 +86,6 @@ namespace alpaka::onHost
             return T_Extents::dim();
         }
 
-        using type = typename T_Datahandle::element_type::type;
-        using index_type = typename T_Extents::type;
-
         /** get the number of elements for each dimension */
         auto getExtents() const
         {
@@ -72,37 +95,37 @@ namespace alpaka::onHost
         /** Get the distance in bytes to move to the next element in the corresponding dimension. */
         auto getPitches() const
         {
-            return m_data->getPitches();
+            return alpaka::onHost::getPitches(m_data);
         }
 
         /** pointer to data */
-        decltype(auto) data()
+        pointer data()
         {
-            return onHost::data(m_data);
+            return getMdSpan().data();
         }
 
         /** pointer to data */
-        decltype(auto) data() const
+        const_pointer data() const
         {
-            return onHost::data(m_data);
+            return getMdSpan().data();
         }
 
         auto getMdSpan() const
         {
             auto* ptr = onHost::data(m_data);
-            return alpaka::MdSpan{ptr, m_data->getExtents(), m_data->getPitches()};
+            return alpaka::MdSpan{ptr, m_offsets, m_extents, getPitches()};
         }
 
         /** access 1-dimensional data with a scalar index
          *
          * @{
          */
-        decltype(auto) operator[](std::integral auto idx) const requires(dim() == 1u)
+        const_reference operator[](std::integral auto idx) const requires(dim() == 1u)
         {
             return data()[idx];
         }
 
-        decltype(auto) operator[](std::integral auto idx) requires(dim() == 1u)
+        reference operator[](std::integral auto idx) requires(dim() == 1u)
         {
             return data()[idx];
         }
@@ -113,12 +136,12 @@ namespace alpaka::onHost
          *
          * @{
          */
-        decltype(auto) operator[](alpaka::concepts::Vector auto idx) const
+        const_reference operator[](alpaka::concepts::Vector auto idx) const
         {
             return getMdSpan()[idx];
         }
 
-        decltype(auto) operator[](alpaka::concepts::Vector auto idx)
+        reference operator[](alpaka::concepts::Vector auto idx)
         {
             return getMdSpan()[idx];
         }
@@ -135,25 +158,16 @@ namespace alpaka::onHost
 
         T_Datahandle m_data;
         T_Extents m_extents;
+        T_Extents m_offsets;
 
         friend struct internal::Data;
         friend struct alpaka::internal::GetApi;
     };
 
     template<typename T_Datahandle>
-    ALPAKA_FN_HOST_ACC View(T_Datahandle) -> View<T_Datahandle, typename T_Datahandle::element_type::ExtentType>;
+    ALPAKA_FN_HOST_ACC View(T_Datahandle)
+        -> View<T_Datahandle, alpaka::trait::GetExtentType_t<typename T_Datahandle::element_type>>;
 
-    namespace internal
-    {
-        template<typename... T_Args>
-        struct Data::Op<View<T_Args...>>
-        {
-            decltype(auto) operator()(auto&& buffer) const
-            {
-                return onHost::data(buffer.m_data);
-            }
-        };
-    } // namespace internal
 } // namespace alpaka::onHost
 
 namespace alpaka::internal
@@ -167,3 +181,25 @@ namespace alpaka::internal
         }
     };
 } // namespace alpaka::internal
+
+namespace alpaka::trait
+{
+
+    template<typename T_Datahandle, typename... T_Args>
+    struct GetValueType<onHost::View<T_Datahandle, T_Args...>>
+    {
+        using type = trait::GetValueType_t<typename T_Datahandle::element_type>;
+    };
+
+    template<typename T_Datahandle, typename... T_Args>
+    struct GetExtentType<onHost::View<T_Datahandle, T_Args...>>
+    {
+        using type = trait::GetExtentType_t<typename T_Datahandle::element_type>;
+    };
+
+    template<typename T_Datahandle, typename... T_Args>
+    struct GetSizeType<onHost::View<T_Datahandle, T_Args...>>
+    {
+        using type = trait::GetSizeType_t<trait::GetExtentType_t<typename T_Datahandle::element_type>>;
+    };
+} // namespace alpaka::trait

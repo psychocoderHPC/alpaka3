@@ -149,10 +149,12 @@ namespace alpaka::onHost
                         queue,
                         [extents, l_dest = std::move(dest), l_source = std::move(source)]()
                         {
+                            uint8_t* destPtr
+                                = const_cast<uint8_t*>(reinterpret_cast<uint8_t const*>(alpaka::onHost::data(l_dest)));
                             std::memcpy(
-                                alpaka::onHost::data(l_dest),
+                                destPtr,
                                 alpaka::onHost::data(l_source),
-                                extents.x() * sizeof(typename T_Dest::type));
+                                extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
                         });
                 }
 
@@ -166,7 +168,8 @@ namespace alpaka::onHost
                             if(static_cast<std::size_t>(extents.product()) != 0u)
                             {
                                 auto const destPitchBytesWithoutColumn = l_dest.getPitches().eraseBack();
-                                auto* destPtr = data(l_dest);
+                                uint8_t* destPtr = const_cast<uint8_t*>(
+                                    reinterpret_cast<uint8_t const*>(alpaka::onHost::data(l_dest)));
                                 auto const sourcePitchBytesWithoutColumn = l_source.getPitches().eraseBack();
                                 auto* sourcePtr = data(l_source);
 
@@ -175,11 +178,11 @@ namespace alpaka::onHost
                                     [&](auto const& idx)
                                     {
                                         std::memcpy(
-                                            reinterpret_cast<std::uint8_t*>(destPtr)
-                                                + (idx * destPitchBytesWithoutColumn).sum(),
-                                            reinterpret_cast<std::uint8_t*>(sourcePtr)
+                                            destPtr + (idx * destPitchBytesWithoutColumn).sum(),
+                                            reinterpret_cast<std::uint8_t const*>(sourcePtr)
                                                 + (idx * sourcePitchBytesWithoutColumn).sum(),
-                                            static_cast<size_t>(extents.back()) * sizeof(typename T_Dest::type));
+                                            static_cast<size_t>(extents.back())
+                                                * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
                                     });
                             }
                         });
@@ -198,11 +201,14 @@ namespace alpaka::onHost
                 {
                     internal::enqueue(
                         queue,
-                        [extents, l_dest = std::move(dest), byteValue]() {
+                        [extents, l_dest = std::move(dest), byteValue]()
+                        {
+                            uint8_t* destPtr
+                                = const_cast<uint8_t*>(reinterpret_cast<uint8_t const*>(alpaka::onHost::data(l_dest)));
                             std::memset(
-                                alpaka::onHost::data(l_dest),
+                                destPtr,
                                 byteValue,
-                                extents.x() * sizeof(typename T_Dest::type));
+                                extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
                         });
                 }
 
@@ -216,17 +222,18 @@ namespace alpaka::onHost
                             if(static_cast<std::size_t>(extents.product()) != 0u)
                             {
                                 auto const destPitchBytesWithoutColumn = l_dest.getPitches().eraseBack();
-                                auto* destPtr = data(l_dest);
+                                uint8_t* destPtr = const_cast<uint8_t*>(
+                                    reinterpret_cast<uint8_t const*>(alpaka::onHost::data(l_dest)));
 
                                 meta::ndLoopIncIdx(
                                     dstExtentWithoutColumn,
                                     [&](auto const& idx)
                                     {
                                         std::memset(
-                                            reinterpret_cast<std::uint8_t*>(destPtr)
-                                                + (idx * destPitchBytesWithoutColumn).sum(),
+                                            destPtr + (idx * destPitchBytesWithoutColumn).sum(),
                                             byteValue,
-                                            static_cast<size_t>(extents.back()) * sizeof(typename T_Dest::type));
+                                            static_cast<size_t>(extents.back())
+                                                * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
                                     });
                             }
                         });

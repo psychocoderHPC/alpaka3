@@ -16,8 +16,8 @@ namespace alpaka
     template<typename T_Type, typename T_Extents, typename T_Pitches>
     struct MdSpan
     {
-        using element_type = T_Type;
-        using reference = element_type&;
+        using value_type = T_Type;
+        using reference = value_type&;
         using index_type = typename T_Pitches::type;
 
         static_assert(std::is_convertible_v<index_type, typename T_Extents::type>);
@@ -40,12 +40,12 @@ namespace alpaka
          *
          * @{
          */
-        constexpr element_type const* data() const
+        constexpr value_type const* data() const
         {
             return this->m_ptr;
         }
 
-        constexpr element_type* data()
+        constexpr value_type* data()
         {
             return this->m_ptr;
         }
@@ -61,8 +61,22 @@ namespace alpaka
          * @param extents number of elements
          * @param pitchBytes pitch in bytes per dimension
          */
-        constexpr MdSpan(element_type* pointer, T_Extents extents, T_Pitches const& pitchBytes)
+        constexpr MdSpan(value_type* pointer, T_Extents extents, T_Pitches const& pitchBytes)
             : m_ptr(pointer)
+            , m_extent(extents)
+            , m_pitch(pitchBytes.eraseBack())
+        {
+        }
+
+        /**
+         * @param offsets number of elements to skip with respect to the pointer
+         */
+        constexpr MdSpan(
+            value_type* pointer,
+            T_Extents const& offsets,
+            T_Extents const& extents,
+            T_Pitches const& pitchBytes)
+            : m_ptr(ptr(pointer, pitchBytes.eraseBack(), offsets))
             , m_extent(extents)
             , m_pitch(pitchBytes.eraseBack())
         {
@@ -77,14 +91,14 @@ namespace alpaka
          * @return reference to the value
          * @{
          */
-        constexpr element_type const& operator[](concepts::Vector auto const& idx) const
+        constexpr value_type const& operator[](concepts::Vector auto const& idx) const
         {
-            return *ptr(idx);
+            return *ptr(m_ptr, m_pitch, idx);
         }
 
         constexpr reference operator[](concepts::Vector auto const& idx)
         {
-            return *const_cast<element_type*>(ptr(idx));
+            return *const_cast<value_type*>(ptr(m_ptr, m_pitch, idx));
         }
 
         /** }@ */
@@ -100,22 +114,25 @@ namespace alpaka
          * @param idx n-dimensional offset
          * @return pointer to value
          */
-        constexpr element_type const* ptr(concepts::Vector auto const& idx) const
+        static constexpr value_type* ptr(
+            value_type* dataPtr,
+            decltype(std::declval<T_Pitches>().eraseBack()) const& pitches,
+            concepts::Vector auto const& idx)
         {
             /** offset in bytes
              *
              * We calculate the complete offset in bytes even if it would be possible to change the x-dimension
-             * with the native element_types pointer, this is reducing the register footprint.
+             * with the native value_type pointer, this is reducing the register footprint.
              */
-            index_type offset = sizeof(element_type) * idx.back();
+            index_type offset = sizeof(value_type) * idx.back();
             for(uint32_t d = 0u; d < dim() - 1u; ++d)
             {
-                offset += m_pitch[d] * idx[d];
+                offset += pitches[d] * idx[d];
             }
-            return reinterpret_cast<element_type const*>(reinterpret_cast<char const*>(this->m_ptr) + offset);
+            return reinterpret_cast<value_type*>(reinterpret_cast<char*>(dataPtr) + offset);
         }
 
-        element_type* m_ptr;
+        value_type* m_ptr;
         T_Extents m_extent;
         decltype(std::declval<T_Pitches>().eraseBack()) m_pitch;
     };
@@ -128,9 +145,13 @@ namespace alpaka
     requires(T_Pitches::dim() == 1u && T_Extents::dim() == 1u)
     struct MdSpan<T_Type, T_Extents, T_Pitches>
     {
-        using element_type = T_Type;
-        using reference = element_type&;
+        using value_type = T_Type;
         using index_type = typename T_Pitches::type;
+
+        using pointer = value_type*;
+        using const_pointer = value_type const*;
+        using reference = value_type&;
+        using const_reference = value_type const&;
 
         static_assert(std::is_convertible_v<index_type, typename T_Extents::type>);
 
@@ -148,16 +169,21 @@ namespace alpaka
             return *this->m_ptr;
         }
 
+        constexpr const_reference operator*() const
+        {
+            return *this->m_ptr;
+        }
+
         /** get origin pointer
          *
          * @{
          */
-        constexpr element_type const* data() const
+        constexpr const_pointer data() const
         {
             return this->m_ptr;
         }
 
-        constexpr element_type* data()
+        constexpr pointer data()
         {
             return this->m_ptr;
         }
@@ -172,14 +198,31 @@ namespace alpaka
          * @param pointer pointer to the memory
          * @param extents number of elements
          * @param pitchBytes pitch in bytes per dimension
+         *
+         * @{
          */
-        constexpr MdSpan(element_type* pointer, T_Extents const& extents, [[maybe_unused]] T_Pitches const& pitchBytes)
+        constexpr MdSpan(value_type* pointer, T_Extents const& extents, [[maybe_unused]] T_Pitches const& pitchBytes)
             : m_ptr(pointer)
             , m_extent(extents)
         {
         }
 
-        constexpr MdSpan(element_type* pointer) : m_ptr(pointer)
+        /**
+         * @param offsets number of elements to skip with respect to the pointer
+         */
+        constexpr MdSpan(
+            value_type* pointer,
+            T_Extents const& offsets,
+            T_Extents const& extents,
+            [[maybe_unused]] T_Pitches const& pitchBytes)
+            : m_ptr(pointer + offsets.x())
+            , m_extent(extents)
+        {
+        }
+
+        /** @} */
+
+        constexpr MdSpan(value_type* pointer) : m_ptr(pointer)
         {
         }
 
@@ -192,7 +235,7 @@ namespace alpaka
          * @return reference to the value
          * @{
          */
-        constexpr element_type const& operator[](concepts::Vector auto const& idx) const
+        constexpr const_reference operator[](concepts::Vector auto const& idx) const
         {
             return *(m_ptr + idx.x());
         }
@@ -202,7 +245,7 @@ namespace alpaka
             return *(m_ptr + idx.x());
         }
 
-        constexpr element_type const& operator[](std::integral auto const& idx) const
+        constexpr const_reference operator[](std::integral auto const& idx) const
         {
             return *(m_ptr + idx);
         }
@@ -225,7 +268,7 @@ namespace alpaka
         }
 
     protected:
-        element_type* m_ptr;
+        value_type* m_ptr;
         T_Extents m_extent;
     };
 
@@ -274,8 +317,8 @@ namespace alpaka
     struct MdSpanArray<T_ArrayType>
     {
         using extentType = std::extent<T_ArrayType, std::rank_v<T_ArrayType>>;
-        using element_type = std::remove_all_extents_t<T_ArrayType>;
-        using reference = element_type&;
+        using value_type = std::remove_all_extents_t<T_ArrayType>;
+        using reference = value_type&;
         using index_type = typename extentType::value_type;
 
         static consteval uint32_t dim()
@@ -296,12 +339,12 @@ namespace alpaka
          *
          * @{
          */
-        constexpr element_type const* data() const
+        constexpr value_type const* data() const
         {
             return this->m_ptr;
         }
 
-        constexpr element_type* data()
+        constexpr value_type* data()
         {
             return this->m_ptr;
         }
@@ -330,7 +373,7 @@ namespace alpaka
          * @return reference to the value
          * @{
          */
-        constexpr element_type const& operator[](concepts::Vector auto const& idx) const
+        constexpr value_type const& operator[](concepts::Vector auto const& idx) const
         {
             return ResolveArrayAccess<dim()>{}(m_ptr, idx);
         }
@@ -340,7 +383,7 @@ namespace alpaka
             return ResolveArrayAccess<dim()>{}(m_ptr, idx);
         }
 
-        constexpr element_type const& operator[](index_type const& idx) const
+        constexpr value_type const& operator[](index_type const& idx) const
         {
             return m_ptr[idx];
         }

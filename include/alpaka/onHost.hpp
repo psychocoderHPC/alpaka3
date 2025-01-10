@@ -8,6 +8,7 @@
 #include "alpaka/concepts.hpp"
 #include "alpaka/onHost/DeviceProperties.hpp"
 #include "alpaka/onHost/concepts.hpp"
+#include "alpaka/trait.hpp"
 
 namespace alpaka::onHost
 {
@@ -175,7 +176,7 @@ namespace alpaka::onHost
      */
     inline auto allocMirror(auto const& device, auto const& view)
     {
-        return alloc<typename ALPAKA_TYPEOF(view)::type>(device, view.getExtents());
+        return alloc<alpaka::trait::GetValueType_t<ALPAKA_TYPEOF(view)>>(device, view.getExtents());
     }
 
     /** copy data byte wise from one to another container
@@ -259,4 +260,24 @@ namespace alpaka::onHost
     }
 
     /** @} */
+
+    inline decltype(auto) getExtents(auto&& any)
+    {
+        return internal::getExtents(ALPAKA_FORWARD(any));
+    }
+
+    inline decltype(auto) getExtents(alpaka::concepts::HasGet auto&& any)
+    {
+        return internal::getExtents(*any.get());
+    }
+
+    inline decltype(auto) getPitches(auto&& any)
+    {
+        return internal::getPitches(ALPAKA_FORWARD(any));
+    }
+
+    inline decltype(auto) getPitches(alpaka::concepts::HasGet auto&& any)
+    {
+        return internal::getPitches(*any.get());
+    }
 } // namespace alpaka::onHost

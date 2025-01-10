@@ -296,7 +296,7 @@ namespace alpaka::onHost
                         ApiInterface::memcpyAsync(
                             destPtr,
                             srcPtr,
-                            extents.x() * sizeof(typename T_Dest::type),
+                            extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
                             copyKind,
                             internal::getNativeHandle(queue)));
                 }
@@ -309,7 +309,7 @@ namespace alpaka::onHost
                             dest.getPitches().y(),
                             srcPtr,
                             source.getPitches().y(),
-                            extents.x() * sizeof(typename T_Dest::type),
+                            extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
                             extents.y(),
                             copyKind,
                             internal::getNativeHandle(queue)));
@@ -330,7 +330,7 @@ namespace alpaka::onHost
                         dest.getExtents().x(),
                         dest.getExtents().y());
                     memCpy3DParms.extent = ApiInterface::makeExtent(
-                        extents.x() * sizeof(typename T_Dest::type),
+                        extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
                         extents.y(),
                         extents.z());
                     memCpy3DParms.kind = copyKind;
@@ -367,7 +367,7 @@ namespace alpaka::onHost
                         ApiInterface::memsetAsync(
                             destPtr,
                             static_cast<int>(byteValue),
-                            extents.x() * sizeof(typename T_Dest::type),
+                            extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
                             internal::getNativeHandle(queue)));
                 }
                 else if constexpr(dim == 2u)
@@ -378,7 +378,7 @@ namespace alpaka::onHost
                             destPtr,
                             dest.getPitches().y(),
                             static_cast<int>(byteValue),
-                            extents.x() * sizeof(typename T_Dest::type),
+                            extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
                             extents.y(),
                             internal::getNativeHandle(queue)));
                 }
@@ -391,7 +391,7 @@ namespace alpaka::onHost
                         dest.getExtents().y());
 
                     typename ApiInterface::Extent_t const extentVal = ApiInterface::makeExtent(
-                        extents.x() * sizeof(typename T_Dest::type),
+                        extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
                         extents.y(),
                         extents.z());
 

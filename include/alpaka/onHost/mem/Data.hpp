@@ -84,8 +84,7 @@ namespace alpaka::onHost
             m_deleter(m_data);
         }
 
-        using type = T_Type;
-        using ExtentType = T_Extents;
+        using value_type = T_Type;
 
         // private:
         void _()
@@ -142,3 +141,27 @@ namespace alpaka::internal
         }
     };
 } // namespace alpaka::internal
+
+namespace alpaka::trait
+{
+
+    template<
+        typename T_BaseHandle,
+        typename T_Type,
+        alpaka::concepts::Vector T_Extents,
+        alpaka::concepts::Vector T_Pitches>
+    struct GetExtentType<onHost::Data<T_BaseHandle, T_Type, T_Extents, T_Pitches>>
+    {
+        using type = T_Extents;
+    };
+
+    template<
+        typename T_BaseHandle,
+        typename T_Type,
+        alpaka::concepts::Vector T_Extents,
+        alpaka::concepts::Vector T_Pitches>
+    struct GetSizeType<onHost::Data<T_BaseHandle, T_Type, T_Extents, T_Pitches>>
+    {
+        using type = trait::GetSizeType_t<T_Extents>;
+    };
+} // namespace alpaka::trait

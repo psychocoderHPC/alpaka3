@@ -25,6 +25,69 @@ namespace alpaka
 
         template<typename T>
         constexpr uint32_t getDim_v = GetDim<T>::value;
+
+        template<typename T>
+        struct GetValueType
+        {
+            using type = typename T::value_type;
+        };
+
+        template<typename T>
+        requires(std::is_fundamental_v<T>)
+        struct GetValueType<T>
+        {
+            using type = T;
+        };
+
+        template<typename T>
+        using GetValueType_t = typename GetValueType<T>::type;
+
+        /** type to describe size
+         *
+         * ::type must be a scalar type
+         *
+         * @{
+         */
+        template<typename T>
+        struct GetSizeType
+        {
+            using type = typename T::size_type;
+        };
+
+        template<typename T>
+        requires(std::is_fundamental_v<T>)
+        struct GetSizeType<T>
+        {
+            using type = size_t;
+        };
+
+        template<typename T>
+        using GetSizeType_t = typename GetSizeType<T>::type;
+
+        /** @} */
+
+        /** type to describe extents
+         *
+         * type can be a alpaka::Vec
+         *
+         * @{
+         */
+        template<typename T>
+        struct GetExtentType
+        {
+            using type = GetSizeType_t<T>;
+        };
+
+        template<typename T>
+        requires(std::is_fundamental_v<T>)
+        struct GetExtentType<T>
+        {
+            using type = size_t;
+        };
+
+        template<typename T>
+        using GetExtentType_t = typename GetExtentType<T>::type;
+        /** @} */
     } // namespace trait
 
     template<typename T>
