@@ -176,8 +176,10 @@ namespace alpaka::onHost
      */
     inline auto allocMirror(auto const& device, auto const& view)
     {
-        return alloc<alpaka::trait::GetValueType_t<ALPAKA_TYPEOF(view)>>(device, view.getExtents());
+        return alloc<alpaka::trait::GetValueType_t<ALPAKA_TYPEOF(view)>>(device, getExtents(view));
     }
+
+    inline decltype(auto) getExtents(auto&& any);
 
     /** copy data byte wise from one to another container
      *
@@ -189,7 +191,7 @@ namespace alpaka::onHost
      */
     inline void memcpy(concepts::QueueHandle auto& queue, auto& dest, auto const& source)
     {
-        return memcpy(queue, dest, source, dest.getExtents());
+        return memcpy(queue, dest, source, getExtents(dest));
     }
 
     /** @param extents M-dimensional data extents in elements, can be smaller than the container capacity */
@@ -219,7 +221,7 @@ namespace alpaka::onHost
      */
     inline auto memset(concepts::QueueHandle auto& queue, auto& dest, uint8_t byteValue)
     {
-        return memset(queue, dest, byteValue, dest.getExtents());
+        return memset(queue, dest, byteValue, getExtents(dest));
     }
 
     /** @param extents M-dimensional data extents in elements, can be smaller than the container capacity */

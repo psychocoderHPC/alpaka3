@@ -9,6 +9,7 @@
 #include "alpaka/mem/MdSpan.hpp"
 #include "alpaka/onHost.hpp"
 #include "alpaka/onHost/Handle.hpp"
+#include "alpaka/onHost/mem/AccessOps.hpp"
 #include "alpaka/trait.hpp"
 
 #include <cstdint>
@@ -24,11 +25,10 @@ namespace alpaka::onHost
      * Owning mean that it is guaranteed that the lifetime of the data is defined by the lifetime of the view.
      */
     template<typename T_Datahandle, typename T_Extents, typename T_Offsets = T_Extents>
-    struct View
+    struct View : ViewAccessOps<View<T_Datahandle,T_Extents,T_Offsets>>
     {
     public:
-        using value_type = alpaka::trait::GetValueType_t<typename T_Datahandle::element_type>;
-        using size_type = alpaka::trait::GetSizeType_t<typename T_Datahandle::element_type>;
+        using value_type = alpaka::trait::GetValueType_t<T_Datahandle>;
 
         using pointer = value_type*;
         using const_pointer = value_type const*;
@@ -43,7 +43,7 @@ namespace alpaka::onHost
          *
          * @{
          */
-        View(T_Datahandle data, T_Extents const& extents)
+        View(T_Datahandle data, T_Extents const& extents) requires requires { std::declval<T_Datahandle>().get(); }
             : m_data(std::move(data))
             , m_extents(extents)
             , m_offsets(T_Offsets::all(0))
@@ -54,6 +54,7 @@ namespace alpaka::onHost
          * @param offset M-dimensional offset in elements with respect to the pointer of data handle.
          */
         View(T_Datahandle data, T_Offsets const& offset, T_Extents const& extents)
+            requires requires { std::declval<T_Datahandle>().get(); }
             : m_data(std::move(data))
             , m_extents(extents)
             , m_offsets(offset)
@@ -68,7 +69,10 @@ namespace alpaka::onHost
          *
          * @param data handle to the physical data
          */
-        View(T_Datahandle data) : m_data(std::move(data)), m_extents(m_data->m_extents), m_offsets(T_Offsets::all(0))
+        View(T_Datahandle data) requires requires { std::declval<T_Datahandle>().get(); }
+            : m_data(std::move(data))
+            , m_extents(onHost::getExtents(m_data))
+            , m_offsets(T_Offsets::all(0))
         {
         }
 
@@ -115,7 +119,7 @@ namespace alpaka::onHost
             auto* ptr = onHost::data(m_data);
             return alpaka::MdSpan{ptr, m_offsets, m_extents, getPitches()};
         }
-
+#if 0
         /** access 1-dimensional data with a scalar index
          *
          * @{
@@ -147,7 +151,7 @@ namespace alpaka::onHost
         }
 
         /** @} */
-
+#endif
     private:
         void _()
         {
@@ -164,10 +168,11 @@ namespace alpaka::onHost
         friend struct alpaka::internal::GetApi;
     };
 
+#if 0
     template<typename T_Datahandle>
     ALPAKA_FN_HOST_ACC View(T_Datahandle)
         -> View<T_Datahandle, alpaka::trait::GetExtentType_t<typename T_Datahandle::element_type>>;
-
+#endif
 } // namespace alpaka::onHost
 
 namespace alpaka::internal
@@ -184,22 +189,17 @@ namespace alpaka::internal
 
 namespace alpaka::trait
 {
-
-    template<typename T_Datahandle, typename... T_Args>
-    struct GetValueType<onHost::View<T_Datahandle, T_Args...>>
+#if 0
+    template<typename T_Datahandle, typename T_Extents, typename T_Offsets>
+    struct GetExtentType<onHost::View<T_Datahandle, T_Extents, T_Offsets>>
     {
-        using type = trait::GetValueType_t<typename T_Datahandle::element_type>;
+        using type = T_Extents;
     };
 
-    template<typename T_Datahandle, typename... T_Args>
-    struct GetExtentType<onHost::View<T_Datahandle, T_Args...>>
+    template<typename T_Datahandle, typename T_Extents, typename T_Offsets>
+    struct GetSizeType<onHost::View<T_Datahandle, T_Extents, T_Offsets>>
     {
-        using type = trait::GetExtentType_t<typename T_Datahandle::element_type>;
+        using type = T_Extents::size_type;
     };
-
-    template<typename T_Datahandle, typename... T_Args>
-    struct GetSizeType<onHost::View<T_Datahandle, T_Args...>>
-    {
-        using type = trait::GetSizeType_t<trait::GetExtentType_t<typename T_Datahandle::element_type>>;
-    };
+#endif
 } // namespace alpaka::trait

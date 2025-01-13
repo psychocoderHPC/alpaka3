@@ -15,6 +15,7 @@
 #include "alpaka/onHost/FrameSpec.hpp"
 #include "alpaka/onHost/Handle.hpp"
 #include "alpaka/onHost/internal.hpp"
+#include "alpaka/onHost/mem/PitchedPtr.hpp"
 
 #include <cstdint>
 #include <cstring>
@@ -138,17 +139,26 @@ namespace alpaka::onHost
         template<typename T_Device, typename T_Dest, typename T_Source, typename T_Extents>
         struct Memcpy::Op<cpu::Queue<T_Device>, T_Dest, T_Source, T_Extents>
         {
-            void operator()(cpu::Queue<T_Device>& queue, T_Dest dest, T_Source const source, T_Extents const& extents)
-                const
+            void operator()(
+                cpu::Queue<T_Device>& queue,
+                T_Dest& dest,
+                T_Source const& source,
+                T_Extents const& extents) const
             {
+#if 0
                 static_assert(std::is_same_v<ALPAKA_TYPEOF(dest), ALPAKA_TYPEOF(source)>);
-                constexpr auto dim = dest.dim();
+//@todo we need to check memory visibility
+#endif
+                PitchedPtr pitchedPtrDest = {onHost::data(dest), extents, onHost::getPitches(dest)};
+                PitchedPtr pitchedPtrSrc = {onHost::data(source), extents, onHost::getPitches(source)};
+                constexpr auto dim = alpaka::getDim(pitchedPtrDest);
                 if constexpr(dim == 1u)
                 {
                     internal::enqueue(
                         queue,
-                        [extents, l_dest = std::move(dest), l_source = std::move(source)]()
+                        [extents, l_dest = std::move(pitchedPtrDest), l_source = std::move(pitchedPtrSrc)]()
                         {
+                            std::cout << "std::data1" << std::data(l_dest) << std::endl;
                             uint8_t* destPtr
                                 = const_cast<uint8_t*>(reinterpret_cast<uint8_t const*>(alpaka::onHost::data(l_dest)));
                             std::memcpy(
@@ -162,7 +172,7 @@ namespace alpaka::onHost
                 {
                     internal::enqueue(
                         queue,
-                        [extents, l_dest = std::move(dest), l_source = std::move(source)]()
+                        [extents, l_dest = std::move(pitchedPtrDest), l_source = std::move(source)]()
                         {
                             auto const dstExtentWithoutColumn = extents.eraseBack();
                             if(static_cast<std::size_t>(extents.product()) != 0u)

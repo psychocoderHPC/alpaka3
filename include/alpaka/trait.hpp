@@ -39,9 +39,18 @@ namespace alpaka
             using type = T;
         };
 
+        // resolve handles
+        template<typename  T>
+        requires requires(){ typename T::element_type; }
+        struct GetValueType<T>
+        {
+            using type = typename GetValueType<typename T::element_type>::type;
+        };
+
         template<typename T>
         using GetValueType_t = typename GetValueType<T>::type;
 
+#if 0
         /** type to describe size
          *
          * ::type must be a scalar type
@@ -88,6 +97,7 @@ namespace alpaka
         template<typename T>
         using GetExtentType_t = typename GetExtentType<T>::type;
         /** @} */
+#endif
     } // namespace trait
 
     template<typename T>

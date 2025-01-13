@@ -14,7 +14,7 @@
 #    include "alpaka/onHost/Device.hpp"
 #    include "alpaka/onHost/Handle.hpp"
 #    include "alpaka/onHost/Queue.hpp"
-#    include "alpaka/onHost/mem/Data.hpp"
+#    include "alpaka/onHost/mem/ManagedData.hpp"
 #    include "alpaka/onHost/mem/View.hpp"
 
 #    include <cstdint>
@@ -171,13 +171,11 @@ namespace alpaka::onHost
 
                 auto deleter = [](T_Type* ptr)
                 { ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK_NOEXCEPT(ApiInterface, ApiInterface::free(ptr)); };
-                auto data = std::make_shared<
-                    onHost::Data<Handle<std::decay_t<decltype(device)>>, T_Type, T_Extents, ALPAKA_TYPEOF(pitches)>>(
-                    device.getSharedPtr(),
-                    ptr,
-                    extents,
-                    pitches,
-                    deleter);
+                auto pitchedPtr = PitchedPtr{ptr, extents, pitches, std::move(deleter)};
+                auto data
+                    = std::make_shared<onHost::ManagedData<Handle<ALPAKA_TYPEOF(device)>, ALPAKA_TYPEOF(pitchedPtr)>>(
+                        device.getSharedPtr(),
+                        std::move(pitchedPtr));
                 return onHost::View<std::decay_t<decltype(data)>, T_Extents>(data);
             }
         };

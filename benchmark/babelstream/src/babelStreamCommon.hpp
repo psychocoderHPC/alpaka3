@@ -39,7 +39,7 @@ namespace
     // To prevent timeouts in CI, a small value is used.
     [[maybe_unused]] auto numberOfRuns = 2;
 
-    // Data input values for babelstream.
+    // MangedData input values for babelstream.
     [[maybe_unused]] constexpr double initA = 0.1;
     [[maybe_unused]] constexpr double initB = 0.2;
     // Change this if triad kernel is going to be run alone

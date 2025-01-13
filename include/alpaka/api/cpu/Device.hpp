@@ -14,7 +14,7 @@
 #include "alpaka/onHost/DeviceProperties.hpp"
 #include "alpaka/onHost/Handle.hpp"
 #include "alpaka/onHost/Queue.hpp"
-#include "alpaka/onHost/mem/Data.hpp"
+#include "alpaka/onHost/mem/MangedData.hpp"
 #include "alpaka/onHost/mem/View.hpp"
 #include "alpaka/onHost/trait.hpp"
 
@@ -134,14 +134,11 @@ namespace alpaka::onHost
                     auto* ptr = new T_Type[extents.x()];
                     auto deleter = [](T_Type* ptr) { delete[](ptr); };
                     auto pitches = typename T_Extents::UniVec{sizeof(T_Type)};
-                    auto data = std::make_shared<
-                        onHost::
-                            Data<Handle<std::decay_t<decltype(device)>>, T_Type, T_Extents, ALPAKA_TYPEOF(pitches)>>(
-                        device.getSharedPtr(),
-                        ptr,
-                        extents,
-                        pitches,
-                        std::move(deleter));
+                    auto pitchedPtr = PitchedPtr{ptr, extents, pitches, std::move(deleter)};
+                    auto data
+                        = std::make_shared<onHost::MangedData<Handle<ALPAKA_TYPEOF(device)>, ALPAKA_TYPEOF(pitchedPtr)>>(
+                            device.getSharedPtr(),
+                            std::move(pitchedPtr));
                     return View<std::decay_t<decltype(data)>, T_Extents>(data);
                 }
                 else
@@ -149,14 +146,11 @@ namespace alpaka::onHost
                     auto* ptr = new T_Type[extents.product()];
                     auto deleter = [](T_Type* ptr) { delete[](ptr); };
                     auto pitches = mem::calculatePitchesFromExtents<T_Type>(extents);
-                    auto data = std::make_shared<
-                        onHost::
-                            Data<Handle<std::decay_t<decltype(device)>>, T_Type, T_Extents, ALPAKA_TYPEOF(pitches)>>(
-                        device.getSharedPtr(),
-                        ptr,
-                        extents,
-                        pitches,
-                        std::move(deleter));
+                    auto pitchedPtr = PitchedPtr{ptr, extents, pitches, std::move(deleter)};
+                    auto data
+                        = std::make_shared<onHost::MangedData<Handle<ALPAKA_TYPEOF(device)>, ALPAKA_TYPEOF(pitchedPtr)>>(
+                            device.getSharedPtr(),
+                            std::move(pitchedPtr));
                     return View<std::decay_t<decltype(data)>, T_Extents>(data);
                 }
             }

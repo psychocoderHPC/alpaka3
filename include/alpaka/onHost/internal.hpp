@@ -181,7 +181,7 @@ namespace alpaka::onHost
             {
                 decltype(auto) operator()(auto&& any) const
                 {
-                    return any.data();
+                    return std::data(any);
                 }
             };
 
