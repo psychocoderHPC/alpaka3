@@ -20,10 +20,6 @@
 #    include <algorithm>
 #    include <sstream>
 
-#    ifndef ALPAKA_SYCL_NUM_MAX_SHARED_MEMORY_ALLOCATIONS
-#        define ALPAKA_SYCL_NUM_MAX_SHARED_MEMORY_ALLOCATIONS 32u
-#    endif
-
 namespace alpaka::onHost
 {
     namespace syclGeneric
@@ -33,15 +29,7 @@ namespace alpaka::onHost
         {
         private:
             friend struct alpaka::internal::GetApi;
-
-            template<alpaka::concepts::Vector TVec>
-            static constexpr auto vecToSyclRange(TVec vec)
-            {
-                constexpr auto dim = std::decay_t<TVec>::dim();
-                return [&vec]<auto... I>(std::index_sequence<I...>)
-                // TODO: check if this is the correct order
-                { return sycl::range<dim>(vec[I]...); }(std::make_index_sequence<dim>{});
-            };
+            friend struct onHost::internal::Enqueue;
 
         public:
             Queue(concepts::DeviceHandle auto device, uint32_t const idx)
@@ -75,102 +63,6 @@ namespace alpaka::onHost
             [[nodiscard]] auto getNativeHandle() const noexcept
             {
                 return m_queue;
-            }
-
-            template<typename T_Mapping, alpaka::concepts::Vector T_NumBlocks, alpaka::concepts::Vector T_NumThreads>
-            void enqueue(
-                T_Mapping const executor,
-                ThreadSpec<T_NumBlocks, T_NumThreads> const& threadBlocking,
-                auto const& kernelBundle)
-            {
-                constexpr auto st_shared_mem_bytes = onAcc::syclGeneric::StaticSharedMemory::sizeLookupBufferInBytes(
-                    ALPAKA_SYCL_NUM_MAX_SHARED_MEMORY_ALLOCATIONS);
-                // allocate dynamic shared memory -- needs at least 1 byte to make the Xilinx Runtime happy
-                u_int32_t blockDynSharedMemBytes
-                    = std::max(u_int32_t(1), onHost::getDynSharedMemBytes(executor, threadBlocking, kernelBundle));
-                assert(
-                    st_shared_mem_bytes + blockDynSharedMemBytes
-                    <= m_device->getNativeHandle().first.template get_info<sycl::info::device::local_mem_size>());
-
-                m_queue.submit(
-                    [threadBlocking, kernelBundle, blockDynSharedMemBytes](sycl::handler& cgh)
-                    {
-                        using T_Api = decltype(getApi(m_device));
-                        auto st_shared_accessor
-                            = sycl::local_accessor<std::byte>{sycl::range<1>{st_shared_mem_bytes}, cgh};
-
-                        auto dyn_shared_accessor
-                            = sycl::local_accessor<std::byte>{sycl::range<1>{blockDynSharedMemBytes}, cgh};
-
-                        cgh.parallel_for(
-                            sycl::nd_range<T_NumThreads::dim()>{
-                                vecToSyclRange(threadBlocking.m_numBlocks * threadBlocking.m_numThreads),
-                                vecToSyclRange(threadBlocking.m_numThreads)},
-                            [st_shared_accessor, dyn_shared_accessor, kernelBundle](
-                                sycl::nd_item<T_NumThreads::dim()> work_item)
-                            {
-                                onAcc::syclGeneric::StaticSharedMemory ssm(st_shared_accessor);
-                                onAcc::syclGeneric::DynamicSharedMemory dsm(dyn_shared_accessor);
-                                auto acc = onAcc::Acc{
-                                    onAcc::makeSyclGenericAccDict<T_Mapping, T_Api, T_NumBlocks, T_NumThreads>(
-                                        work_item,
-                                        ssm,
-                                        dsm)};
-                                kernelBundle(acc);
-                            });
-                    });
-            }
-
-            template<typename T_Mapping, alpaka::concepts::Vector T_NumFrames, alpaka::concepts::Vector T_FrameExtent>
-            void enqueue(
-                T_Mapping const executor,
-                FrameSpec<T_NumFrames, T_FrameExtent> frameSpec,
-                auto const& kernelBundle)
-            {
-                auto const threadBlocking
-                    = internal::adjustThreadSpec(m_device.get(), executor, frameSpec, kernelBundle);
-
-                constexpr auto st_shared_mem_bytes = onAcc::syclGeneric::StaticSharedMemory::sizeLookupBufferInBytes(
-                    ALPAKA_SYCL_NUM_MAX_SHARED_MEMORY_ALLOCATIONS);
-                // allocate dynamic shared memory -- needs at least 1 byte to make the Xilinx Runtime happy
-                u_int32_t blockDynSharedMemBytes
-                    = std::max(u_int32_t(1), onHost::getDynSharedMemBytes(executor, threadBlocking, kernelBundle));
-
-                assert(
-                    st_shared_mem_bytes + blockDynSharedMemBytes
-                    <= m_device->getNativeHandle().first.template get_info<sycl::info::device::local_mem_size>());
-
-                m_queue.submit(
-                    [threadBlocking, frameSpec, kernelBundle, blockDynSharedMemBytes](sycl::handler& cgh)
-                    {
-                        using T_Api = decltype(getApi(m_device));
-                        auto st_shared_accessor
-                            = sycl::local_accessor<std::byte>{sycl::range<1>{st_shared_mem_bytes}, cgh};
-                        auto dyn_shared_accessor
-                            = sycl::local_accessor<std::byte>{sycl::range<1>{blockDynSharedMemBytes}, cgh};
-
-                        cgh.parallel_for(
-                            sycl::nd_range<T_NumFrames::dim()>{
-                                vecToSyclRange(threadBlocking.m_numBlocks * threadBlocking.m_numThreads),
-                                vecToSyclRange(threadBlocking.m_numThreads)},
-                            [frameSpec, st_shared_accessor, dyn_shared_accessor, kernelBundle](
-                                sycl::nd_item<T_NumFrames::dim()> work_item)
-                            {
-                                onAcc::syclGeneric::StaticSharedMemory ssm(st_shared_accessor);
-                                onAcc::syclGeneric::DynamicSharedMemory dsm(dyn_shared_accessor);
-
-                                auto acc = onAcc::Acc{joinDict(
-                                    onAcc::makeSyclGenericAccDict<
-                                        T_Mapping,
-                                        T_Api,
-                                        decltype(threadBlocking.m_numBlocks),
-                                        decltype(threadBlocking.m_numThreads)>(work_item, ssm, dsm),
-                                    Dict{
-                                        DictEntry(frame::count, frameSpec.m_numFrames),
-                                        DictEntry(frame::extent, frameSpec.m_frameExtent)})};
-                                kernelBundle(acc);
-                            });
-                    });
             }
 
             void wait()
