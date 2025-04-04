@@ -20,6 +20,10 @@
 #    include <algorithm>
 #    include <sstream>
 
+#    ifndef ALPAKA_SYCL_NUM_MAX_SHARED_MEMORY_ALLOCATIONS
+#        define ALPAKA_SYCL_NUM_MAX_SHARED_MEMORY_ALLOCATIONS 32u
+#    endif
+
 namespace alpaka::onHost
 {
     namespace syclGeneric
@@ -79,7 +83,8 @@ namespace alpaka::onHost
                 ThreadSpec<T_NumBlocks, T_NumThreads> const& threadBlocking,
                 auto const& kernelBundle)
             {
-                constexpr auto st_shared_mem_bytes = std::size_t{47u * 1024};
+                constexpr auto st_shared_mem_bytes = onAcc::syclGeneric::StaticSharedMemory::sizeLookupBufferInBytes(
+                    ALPAKA_SYCL_NUM_MAX_SHARED_MEMORY_ALLOCATIONS);
                 // allocate dynamic shared memory -- needs at least 1 byte to make the Xilinx Runtime happy
                 u_int32_t blockDynSharedMemBytes
                     = std::max(u_int32_t(1), onHost::getDynSharedMemBytes(executor, threadBlocking, kernelBundle));
@@ -125,7 +130,8 @@ namespace alpaka::onHost
                 auto const threadBlocking
                     = internal::adjustThreadSpec(m_device.get(), executor, frameSpec, kernelBundle);
 
-                constexpr auto st_shared_mem_bytes = std::size_t{47u * 1024};
+                constexpr auto st_shared_mem_bytes = onAcc::syclGeneric::StaticSharedMemory::sizeLookupBufferInBytes(
+                    ALPAKA_SYCL_NUM_MAX_SHARED_MEMORY_ALLOCATIONS);
                 // allocate dynamic shared memory -- needs at least 1 byte to make the Xilinx Runtime happy
                 u_int32_t blockDynSharedMemBytes
                     = std::max(u_int32_t(1), onHost::getDynSharedMemBytes(executor, threadBlocking, kernelBundle));
