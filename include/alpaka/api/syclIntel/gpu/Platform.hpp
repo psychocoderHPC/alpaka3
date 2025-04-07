@@ -22,7 +22,7 @@ namespace alpaka
             auto operator()(sycl::device const& dev) const -> int
             {
                 auto const& vendor = dev.get_info<sycl::info::device::vendor>();
-                auto const is_intel_gpu = dev.is_gpu() && (vendor.find("Intel(R) Corporation") != std::string::npos);
+                auto const is_intel_gpu = dev.is_gpu() && (vendor.find("NVIDIA") != std::string::npos);
 
                 return is_intel_gpu ? 1 : -1;
             }

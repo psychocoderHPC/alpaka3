@@ -224,13 +224,23 @@ if(alpaka_DEP_HIP)
 endif()
 
 if(alpaka_DEP_ONEAPI_CPU OR alpaka_DEP_ONEAPI_GPU)
+    find_package(IntelSYCL REQUIRED)
+    target_link_libraries(alpaka INTERFACE IntelSYCL::SYCL_CXX)
     if(NOT CMAKE_CXX_COMPILER_ID MATCHES "IntelLLVM")
         message(FATAL_ERROR "Only the icpx compiler as CMAKE_CXX_COMPILER is supported for the OneAPI SYCL GPU backend")
     endif()
 
-    alpaka_set_compiler_options(HOST_DEVICE target alpaka "-fsycl")
-    target_link_options(alpaka INTERFACE "-fsycl")
-    alpaka_set_compiler_options(HOST_DEVICE target alpaka "-sycl-std=2020")
+    alpaka_set_compiler_options(HOST_DEVICE target alpaka "-fsycl-targets=nvptx64-nvidia-cuda" "--cuda-gpu-arch=sm_80")
+    target_link_options(alpaka INTERFACE "-fsycl-targets=nvptx64-nvidia-cuda" "--cuda-gpu-arch=sm_80")
+    #arget_link_options(alpaka INTERFACE -Xsycl-target-backend=nvptx64-nvidia-cuda "-device dg1")
+
+    #alpaka_set_compiler_options(HOST_DEVICE target alpaka "-fsycl-targets=intel_gpu_dg1")
+    #target_link_options(alpaka INTERFACE "-fsycl-targets=intel_gpu_dg1")
+    #target_link_options(alpaka INTERFACE -Xsycl-target-backend=spir64_gen "-device dg1")
+
+ #   alpaka_set_compiler_options(HOST_DEVICE target alpaka "-fsycl-targets=spir64_x86_64")
+ #  target_link_options(alpaka INTERFACE "-fsycl-targets=spir64_x86_64")
+   # alpaka_set_compiler_options(HOST_DEVICE target alpaka "-sycl-std=2020")
 endif()
 
 if(alpaka_DEP_ONEAPI_CPU)

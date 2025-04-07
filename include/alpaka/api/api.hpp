@@ -25,9 +25,17 @@ namespace alpaka
     constexpr auto thisApi()
     {
 #if ALPAKA_LANG_SYCL && ALPAKA_LANG_ONEAPI_GPU && __SYCL_DEVICE_ONLY__
+#    if __SYCL_TARGET_INTEL_X86_64__
+#        error "not sycl GPU"
+#    else
         return api::syclIntelGpu;
+#    endif
 #elif ALPAKA_LANG_SYCL && ALPAKA_LANG_ONEAPI_CPU && __SYCL_DEVICE_ONLY__
+#    if __SYCL_TARGET_INTEL_X86_64__
         return api::syclIntelCpu;
+#    else
+#        error "not sycl cpu"
+#    endif
 #elif ALPAKA_LANG_CUDA && (ALPAKA_COMP_CLANG_CUDA || ALPAKA_COMP_NVCC) && __CUDA_ARCH__
         return api::cuda;
 #elif ALPAKA_LANG_HIP && defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__ == 1
