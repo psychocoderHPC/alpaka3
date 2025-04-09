@@ -230,8 +230,13 @@ if(alpaka_DEP_ONEAPI_CPU OR alpaka_DEP_ONEAPI_GPU)
         message(FATAL_ERROR "Only the icpx compiler as CMAKE_CXX_COMPILER is supported for the OneAPI SYCL GPU backend")
     endif()
 
-    alpaka_set_compiler_options(HOST_DEVICE target alpaka "-fsycl-targets=nvptx64-nvidia-cuda" "--cuda-gpu-arch=sm_80")
-    target_link_options(alpaka INTERFACE "-fsycl-targets=nvptx64-nvidia-cuda" "--cuda-gpu-arch=sm_80")
+    #alpaka_set_compiler_options(HOST_DEVICE target alpaka "-fsycl-targets=nvptx64-nvidia-cuda" "--cuda-gpu-arch=sm_80")
+    #target_link_options(alpaka INTERFACE "-fsycl-targets=nvptx64-nvidia-cuda" "--cuda-gpu-arch=sm_80")
+
+    alpaka_set_compiler_options(HOST_DEVICE target alpaka -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx1100)
+    target_link_options(alpaka INTERFACE -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx1100)
+
+
     #arget_link_options(alpaka INTERFACE -Xsycl-target-backend=nvptx64-nvidia-cuda "-device dg1")
 
     #alpaka_set_compiler_options(HOST_DEVICE target alpaka "-fsycl-targets=intel_gpu_dg1")
