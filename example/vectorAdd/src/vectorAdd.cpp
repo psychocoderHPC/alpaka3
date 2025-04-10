@@ -82,12 +82,12 @@ struct Rhs
 #if USE_ALPAKA
         for(auto [i] : alpaka::onAcc::makeIdxMap(acc, alpaka::onAcc::worker::threadsInGrid, alpaka::IdxRange{x_size}))
         {
-            dxdt[alpaka::Vec{y, i}] = 0;
+            double ret = 0.0;
             for(size_t j = 0; j < x_size; j++)
             {
-                dxdt[alpaka::Vec{y, i}]
-                    += amplitude_lincomb[Vec{i, j}] * alpaka::math::sin(t * t_scale[j] + t_offset[j]);
+                ret += amplitude_lincomb[Vec{i, j}] * alpaka::math::sin(t * t_scale[j] + t_offset[j]);
             }
+            dxdt[alpaka::Vec{y, i}] = ret;
         }
 #else
         for(size_t i = 0; i < nProblem; i++)
