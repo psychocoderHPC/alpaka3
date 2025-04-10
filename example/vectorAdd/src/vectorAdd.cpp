@@ -194,7 +194,7 @@ auto example(T_Cfg const& cfg)
         max_dt,
         std::vector<double>(size),
         std::vector<double>(size),
-        std::vector<std::vector<double>>(tableau().entries_low.size(), std::vector<double>(size)),
+        std::vector<std::vector<double>>(tableau().entries_low.dim(), std::vector<double>(size)),
         tableau()};
 
     mio::log_debug("Core Set");

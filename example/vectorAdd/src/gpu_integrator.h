@@ -11,57 +11,21 @@ struct tableau
 {
     static constexpr size_t nEntries = 6;
 
-    tableau() : entries_high(nEntries), entries_low(nEntries), entries(5)
+    static constexpr auto entries_low = alpaka::Vec{25 / 216.0, 0.0, 1408 / 2565.0, 2197 / 4104.0, -0.2, 0.0};
+
+    static constexpr auto entries_high
+        = alpaka::Vec{16 / 135.0, 0.0, 6656 / 12825.0, 28561 / 56430.0, -9 / 50.0, 2 / 55.0};
+
+    static constexpr auto entries = alpaka::Vec{
+        alpaka::Vec<double, 6>{0.25, 0.25},
+        alpaka::Vec<double, 6>{3 / 8.0, 3 / 32.0, 9 / 32.0},
+        alpaka::Vec<double, 6>{12 / 13.0, 1932 / 2197.0, -7200 / 2197.0, 7296 / 2197.0},
+        alpaka::Vec<double, 6>{1.0, 439 / 216.0, -8.0, 3680 / 513.0, -845 / 4104.0},
+        alpaka::Vec<double, 6>{0.5, -8 / 27.0, 2.0, -3544 / 2565.0, 1859 / 4104.0, -11 / 40.0}};
+
+    tableau()
     {
-        entries_low[0] = 25 / 216.0;
-        entries_low[1] = 0.0;
-        entries_low[2] = 1408 / 2565.0;
-        entries_low[3] = 2197 / 4104.0;
-        entries_low[4] = -0.2;
-        entries_low[5] = 0.0;
-        entries_high[0] = 16 / 135.0;
-        entries_high[1] = 0.0;
-        entries_high[2] = 6656 / 12825.0;
-        entries_high[3] = 28561 / 56430.0;
-        entries_high[4] = -9 / 50.0;
-        entries_high[5] = 2 / 55.0;
-
-        for(size_t i = 0; i < entries.size(); i++)
-        {
-            entries[i].resize(i + 2);
-        }
-
-        entries[0][0] = 0.25;
-        entries[0][1] = 0.25;
-        entries[1][0] = 3 / 8.0;
-        entries[1][1] = 3 / 32.0;
-        entries[1][2] = 9 / 32.0;
-        entries[2][0] = 12 / 13.0;
-        entries[2][1] = 1932 / 2197.0;
-        entries[2][2] = -7200 / 2197.0;
-        entries[2][3] = 7296 / 2197.0;
-        entries[3][0] = 1.0;
-        entries[3][1] = 439 / 216.0;
-        entries[3][2] = -8.0;
-        entries[3][3] = 3680 / 513.0;
-        entries[3][4] = -845 / 4104.0;
-        entries[4][0] = 0.5;
-        entries[4][1] = -8 / 27.0;
-        entries[4][2] = 2.0;
-        entries[4][3] = -3544 / 2565.0;
-        entries[4][4] = 1859 / 4104.0;
-        entries[4][5] = -11 / 40.0;
     }
-
-#if 1
-    std::vector<double> entries_high, entries_low;
-    std::vector<std::vector<double>> entries;
-#else
-    using Entries_high
-        = decltype(alpaka::onHost::alloc<double>(std::declval<T_Device>(), alpaka::Vec<size_t, 1u>{nEntries}));
-    using Entries
-        = decltype(alpaka::onHost::alloc<double>(std::declval<T_Device>(), alpaka::Vec<size_t, 1u>{nEntries}));
-#endif
 };
 
 void print(std::vector<double>& vec)
@@ -90,7 +54,7 @@ struct Monstrosity
 
     tableau tab;
 
-    //using DerivFunction = void (*)(std::vector<double> const& y, double t, std::vector<double>& dydt);
+    // using DerivFunction = void (*)(std::vector<double> const& y, double t, std::vector<double>& dydt);
 
     bool step(
         auto& exec,
@@ -159,7 +123,7 @@ struct Monstrosity
             // std::cout << "---- step t:" << t << " dt:" << dt << "\n";
             // std::cin.ignore();
             // compute first column of kt, i.e. kt_0 for each y in yt_eval
-            f(exec,queue,m_yt_eval, t, m_kt_values[0]);
+            f(exec, queue, m_yt_eval, t, m_kt_values[0]);
 
             for(size_t i = 1; i < m_kt_values.size(); i++)
             {
@@ -169,7 +133,7 @@ struct Monstrosity
                           * dt; // t_eval = t + c_i * h // note: line zero of Butcher tableau not stored in array
                 // use ytp1 as temporary storage for evaluating m_kt_values[i]
                 ytp1 = m_yt_eval;
-                for(size_t k = 1; k < tab.entries[i - 1].size(); k++)
+                for(size_t k = 1; k < tab.entries[i - 1].dim(); k++)
                 {
                     for(size_t j = 1; j < yt.size(); j++)
                     {
@@ -177,7 +141,7 @@ struct Monstrosity
                     }
                 }
                 // get the derivatives, i.e., compute kt_i for all y in ytp1: kt_i = f(t_eval, ytp1low)
-                f(exec,queue,ytp1, t_eval, m_kt_values[i]);
+                f(exec, queue, ytp1, t_eval, m_kt_values[i]);
             }
 
             // for (int i = 0; i < 6; i++) {
@@ -251,7 +215,7 @@ struct Monstrosity
             // compute new value for dt
             // converged implies eps/error_estimate >= 1, so dt will be increased for the next step
             // hence !converged implies 0 < eps/error_estimate < 1, strictly decreasing dt
-            dt_new = dt * std::pow(min_coeff, (1. / (tab.entries_low.size() - 1)));
+            dt_new = dt * std::pow(min_coeff, (1. / (tab.entries_low.dim() - 1)));
             // safety factor for more conservative step increases,
             // and to avoid dt_new -> dt for step decreases when |error_estimate - eps| -> 0
             dt_new *= 0.9;
