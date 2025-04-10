@@ -72,7 +72,7 @@ void set_params(size_t size, size_t band_width, double min, double max)
 
 struct Rhs
 {
-    void operator()(auto& exec, auto& queue, std::vector<double> const& x, double t, std::vector<double>& dxdt) const
+    void operator()(auto& exec, auto& queue, std::vector<double> const& x, double t, auto& dxdt, size_t y) const
     {
 #if USE_ALPAKA
         size_t frame_extent = 256;
@@ -85,10 +85,10 @@ struct Rhs
                 for(auto [i] :
                     alpaka::onAcc::makeIdxMap(acc, alpaka::onAcc::worker::threadsInGrid, alpaka::IdxRange{x_size}))
                 {
-                    dxdt[i] = 0;
+                    dxdt[alpaka::Vec{y, i}] = 0;
                     for(size_t j = 0; j < x_size; j++)
                     {
-                        dxdt[i] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
+                        dxdt[alpaka::Vec{y, i}] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
                     }
                 }
             },
@@ -99,10 +99,10 @@ struct Rhs
         {
             // dxdt[i] = amplitude[i] * std::sin(t * t_scale[i] + t_offset[i]);
 
-            dxdt[i] = 0;
+            dxdt[alpaka::Vec{y, i}] = 0;
             for(size_t j = 0; j < x.size(); j++)
             {
-                dxdt[i] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
+                dxdt[alpaka::Vec{y, i}] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
             }
         }
 #endif
@@ -187,15 +187,18 @@ auto example(T_Cfg const& cfg)
     // boost::numeric::odeint::runge_kutta_cash_karp54>>(abs_tol, rel_tol, min_dt, max_dt); auto core =
     // std::make_shared<mio::RKIntegratorCore<double>>(abs_tol, rel_tol, min_dt, max_dt);
 
+    auto m_kt_values = onHost::alloc<double>(devHost, Vec{size_t{tableau().entries_low.dim()}, size});
+
     Monstrosity stepper{
+        exec,
+        queue,
         abs_tol,
         rel_tol,
         min_dt,
         max_dt,
         std::vector<double>(size),
         std::vector<double>(size),
-        std::vector<std::vector<double>>(tableau().entries_low.dim(), std::vector<double>(size)),
-        tableau()};
+        m_kt_values};
 
     mio::log_debug("Core Set");
 
@@ -220,7 +223,7 @@ auto example(T_Cfg const& cfg)
     auto const beginT = std::chrono::high_resolution_clock::now();
     while(t < 100 * M_PI)
     {
-        stepper.step(exec, queue, Rhs{}, x, t, dt, x2);
+        stepper.step(Rhs{}, x, t, dt, x2);
         // print(x);
         // print(x2);
         for(size_t i = 0; i < size; i++)
