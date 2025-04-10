@@ -69,7 +69,7 @@ void set_params(
 
 struct Rhs
 {
-    void operator()(
+    ALPAKA_FN_ACC void operator()(
         [[maybe_unused]] auto const& acc,
         size_t x_size,
         double t,
@@ -85,7 +85,8 @@ struct Rhs
             dxdt[alpaka::Vec{y, i}] = 0;
             for(size_t j = 0; j < x_size; j++)
             {
-                dxdt[alpaka::Vec{y, i}] += amplitude_lincomb[Vec{i, j}] * std::sin(t * t_scale[j] + t_offset[j]);
+                dxdt[alpaka::Vec{y, i}]
+                    += amplitude_lincomb[Vec{i, j}] * alpaka::math::sin(t * t_scale[j] + t_offset[j]);
             }
         }
 #else
@@ -200,6 +201,7 @@ auto example(T_Cfg const& cfg)
     // std::make_shared<mio::RKIntegratorCore<double>>(abs_tol, rel_tol, min_dt, max_dt);
 
     auto m_kt_values = onHost::alloc<double>(devHost, Vec{size_t{tableau().entries_low.dim()}, size});
+    auto m_kt_values_dev = onHost::allocMirror(devAcc, m_kt_values);
 
     Monstrosity stepper{
         exec,
@@ -210,7 +212,8 @@ auto example(T_Cfg const& cfg)
         max_dt,
         std::vector<double>(size),
         std::vector<double>(size),
-        m_kt_values};
+        m_kt_values,
+        m_kt_values_dev};
 
     mio::log_debug("Core Set");
 

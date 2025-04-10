@@ -25,6 +25,7 @@
 #    include "alpaka/onHost/internal.hpp"
 
 #    include <cstdint>
+#    include <cstring>
 #    include <sstream>
 
 namespace alpaka::onHost
@@ -372,26 +373,58 @@ namespace alpaka::onHost
                 constexpr auto dim = alpaka::trait::getDim_v<T_Extents>;
                 if constexpr(dim == 1u)
                 {
-                    ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(
-                        ApiInterface,
-                        ApiInterface::memsetAsync(
+                    if(std::is_same_v<ALPAKA_TYPEOF(onHost::getApi(dest)), api::Cpu>)
+                        std::memset(
                             destPtr,
                             static_cast<int>(byteValue),
-                            extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
-                            internal::getNativeHandle(queue)));
+                            extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
+                    else
+                    {
+                        ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(
+                            ApiInterface,
+                            ApiInterface::memsetAsync(
+                                destPtr,
+                                static_cast<int>(byteValue),
+                                extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
+                                internal::getNativeHandle(queue)));
+                    }
                 }
                 else if constexpr(dim == 2u)
                 {
-                    ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(
-                        ApiInterface,
-                        ApiInterface::memset2DAsync(
-                            destPtr,
-                            dest.getPitches().y(),
-                            static_cast<int>(byteValue),
-                            extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
-                            extents.y(),
-                            internal::getNativeHandle(queue)));
+                    if(std::is_same_v<ALPAKA_TYPEOF(onHost::getApi(dest)), api::Cpu>)
+                    {
+                        auto destPitchBytesWithoutColumn = dest.getPitches().eraseBack();
+
+                        auto const dstExtentWithoutColumn = extents.eraseBack();
+                        if(static_cast<std::size_t>(extents.product()) != 0u)
+                        {
+                            meta::ndLoopIncIdx(
+                                dstExtentWithoutColumn,
+                                [&](auto const& idx)
+                                {
+                                    std::memset(
+                                        reinterpret_cast<std::uint8_t*>(destPtr)
+                                            + (idx * destPitchBytesWithoutColumn).sum(),
+                                        byteValue,
+                                        static_cast<size_t>(extents.back())
+                                            * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
+                                });
+                        }
+                    }
+                    else
+                    {
+                        ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(
+                            ApiInterface,
+                            ApiInterface::memset2DAsync(
+                                destPtr,
+                                dest.getPitches().y(),
+                                static_cast<int>(byteValue),
+                                extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>),
+                                extents.y(),
+                                internal::getNativeHandle(queue)));
+                    }
                 }
+
                 else if constexpr(dim == 3u)
                 {
                     typename ApiInterface::PitchedPtr_t const pitchedPtrVal = ApiInterface::makePitchedPtr(

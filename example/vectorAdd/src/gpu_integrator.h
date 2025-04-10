@@ -41,7 +41,7 @@ void print(std::vector<std::vector<double>>& vec)
     }
 }
 
-template<typename T_Exec, typename T_Queue, typename T_Buffer>
+template<typename T_Exec, typename T_Queue, typename T_Buffer,typename T_Buffer_dev>
 struct Monstrosity
 {
     T_Exec exec;
@@ -50,6 +50,7 @@ struct Monstrosity
 
     std::vector<double> m_yt_eval, m_error_estimate;
     T_Buffer m_kt_values; // col major!
+    T_Buffer_dev m_kt_values_dev;
 
     tableau tab;
 
@@ -62,7 +63,7 @@ struct Monstrosity
         double in_dt_max,
         std::vector<double> yt_eval,
         std::vector<double> error_estimate,
-        T_Buffer& kt_values)
+        T_Buffer& kt_values,T_Buffer_dev& kt_values_dev)
         : exec{in_exec}
         , queue{in_queue}
         , abs_tol{in_abs_tol}
@@ -71,9 +72,10 @@ struct Monstrosity
         , dt_max{in_dt_max}
         , m_yt_eval{std::move(yt_eval)}
         , m_error_estimate{std::move(error_estimate)}
-        , m_kt_values{kt_values}
+        , m_kt_values{kt_values}, m_kt_values_dev{kt_values_dev}
     {
-        alpaka::onHost::memset(in_queue, m_kt_values, 0);
+        alpaka::onHost::memset(queue, m_kt_values, 0);
+        alpaka::onHost::memcpy(queue,m_kt_values_dev,m_kt_values);
         alpaka::onHost::wait(queue);
     }
 
@@ -134,11 +136,12 @@ struct Monstrosity
                     f,
                     m_yt_eval.size(),
                     t,
-                    m_kt_values.getMdSpan(),
+                    m_kt_values_dev.getMdSpan(),
                     amplitude_lincomb.getMdSpan(),
                     t_offset.getMdSpan(),
                     t_scale.getMdSpan(),
                     0});
+            alpaka::onHost::memcpy(queue,m_kt_values,m_kt_values_dev);
             alpaka::onHost::wait(queue);
 
             for(size_t i = 1; i < m_kt_values.getExtents().y(); i++)
@@ -164,11 +167,12 @@ struct Monstrosity
                         f,
                         ytp1.size(),
                         t_eval,
-                        m_kt_values.getMdSpan(),
+                        m_kt_values_dev.getMdSpan(),
                         amplitude_lincomb.getMdSpan(),
                         t_offset.getMdSpan(),
                         t_scale.getMdSpan(),
                         i});
+                alpaka::onHost::memcpy(queue,m_kt_values,m_kt_values_dev);
                 alpaka::onHost::wait(queue);
             }
 
