@@ -13,205 +13,181 @@
 #include <random>
 #include <typeinfo>
 
-using namespace alpaka;
+#define R123_NO_CUDA_DEVICE_RANDOM 1
 
-//! A vector addition kernel.
-class VectorAddKernel
+#include "gpu_integrator.h"
+
+#include <cmath>
+#include <iostream>
+#include <memory>
+
+uint64_t seed = 147634;
+// Numerical Recipes, ranqd1
+uint64_t const rand_modulus = (uint64_t(1) << 32);
+uint64_t const rand_multiplier = 1'664'525;
+uint64_t const rand_increment = 1'013'904'223;
+
+uint64_t randc()
 {
-public:
-    //! The kernel entry point.
-    //!
-    //! \tparam TAcc The accelerator environment to be executed on.
-    //! \tparam TElem The matrix element type.
-    //! \param acc The accelerator to be executed on.
-    //! \param A The first source vector.
-    //! \param B The second source vector.
-    //! \param C The destination vector.
-    //! \param numElements The number of elements.
-    ALPAKA_FN_ACC auto operator()(
-        auto const& acc,
-        alpaka::concepts::MdSpan auto const A,
-        alpaka::concepts::MdSpan auto const B,
-        alpaka::concepts::MdSpan auto C,
-        auto const& numElements) const -> void
-    {
-        using namespace alpaka;
-        static_assert(ALPAKA_TYPEOF(numElements)::dim() == 1, "The VectorAddKernel expects 1-dimensional indices!");
+    seed = (rand_multiplier * seed + rand_increment) & (rand_modulus - 1);
+    return seed;
+}
 
-        auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInGrid};
-        simdGrid.concurrent(
-            acc,
-            numElements,
-            [&](auto const&, auto&& simdA, auto&& simdB, auto&& simdC) constexpr
-            { simdC = simdA.load() + simdB.load(); },
-            A,
-            B,
-            C);
-    }
-};
-
-// In standard projects, you typically do not execute the code with any available accelerator.
-// Instead, a single accelerator is selected once from the active accelerators and the kernels are executed with the
-// selected accelerator only. If you use the example as the starting point for your project, you can rename the
-// example() function to main() and move the accelerator tag to the function body.
-template<typename T_Cfg>
-auto example(T_Cfg const& cfg, size_t numElements) -> int
+double uniform_rand(double min, double max)
 {
-    using IdxVec = Vec<std::size_t, 1u>;
+    auto val = randc() / ((double) rand_modulus) * (max - min) + min;
+    return val;
+}
 
-    auto api = cfg[object::api];
-    auto exec = cfg[object::exec];
+std::vector<double> t_offset, t_scale;
+// std::vector<double> amplitude;
+std::vector<std::vector<double>> amplitude_lincomb;
 
-    // Define problem size
-    IdxVec const extent(numElements);
+void set_params(size_t size, size_t band_width, double min, double max)
+{
+    t_offset = std::vector<double>(size, 0.);
+    t_scale = std::vector<double>(size, 0.);
+    // amplitude = std::vector<double>(size, 0.); (void)band_width;
+    amplitude_lincomb = std::vector<std::vector<double>>(size, std::vector<double>(size, 0.));
 
-    // Define the buffer element type
-    using Data = uint32_t;
 
-    std::cout << "Number of elements: " << numElements << std::endl;
-    std::cout << "Element type: " << core::demangledName<Data>() << std::endl;
-
-    std::cout << "Using alpaka accelerator: " << core::demangledName(exec) << " for " << api.getName() << std::endl;
-
-    // Select a device
-    onHost::Platform platform = onHost::makePlatform(api);
-    onHost::Device devAcc = platform.makeDevice(0);
-
-    // Create a queue on the device
-    onHost::Queue queue = devAcc.makeQueue();
-
-    // Get the host device for allocating memory on the host.
-    onHost::Platform platformHost = onHost::makePlatform(api::cpu);
-    onHost::Device devHost = platformHost.makeDevice(0);
-
-    // Allocate 3 host memory buffers
-    auto bufHostA = onHost::alloc<Data>(devHost, extent);
-    auto bufHostB = onHost::allocMirror(devHost, bufHostA);
-    auto bufHostC = onHost::allocMirror(devHost, bufHostA);
-
-    // C++14 random generator for uniformly distributed numbers in {1,..,42}
-    std::random_device rd{};
-    std::default_random_engine eng{rd()};
-    std::uniform_int_distribution<Data> dist(1, 42);
-
-    for(auto i(0u); i < extent; ++i)
+    for(size_t i = 0; i < size; i++)
     {
-        bufHostA.getMdSpan()[i] = dist(eng);
-        bufHostB.getMdSpan()[i] = dist(eng);
-        bufHostC.getMdSpan()[i] = 0;
-    }
+        t_offset[i] = uniform_rand(min, max);
+        t_scale[i] = uniform_rand(min, max);
+        // amplitude[i] = uniform_rand(min, max);
 
-    // Allocate 3 buffers on the accelerator
-    auto bufAccA = onHost::allocMirror(devAcc, bufHostA);
-    auto bufAccB = onHost::allocMirror(devAcc, bufHostB);
-    auto bufAccC = onHost::allocMirror(devAcc, bufHostC);
-
-    // Copy Host -> Acc
-    onHost::memcpy(queue, bufAccA, bufHostA);
-    onHost::memcpy(queue, bufAccB, bufHostB);
-    onHost::memcpy(queue, bufAccC, bufHostC);
-
-    // Instantiate the kernel function object
-    VectorAddKernel kernel;
-    auto const taskKernel
-        = KernelBundle{kernel, bufAccA.getMdSpan(), bufAccB.getMdSpan(), bufAccC.getMdSpan(), extent};
-
-    Vec<size_t, 1u> chunkSize = 256u;
-    // how many elements one worker should compute to ensure vectorization or instruction parallelism
-    uint32_t elementsPerWorker = alpaka::getNumElemPerThread<Data>(alpaka::onHost::getApi(queue));
-    auto dataBlocking = onHost::FrameSpec{divCeil(extent, chunkSize * elementsPerWorker), chunkSize};
-
-    // Enqueue the kernel execution task
-    {
-        onHost::wait(queue);
-        auto const beginT = std::chrono::high_resolution_clock::now();
-        onHost::enqueue(queue, exec, dataBlocking, taskKernel);
-        onHost::wait(queue); // wait in case we are using an asynchronous queue to time actual kernel runtime
-        auto const endT = std::chrono::high_resolution_clock::now();
-        std::cout << "Time for kernel execution: " << std::chrono::duration<double>(endT - beginT).count() << 's'
-                  << std::endl;
-    }
-
-    // Copy back the result
-    {
-        auto beginT = std::chrono::high_resolution_clock::now();
-        onHost::memcpy(queue, bufHostC, bufAccC);
-        onHost::wait(queue);
-        auto const endT = std::chrono::high_resolution_clock::now();
-        std::cout << "Time for HtoD copy: " << std::chrono::duration<double>(endT - beginT).count() << 's'
-                  << std::endl;
-    }
-
-    int falseResults = 0;
-    static constexpr int MAX_PRINT_FALSE_RESULTS = 20;
-    for(auto i(0u); i < extent; ++i)
-    {
-        Data const& val(bufHostC.getMdSpan()[i]);
-        Data const correctResult(bufHostA.getMdSpan()[i] + bufHostB.getMdSpan()[i]);
-        if(val != correctResult)
+        for(int j = -((int) band_width / 2); j < (((int) band_width + 1) / 2); j++)
         {
-            if(falseResults < MAX_PRINT_FALSE_RESULTS)
-                std::cerr << "C[" << i << "] == " << val << " != " << correctResult << std::endl;
-            ++falseResults;
+            if((int) i + j >= 0 && i + j < size)
+                amplitude_lincomb[i][i + j] = uniform_rand(min, max);
         }
-    }
-
-    if(falseResults == 0)
-    {
-        std::cout << "Execution results correct!" << std::endl;
-        return EXIT_SUCCESS;
-    }
-    else
-    {
-        std::cout << "Found " << falseResults << " false results, printed no more than " << MAX_PRINT_FALSE_RESULTS
-                  << "\n"
-                  << "Execution results incorrect!" << std::endl;
-        return EXIT_FAILURE;
     }
 }
 
-void help(char* argv[])
+void rhs(std::vector<double> const& x, double t, std::vector<double>& dxdt)
 {
-    std::cerr << argv[0] << " [-n  numElements] [-h]" << std::endl;
-}
-
-auto main(int argc, char* argv[]) -> int
-{
-    size_t numElements = 123456;
-
-    int opt;
-    while((opt = getopt(argc, argv, "hn:")) != -1)
+    for(size_t i = 0; i < x.size(); i++)
     {
-        switch(opt)
+        // dxdt[i] = amplitude[i] * std::sin(t * t_scale[i] + t_offset[i]);
+
+        dxdt[i] = 0;
+        for(size_t j = 0; j < x.size(); j++)
         {
-        case 'n':
-            try
-            {
-                numElements = std::stoul(optarg, nullptr, 0);
-            }
-            catch(std::invalid_argument const& e)
-            {
-                std::cerr << "Error: invalid argument '" << optarg << "'.\n";
-                return EXIT_FAILURE;
-            }
-            catch(std::out_of_range const& e)
-            {
-                std::cerr << "Error: value '" << optarg << "' out of range for size_t.\n";
-                return EXIT_FAILURE;
-            }
-            break;
-        case 'h':
-            help(argv);
-            exit(EXIT_SUCCESS);
-        default:
-            help(argv);
-            exit(EXIT_FAILURE);
+            dxdt[i] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
         }
     }
+}
 
-    using namespace alpaka;
-    // Execute the example once for each enabled API and executor.
-    return executeForEach(
-        [=](auto const& tag) { return example(tag, numElements); },
-        onHost::allExecutorsAndApis(onHost::enabledApis));
+// void rhs2(Eigen::Ref<const Eigen::VectorXd> x, double t, Eigen::Ref<Eigen::VectorXd> dxdt) {
+//     for (size_t i = 0; i < x.size(); i++) {
+//         // dxdt[i] = amplitude[i] * std::sin(t * t_scale[i] + t_offset[i]);
+
+//         dxdt[i] = 0;
+//         for (size_t j = 0; j < x.size(); j++) {
+//             dxdt[i] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
+//         }
+//     }
+// }
+
+
+namespace mio
+{
+    void log_debug(std::string_view s)
+    {
+        std::cout << s << "\n";
+    }
+} // namespace mio
+
+int main()
+{
+    // using namespace mio;
+    // set_log_level(LogLevel::off);
+
+    mio::log_debug("Enter Main");
+
+    int const size = 100, band_width = 2;
+
+    // // Guard the CUDA test with proper CUDA error handling
+    // // cudaError_t cudaStatus = cudaSetDevice(0);
+    // // if (cudaStatus != cudaSuccess) {
+    // //     std::cerr << "CUDA initialization failed: " << cudaGetErrorString(cudaStatus) << std::endl;
+    // //     std::cout << "CUDA test failed! Continuing without CUDA." << std::endl;
+    // // }
+    // // else {
+    // //     std::cout << "CUDA initialization succeeded." <<  std::endl;
+
+    // //     cudaDeviceReset();
+    // // }
+
+    // // TODO: nvidia-x-markers??
+
+    set_params(size, band_width, -3.0, 3.0);
+    mio::log_debug("Params Set");
+
+    // print(t_offset);
+    // print(t_scale);
+    // print(amplitude_lincomb);
+    // std::cout << "\n";
+
+    // // std::cout << amplitude_lincomb << "\n";
+
+    double const abs_tol = 1e-3, rel_tol = 1e-8, min_dt = 1e-2, max_dt = 1e+2;
+    // // auto core = std::make_shared<mio::ControlledStepperWrapper<double,
+    // boost::numeric::odeint::runge_kutta_cash_karp54>>(abs_tol, rel_tol, min_dt, max_dt); auto core =
+    // std::make_shared<mio::RKIntegratorCore<double>>(abs_tol, rel_tol, min_dt, max_dt);
+
+    Monstrosity stepper{
+        abs_tol,
+        rel_tol,
+        min_dt,
+        max_dt,
+        std::vector<double>(size),
+        std::vector<double>(size),
+        std::vector<std::vector<double>>(tableau().entries_low.size(), std::vector<double>(size)),
+        tableau()};
+
+    mio::log_debug("Core Set");
+
+    // OdeIntegrator<double> integrator(core);
+
+    mio::log_debug("Integrator Set");
+
+    // TimeSeries<double> results(0, Eigen::VectorXd::Zero(size));
+
+    double dt = 0.1;
+
+    double t = 0.0;
+    std::vector<double> x(size, 0.0);
+    std::vector<double> x2(size, 0.0);
+
+    std::cout << "\n";
+
+    mio::log_debug("Results Set");
+    mio::log_debug("Integrating...");
+
+
+    while(t < 100 * M_PI)
+    {
+        stepper.step(&rhs, x, t, dt, x2);
+        // print(x);
+        // print(x2);
+        for(size_t i = 0; i < size; i++)
+        {
+            x[i] = x2[i];
+            x2[i] = 0;
+        }
+        // std::cin.ignore();
+    }
+    // integrator.advance(rhs, tmax, dt, results);
+
+    mio::log_debug("Integration Finished");
+
+    // if (size < 5)
+    //     results.print_table();
+    // else
+    //     std::cout << "Num time steps: " << results.get_num_time_points() << "\n";
+
+    mio::log_debug("Exit Main");
+    // return 0;
 }
