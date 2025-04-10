@@ -43,18 +43,15 @@ double uniform_rand(uint64_t& seed, double min, double max)
     return val;
 }
 
-std::vector<double> t_offset, t_scale;
-// std::vector<double> amplitude;
-std::vector<std::vector<double>> amplitude_lincomb;
-
-void set_params(size_t size, size_t band_width, double min, double max)
+void set_params(
+    size_t size,
+    size_t band_width,
+    double min,
+    double max,
+    alpaka::concepts::MdSpan auto amplitude_lincomb,
+    alpaka::concepts::MdSpan auto t_offset,
+    alpaka::concepts::MdSpan auto t_scale)
 {
-    t_offset = std::vector<double>(size, 0.);
-    t_scale = std::vector<double>(size, 0.);
-    // amplitude = std::vector<double>(size, 0.); (void)band_width;
-    amplitude_lincomb = std::vector<std::vector<double>>(size, std::vector<double>(size, 0.));
-
-
     uint64_t seed = init_seed;
     for(size_t i = 0; i < size; i++)
     {
@@ -65,44 +62,41 @@ void set_params(size_t size, size_t band_width, double min, double max)
         for(int j = -((int) band_width / 2); j < (((int) band_width + 1) / 2); j++)
         {
             if((int) i + j >= 0 && i + j < size)
-                amplitude_lincomb[i][i + j] = uniform_rand(seed, min, max);
+                amplitude_lincomb[Vec{i, i + j}] = uniform_rand(seed, min, max);
         }
     }
 }
 
 struct Rhs
 {
-    void operator()(auto& exec, auto& queue, std::vector<double> const& x, double t, auto& dxdt, size_t y) const
+    void operator()(
+        [[maybe_unused]] auto const& acc,
+        size_t x_size,
+        double t,
+        alpaka::concepts::MdSpan auto dxdt,
+        alpaka::concepts::MdSpan auto amplitude_lincomb,
+        alpaka::concepts::MdSpan auto t_offset,
+        alpaka::concepts::MdSpan auto t_scale,
+        size_t y) const
     {
 #if USE_ALPAKA
-        size_t frame_extent = 256;
-        size_t nProblem = x.size();
-        queue.enqueue(
-            exec,
-            alpaka::onHost::FrameSpec{alpaka::divExZero(nProblem, frame_extent), frame_extent},
-            [&](auto const& acc, size_t x_size)
+        for(auto [i] : alpaka::onAcc::makeIdxMap(acc, alpaka::onAcc::worker::threadsInGrid, alpaka::IdxRange{x_size}))
+        {
+            dxdt[alpaka::Vec{y, i}] = 0;
+            for(size_t j = 0; j < x_size; j++)
             {
-                for(auto [i] :
-                    alpaka::onAcc::makeIdxMap(acc, alpaka::onAcc::worker::threadsInGrid, alpaka::IdxRange{x_size}))
-                {
-                    dxdt[alpaka::Vec{y, i}] = 0;
-                    for(size_t j = 0; j < x_size; j++)
-                    {
-                        dxdt[alpaka::Vec{y, i}] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
-                    }
-                }
-            },
-            nProblem);
-        alpaka::onHost::wait(queue);
+                dxdt[alpaka::Vec{y, i}] += amplitude_lincomb[Vec{i, j}] * std::sin(t * t_scale[j] + t_offset[j]);
+            }
+        }
 #else
-        for(size_t i = 0; i < x.size(); i++)
+        for(size_t i = 0; i < nProblem; i++)
         {
             // dxdt[i] = amplitude[i] * std::sin(t * t_scale[i] + t_offset[i]);
 
             dxdt[alpaka::Vec{y, i}] = 0;
-            for(size_t j = 0; j < x.size(); j++)
+            for(size_t j = 0; j < nProblem; j++)
             {
-                dxdt[alpaka::Vec{y, i}] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
+                dxdt[alpaka::Vec{y, i}] += amplitude_lincomb[Vec{i, j}] * std::sin(t * t_scale[j] + t_offset[j]);
             }
         }
 #endif
@@ -172,8 +166,26 @@ auto example(T_Cfg const& cfg)
 
     // // TODO: nvidia-x-markers??
 
-    set_params(size, band_width, -3.0, 3.0);
+    auto t_offset = onHost::alloc<double>(devHost, size);
+    auto t_scale = onHost::alloc<double>(devHost, size);
+
+    auto amplitude_lincomb = onHost::alloc<double>(devHost, Vec{size, size});
+    alpaka::onHost::memset(queue, t_offset, 0);
+    alpaka::onHost::memset(queue, t_scale, 0);
+    alpaka::onHost::memset(queue, amplitude_lincomb, 0);
+    alpaka::onHost::wait(queue);
+
+    set_params(size, band_width, -3.0, 3.0, amplitude_lincomb.getMdSpan(), t_offset.getMdSpan(), t_scale.getMdSpan());
     mio::log_debug("Params Set");
+
+    auto t_offset_dev = onHost::allocMirror(devAcc, t_offset);
+    auto t_scale_dev = onHost::allocMirror(devAcc, t_scale);
+    auto amplitude_lincomb_dev = onHost::allocMirror(devAcc, amplitude_lincomb);
+    onHost::memcpy(queue, t_offset_dev, t_offset);
+    onHost::memcpy(queue, t_scale_dev, t_scale);
+    onHost::memcpy(queue, amplitude_lincomb_dev, amplitude_lincomb);
+
+    alpaka::onHost::wait(queue);
 
     // print(t_offset);
     // print(t_scale);
@@ -223,7 +235,7 @@ auto example(T_Cfg const& cfg)
     auto const beginT = std::chrono::high_resolution_clock::now();
     while(t < 100 * M_PI)
     {
-        stepper.step(Rhs{}, x, t, dt, x2);
+        stepper.step(Rhs{}, x, t, dt, x2, amplitude_lincomb_dev, t_offset_dev, t_scale_dev);
         // print(x);
         // print(x2);
         for(size_t i = 0; i < size; i++)
@@ -269,8 +281,12 @@ auto example(T_Cfg const& cfg)
 
 auto main(int argc, char* argv[]) -> int
 {
+#if USE_ALPAKA
     // Execute the example once for each enabled API and executor.
     return executeForEach(
         [=](auto const& tag) { return example(tag); },
         onHost::allExecutorsAndApis(onHost::enabledApis));
+#else
+    example(Dict{DictEntry{object::api, api::cpu}, DictEntry{object::exec, exec::cpuSerial}});
+#endif
 }

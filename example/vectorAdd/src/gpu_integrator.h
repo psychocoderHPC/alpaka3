@@ -79,7 +79,15 @@ struct Monstrosity
 
     // using DerivFunction = void (*)(std::vector<double> const& y, double t, std::vector<double>& dydt);
 
-    bool step(auto const f, std::vector<double> const& yt, double& t, double& dt, std::vector<double>& ytp1)
+    bool step(
+        auto const f,
+        std::vector<double> const& yt,
+        double& t,
+        double& dt,
+        std::vector<double>& ytp1,
+        auto amplitude_lincomb,
+        auto t_offset,
+        auto t_scale)
     {
         assert(0 <= dt_min);
         assert(dt_min <= dt_max);
@@ -118,7 +126,20 @@ struct Monstrosity
             // std::cout << "---- step t:" << t << " dt:" << dt << "\n";
             // std::cin.ignore();
             // compute first column of kt, i.e. kt_0 for each y in yt_eval
-            f(exec, queue, m_yt_eval, t, m_kt_values, 0);
+            constexpr size_t frame_extent = 256;
+            queue.enqueue(
+                exec,
+                alpaka::onHost::FrameSpec{alpaka::divExZero(m_yt_eval.size(), frame_extent), frame_extent},
+                alpaka::KernelBundle{
+                    f,
+                    m_yt_eval.size(),
+                    t,
+                    m_kt_values.getMdSpan(),
+                    amplitude_lincomb.getMdSpan(),
+                    t_offset.getMdSpan(),
+                    t_scale.getMdSpan(),
+                    0});
+            alpaka::onHost::wait(queue);
 
             for(size_t i = 1; i < m_kt_values.getExtents().y(); i++)
             {
@@ -128,7 +149,7 @@ struct Monstrosity
                           * dt; // t_eval = t + c_i * h // note: line zero of Butcher tableau not stored in array
                 // use ytp1 as temporary storage for evaluating m_kt_values[i]
                 ytp1 = m_yt_eval;
-                for(size_t k = 1; k < tab.entries[i - 1].dim(); k++)
+                for(size_t k = 1; k < ALPAKA_TYPEOF(tab.entries[i - 1])::dim(); k++)
                 {
                     for(size_t j = 1; j < yt.size(); j++)
                     {
@@ -136,7 +157,19 @@ struct Monstrosity
                     }
                 }
                 // get the derivatives, i.e., compute kt_i for all y in ytp1: kt_i = f(t_eval, ytp1low)
-                f(exec, queue, ytp1, t_eval, m_kt_values, i);
+                queue.enqueue(
+                    exec,
+                    alpaka::onHost::FrameSpec{alpaka::divExZero(ytp1.size(), frame_extent), frame_extent},
+                    alpaka::KernelBundle{
+                        f,
+                        ytp1.size(),
+                        t_eval,
+                        m_kt_values.getMdSpan(),
+                        amplitude_lincomb.getMdSpan(),
+                        t_offset.getMdSpan(),
+                        t_scale.getMdSpan(),
+                        i});
+                alpaka::onHost::wait(queue);
             }
 
             // for (int i = 0; i < 6; i++) {
@@ -211,7 +244,7 @@ struct Monstrosity
             // compute new value for dt
             // converged implies eps/error_estimate >= 1, so dt will be increased for the next step
             // hence !converged implies 0 < eps/error_estimate < 1, strictly decreasing dt
-            dt_new = dt * std::pow(min_coeff, (1. / (tab.entries_low.dim() - 1)));
+            dt_new = dt * std::pow(min_coeff, (1. / (ALPAKA_TYPEOF(tab.entries_low)::dim() - 1)));
             // safety factor for more conservative step increases,
             // and to avoid dt_new -> dt for step decreases when |error_estimate - eps| -> 0
             dt_new *= 0.9;
