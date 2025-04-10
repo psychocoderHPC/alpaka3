@@ -21,21 +21,25 @@
 #include <iostream>
 #include <memory>
 
-uint64_t seed = 147634;
-// Numerical Recipes, ranqd1
-uint64_t const rand_modulus = (uint64_t(1) << 32);
-uint64_t const rand_multiplier = 1'664'525;
-uint64_t const rand_increment = 1'013'904'223;
+using namespace alpaka;
 
-uint64_t randc()
+constexpr uint64_t init_seed = 147634;
+// Numerical Recipes, ranqd1
+constexpr uint64_t rand_modulus = (uint64_t(1) << 32);
+constexpr uint64_t rand_multiplier = 1'664'525;
+constexpr uint64_t rand_increment = 1'013'904'223;
+
+constexpr size_t problem_size = 100;
+
+uint64_t randc(uint64_t& seed)
 {
     seed = (rand_multiplier * seed + rand_increment) & (rand_modulus - 1);
     return seed;
 }
 
-double uniform_rand(double min, double max)
+double uniform_rand(uint64_t& seed, double min, double max)
 {
-    auto val = randc() / ((double) rand_modulus) * (max - min) + min;
+    auto val = randc(seed) / ((double) rand_modulus) * (max - min) + min;
     return val;
 }
 
@@ -51,33 +55,59 @@ void set_params(size_t size, size_t band_width, double min, double max)
     amplitude_lincomb = std::vector<std::vector<double>>(size, std::vector<double>(size, 0.));
 
 
+    uint64_t seed = init_seed;
     for(size_t i = 0; i < size; i++)
     {
-        t_offset[i] = uniform_rand(min, max);
-        t_scale[i] = uniform_rand(min, max);
+        t_offset[i] = uniform_rand(seed, min, max);
+        t_scale[i] = uniform_rand(seed, min, max);
         // amplitude[i] = uniform_rand(min, max);
 
         for(int j = -((int) band_width / 2); j < (((int) band_width + 1) / 2); j++)
         {
             if((int) i + j >= 0 && i + j < size)
-                amplitude_lincomb[i][i + j] = uniform_rand(min, max);
+                amplitude_lincomb[i][i + j] = uniform_rand(seed, min, max);
         }
     }
 }
 
-void rhs(std::vector<double> const& x, double t, std::vector<double>& dxdt)
+struct Rhs
 {
-    for(size_t i = 0; i < x.size(); i++)
+    void operator()(auto& exec, auto& queue, std::vector<double> const& x, double t, std::vector<double>& dxdt) const
     {
-        // dxdt[i] = amplitude[i] * std::sin(t * t_scale[i] + t_offset[i]);
-
-        dxdt[i] = 0;
-        for(size_t j = 0; j < x.size(); j++)
+#if USE_ALPAKA
+        size_t frame_extent = 256;
+        size_t nProblem = x.size();
+        queue.enqueue(
+            exec,
+            alpaka::onHost::FrameSpec{alpaka::divExZero(nProblem, frame_extent), frame_extent},
+            [&](auto const& acc, size_t x_size)
+            {
+                for(auto [i] :
+                    alpaka::onAcc::makeIdxMap(acc, alpaka::onAcc::worker::threadsInGrid, alpaka::IdxRange{x_size}))
+                {
+                    dxdt[i] = 0;
+                    for(size_t j = 0; j < x_size; j++)
+                    {
+                        dxdt[i] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
+                    }
+                }
+            },
+            nProblem);
+        alpaka::onHost::wait(queue);
+#else
+        for(size_t i = 0; i < x.size(); i++)
         {
-            dxdt[i] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
+            // dxdt[i] = amplitude[i] * std::sin(t * t_scale[i] + t_offset[i]);
+
+            dxdt[i] = 0;
+            for(size_t j = 0; j < x.size(); j++)
+            {
+                dxdt[i] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
+            }
         }
+#endif
     }
-}
+};
 
 // void rhs2(Eigen::Ref<const Eigen::VectorXd> x, double t, Eigen::Ref<Eigen::VectorXd> dxdt) {
 //     for (size_t i = 0; i < x.size(); i++) {
@@ -99,14 +129,34 @@ namespace mio
     }
 } // namespace mio
 
-int main()
+template<typename T_Cfg>
+auto example(T_Cfg const& cfg)
 {
+    auto api = cfg[object::api];
+    auto exec = cfg[object::exec];
+
+
+    // Select a device
+    onHost::Platform platform = onHost::makePlatform(api);
+    onHost::Device devAcc = platform.makeDevice(0);
+
+    // Create a queue on the device
+    onHost::Queue queue = devAcc.makeQueue();
+
+    // Get the host device for allocating memory on the host.
+    onHost::Platform platformHost = onHost::makePlatform(api::cpu);
+    onHost::Device devHost = platformHost.makeDevice(0);
+#if USE_ALPAKA
+    std::cout << "Using alpaka accelerator: " << core::demangledName(exec) << " for " << api.getName() << " on "
+              << alpaka::onHost::getName(devAcc) << std::endl;
+#endif
+
     // using namespace mio;
     // set_log_level(LogLevel::off);
 
-    mio::log_debug("Enter Main");
+    mio::log_debug("Enter the world of memilio");
 
-    int const size = 100, band_width = 2;
+    int const size = problem_size, band_width = 2;
 
     // // Guard the CUDA test with proper CUDA error handling
     // // cudaError_t cudaStatus = cudaSetDevice(0);
@@ -167,9 +217,10 @@ int main()
     mio::log_debug("Integrating...");
 
 
+    auto const beginT = std::chrono::high_resolution_clock::now();
     while(t < 100 * M_PI)
     {
-        stepper.step(&rhs, x, t, dt, x2);
+        stepper.step(exec, queue, Rhs{}, x, t, dt, x2);
         // print(x);
         // print(x2);
         for(size_t i = 0; i < size; i++)
@@ -179,6 +230,10 @@ int main()
         }
         // std::cin.ignore();
     }
+    auto const endT = std::chrono::high_resolution_clock::now();
+    std::cout << "Time for kernel execution: " << std::chrono::duration<double>(endT - beginT).count() << 's'
+              << std::endl;
+
     // integrator.advance(rhs, tmax, dt, results);
 
     mio::log_debug("Integration Finished");
@@ -188,6 +243,31 @@ int main()
     // else
     //     std::cout << "Num time steps: " << results.get_num_time_points() << "\n";
 
+    double result = 0.0;
+    for(size_t i = 0; i < x.size(); ++i)
+        result += x[i];
+
+
     mio::log_debug("Exit Main");
-    // return 0;
+
+    if(size == 100)
+    {
+        double expected = -861.197;
+        std::cout << "result " << result << " abs(error)=" << std::abs(expected - result) << std::endl;
+
+        return std::abs(expected - result) < 1e-3 ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
+    else
+    {
+        std::cout << "result " << result << " NOT validated" << std::endl;
+        return EXIT_SUCCESS;
+    }
+}
+
+auto main(int argc, char* argv[]) -> int
+{
+    // Execute the example once for each enabled API and executor.
+    return executeForEach(
+        [=](auto const& tag) { return example(tag); },
+        onHost::allExecutorsAndApis(onHost::enabledApis));
 }

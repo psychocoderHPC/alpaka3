@@ -1,11 +1,17 @@
+#include <alpaka/alpaka.hpp>
+
 #include <cassert>
 #include <cmath>
 #include <iostream>
 #include <vector>
 
+#define USE_ALPAKA 1
+
 struct tableau
 {
-    tableau() : entries_high(6), entries_low(6), entries(5)
+    static constexpr size_t nEntries = 6;
+
+    tableau() : entries_high(nEntries), entries_low(nEntries), entries(5)
     {
         entries_low[0] = 25 / 216.0;
         entries_low[1] = 0.0;
@@ -47,8 +53,15 @@ struct tableau
         entries[4][5] = -11 / 40.0;
     }
 
+#if 1
     std::vector<double> entries_high, entries_low;
     std::vector<std::vector<double>> entries;
+#else
+    using Entries_high
+        = decltype(alpaka::onHost::alloc<double>(std::declval<T_Device>(), alpaka::Vec<size_t, 1u>{nEntries}));
+    using Entries
+        = decltype(alpaka::onHost::alloc<double>(std::declval<T_Device>(), alpaka::Vec<size_t, 1u>{nEntries}));
+#endif
 };
 
 void print(std::vector<double>& vec)
@@ -77,9 +90,16 @@ struct Monstrosity
 
     tableau tab;
 
-    using DerivFunction = void (*)(std::vector<double> const& y, double t, std::vector<double>& dydt);
+    //using DerivFunction = void (*)(std::vector<double> const& y, double t, std::vector<double>& dydt);
 
-    bool step(DerivFunction f, std::vector<double> const& yt, double& t, double& dt, std::vector<double>& ytp1)
+    bool step(
+        auto& exec,
+        auto& queue,
+        auto const f,
+        std::vector<double> const& yt,
+        double& t,
+        double& dt,
+        std::vector<double>& ytp1)
     {
         assert(0 <= dt_min);
         assert(dt_min <= dt_max);
@@ -103,10 +123,31 @@ struct Monstrosity
         //     m_kt_values.resize(yt.size(), tab.entries_low.size());
         // }
 
+#if USE_ALPAKA
+        size_t frame_extent = 256;
+        queue.enqueue(
+            exec,
+            alpaka::onHost::FrameSpec{alpaka::divExZero(yt.size(), frame_extent), frame_extent},
+            [](auto const& acc, double* m_yt_eval_ptr, double const* yt_ptr, size_t yt_size)
+            {
+                for(auto [j] : alpaka::onAcc::makeIdxMap(
+                        acc,
+                        alpaka::onAcc::worker::threadsInGrid,
+                        alpaka::IdxRange{size_t{1}, yt_size}))
+                {
+                    m_yt_eval_ptr[j] = yt_ptr[j];
+                }
+            },
+            m_yt_eval.data(),
+            yt.data(),
+            yt.size());
+        alpaka::onHost::wait(queue);
+#else
         for(size_t j = 1; j < yt.size(); j++)
         {
             m_yt_eval[j] = yt[j];
         }
+#endif
 
         while(!converged && !dt_is_invalid)
         {
@@ -118,7 +159,7 @@ struct Monstrosity
             // std::cout << "---- step t:" << t << " dt:" << dt << "\n";
             // std::cin.ignore();
             // compute first column of kt, i.e. kt_0 for each y in yt_eval
-            f(m_yt_eval, t, m_kt_values[0]);
+            f(exec,queue,m_yt_eval, t, m_kt_values[0]);
 
             for(size_t i = 1; i < m_kt_values.size(); i++)
             {
@@ -135,8 +176,8 @@ struct Monstrosity
                         ytp1[j] += (dt * tab.entries[i - 1][k]) * m_kt_values[k - 1][j];
                     }
                 }
-                // get the derivatives, i.e., compute kt_i for all y in ytp1: kt_i = f(t_eval, ytp1_low)
-                f(ytp1, t_eval, m_kt_values[i]);
+                // get the derivatives, i.e., compute kt_i for all y in ytp1: kt_i = f(t_eval, ytp1low)
+                f(exec,queue,ytp1, t_eval, m_kt_values[i]);
             }
 
             // for (int i = 0; i < 6; i++) {
