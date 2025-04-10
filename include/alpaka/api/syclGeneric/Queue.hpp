@@ -196,12 +196,20 @@ namespace alpaka::onHost
         void operator()(syclGeneric::Queue<T_Device>& queue, T_Dest& dest, uint8_t byteValue, T_Extents const& extents)
             const
         {
-            // TODO: implement generic version for multidimensional memory
-            sycl::queue sycl_queue = queue.getNativeHandle();
-            sycl_queue.memset(
-                onHost::data(dest),
-                byteValue,
-                extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
+            if(std::is_same_v<ALPAKA_TYPEOF(onHost::getApi(dest)), api::Cpu>)
+                std::memset(
+                    onHost::data(dest),
+                    static_cast<int>(byteValue),
+                    extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
+            else
+            {
+                // TODO: implement generic version for multidimensional memory
+                sycl::queue sycl_queue = queue.getNativeHandle();
+                sycl_queue.memset(
+                    onHost::data(dest),
+                    byteValue,
+                    extents.x() * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
+            }
         }
     };
 

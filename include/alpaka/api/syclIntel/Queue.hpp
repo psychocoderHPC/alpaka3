@@ -25,16 +25,37 @@ namespace alpaka::onHost::internal
             auto const destPitchBytesWithoutColumn = dest.getPitches().eraseBack();
             auto* destPtr = data(dest);
 
-            meta::ndLoopIncIdx(
-                dstExtentWithoutColumn,
-                [&](auto const& idx)
+            if(std::is_same_v<ALPAKA_TYPEOF(onHost::getApi(dest)), api::Cpu>)
+            {
+                auto destPitchBytesWithoutColumn = dest.getPitches().eraseBack();
+
+                auto const dstExtentWithoutColumn = extents.eraseBack();
+                if(static_cast<std::size_t>(extents.product()) != 0u)
                 {
-                    events.push_back(sycl_queue.memset(
-                        reinterpret_cast<std::uint8_t*>(destPtr) + (idx * destPitchBytesWithoutColumn).sum(),
-                        byteValue,
-                        static_cast<size_t>(extents.back()) * sizeof(alpaka::trait::GetValueType_t<T_Dest>)));
-                });
-            sycl_queue.ext_oneapi_submit_barrier(events);
+                    meta::ndLoopIncIdx(
+                        dstExtentWithoutColumn,
+                        [&](auto const& idx)
+                        {
+                            std::memset(
+                                reinterpret_cast<std::uint8_t*>(destPtr) + (idx * destPitchBytesWithoutColumn).sum(),
+                                byteValue,
+                                static_cast<size_t>(extents.back()) * sizeof(alpaka::trait::GetValueType_t<T_Dest>));
+                        });
+                }
+            }
+            else
+            {
+                meta::ndLoopIncIdx(
+                    dstExtentWithoutColumn,
+                    [&](auto const& idx)
+                    {
+                        events.push_back(sycl_queue.memset(
+                            reinterpret_cast<std::uint8_t*>(destPtr) + (idx * destPitchBytesWithoutColumn).sum(),
+                            byteValue,
+                            static_cast<size_t>(extents.back()) * sizeof(alpaka::trait::GetValueType_t<T_Dest>)));
+                    });
+                sycl_queue.ext_oneapi_submit_barrier(events);
+            }
         }
     };
 
