@@ -10,45 +10,63 @@
 #include "alpaka/core/common.hpp"
 #include "alpaka/onHost/DeviceProperties.hpp"
 #include "alpaka/onHost/Handle.hpp"
+#include "alpaka/tag.hpp"
 
 namespace alpaka::onHost
 {
     namespace internal
     {
+        struct GetDevice
+        {
+            template<typename T_Any>
+            struct Op
+            {
+                inline constexpr auto operator()(auto&& any) const
+                {
+                    return any.getDevice();
+                }
+            };
+        };
+
+        inline constexpr auto getDevice(auto&& any)
+        {
+            return GetDevice::Op<std::decay_t<decltype(any)>>{}(any);
+        }
+
         struct MakePlatform
         {
             template<typename T_Api>
             struct Op
             {
-                auto operator()(T_Api&& api) const;
+                auto operator()(T_Api api) const;
             };
         };
 
-        static auto makePlatform(auto&& api)
+        static auto makePlatform(auto api)
         {
-            return MakePlatform::Op<std::decay_t<decltype(api)>>{}(api);
+            return MakePlatform::Op<ALPAKA_TYPEOF(api)>{}(api);
         }
 
         struct GetDeviceCount
         {
-            template<typename T_Platform>
+            template<typename T_Platform, device::concepts::DeviceTag T_DeviceTag>
             struct Op
             {
-                uint32_t operator()(T_Platform& platform) const
+                uint32_t operator()(T_Platform& platform, T_DeviceTag deviceTag = T_DeviceTag{}) const
                 {
-                    return platform.getDeviceCount();
+                    return platform.getDeviceCount(deviceTag);
                 }
             };
         };
 
         struct MakeDevice
         {
-            template<typename T_Platform>
+            template<typename T_Platform, device::concepts::DeviceTag T_DeviceTag>
             struct Op
             {
-                auto operator()(auto& platform, uint32_t idx) const
+                auto operator()(auto& platform, uint32_t idx, T_DeviceTag deviceTag = T_DeviceTag{}) const
                 {
-                    return platform.makeDevice(idx);
+                    return platform.makeDevice(idx,deviceTag);
                 }
             };
         };

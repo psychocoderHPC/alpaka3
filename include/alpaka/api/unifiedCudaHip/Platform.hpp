@@ -58,31 +58,40 @@ namespace alpaka::onHost
 
             friend struct onHost::internal::GetDeviceCount;
 
-            uint32_t getDeviceCount()
+            uint32_t getDeviceCount(device::concepts::DeviceTag auto deviceTag)
             {
-                int numDevices{0};
-                typename ApiInterface::Error_t error = ApiInterface::getDeviceCount(&numDevices);
-                if(error != ApiInterface::success)
-                    numDevices = 0;
-
-                if(devices.size() < numDevices)
+                constexpr bool isSupportedDev = trait::IsDeviceSupportedBy::
+                    Op<ALPAKA_TYPEOF(deviceTag), ALPAKA_TYPEOF(getApi(std::declval<Platform>()))>::value;
+                if constexpr(isSupportedDev)
                 {
-                    std::lock_guard<std::mutex> lk{deviceGuard};
-                    devices.resize(numDevices);
+                    int numDevices{0};
+                    typename ApiInterface::Error_t error = ApiInterface::getDeviceCount(&numDevices);
+                    if(error != ApiInterface::success)
+                        numDevices = 0;
+
+                    if(devices.size() < numDevices)
+                    {
+                        std::lock_guard<std::mutex> lk{deviceGuard};
+                        devices.resize(numDevices);
+                    }
+                    return static_cast<uint32_t>(numDevices);
                 }
-                return static_cast<uint32_t>(numDevices);
+
+                return 0;
             }
 
             friend struct onHost::internal::MakeDevice;
 
-            Handle<unifiedCudaHip::Device<Platform>> makeDevice(uint32_t const& idx)
+            Handle<unifiedCudaHip::Device<Platform>> makeDevice(
+                uint32_t const& idx,
+                device::concepts::DeviceTag auto deviceTag)
             {
-                uint32_t const numDevices = getDeviceCount();
+                uint32_t const numDevices = getDeviceCount(deviceTag);
                 if(idx >= numDevices)
                 {
                     std::stringstream ssErr;
-                    ssErr << "Unable to return device handle for CPU device with index " << idx
-                          << " because there are only " << numDevices << " devices!";
+                    ssErr << "Unable to return device handle for GPU (" << deviceTag.getName()
+                          << ") device with index " << idx << " because there are only " << numDevices << " devices!";
                     throw std::runtime_error(ssErr.str());
                 }
                 std::lock_guard<std::mutex> lk{deviceGuard};

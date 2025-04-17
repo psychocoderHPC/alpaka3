@@ -22,7 +22,7 @@ namespace alpaka::onHost
         template<>
         struct MakePlatform::Op<api::Cuda>
         {
-            auto operator()(api::Cuda const&) const
+            auto operator()(api::Cuda) const
             {
                 return onHost::make_sharedSingleton<unifiedCudaHip::Platform<ApiCudaRt>>();
             }

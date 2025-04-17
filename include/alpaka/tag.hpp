@@ -23,9 +23,141 @@ namespace alpaka
 
         ALPAKA_TAG(exec);
 
+        ALPAKA_TAG(device);
+
         ALPAKA_TAG(dynSharedMemBytes);
     } // namespace object
 
+    namespace device
+    {
+        namespace detail
+        {
+            struct DeviceBaseTag
+            {
+            };
+        } // namespace detail
+
+        namespace trait
+        {
+            template<typename T_DeviceTag>
+            struct IsDeviceTag : std::is_base_of<detail::DeviceBaseTag,T_DeviceTag>
+            {
+            };
+        } // namespace trait
+
+        template<typename T_DeviceTag>
+        constexpr bool isDeviceTag_v = trait::IsDeviceTag<T_DeviceTag>::value;
+
+        namespace concepts
+        {
+            template<typename T_DeviceTag>
+            concept DeviceTag = isDeviceTag_v<T_DeviceTag>;
+        }
+
+        struct Cpu : detail::DeviceBaseTag
+        {
+            static std::string getName()
+            {
+                return "Cpu";
+            }
+        };
+
+        constexpr auto cpu = Cpu{};
+
+        struct AmdGpu : detail::DeviceBaseTag
+        {
+            static std::string getName()
+            {
+                return "AmdGpu";
+            }
+        };
+
+        constexpr auto amdGpu = AmdGpu{};
+
+        struct NvidiaGpu : detail::DeviceBaseTag
+        {
+            static std::string getName()
+            {
+                return "NvidiaGpu";
+            }
+        };
+
+        constexpr auto nvidiaGpu = NvidiaGpu{};
+
+        struct IntelGpu : detail::DeviceBaseTag
+        {
+            static std::string getName()
+            {
+                return "IntelGpu";
+            }
+        };
+
+        constexpr auto intelGpu = IntelGpu{};
+
+        constexpr auto allDevices = std::make_tuple(cpu,amdGpu,nvidiaGpu,intelGpu);
+
+    } // namespace device
+#if 0
+    namespace vendor
+    {
+        namespace detail
+        {
+            struct VendoreBaseTag
+            {
+            };
+        } // namespace detail
+
+        namespace trait
+        {
+            template<typename T_VendorTag>
+            struct IsVendorTag : std::is_base_of<T_VendorTag, detail::VendoreBaseTag>
+            {
+            };
+        } // namespace trait
+
+        template<typename T_DeviceTag>
+        constexpr bool isVendorTag_v = trait::IsVendorTag<T_DeviceTag>::value;
+
+        namespace concepts
+        {
+            template<typename T_VendorTag>
+            concept VendorTag = isVendorTag_v<T_VendorTag>;
+        }
+
+        struct Nvidia : detail::VendoreBaseTag
+        {
+            static std::string getName()
+            {
+                return "Nvidia";
+            }
+        };
+
+        struct AMD : detail::VendoreBaseTag
+        {
+            static std::string getName()
+            {
+                return "AMD";
+            }
+        };
+
+        struct Intel : detail::VendoreBaseTag
+        {
+            static std::string getName()
+            {
+                return "Intel";
+            }
+        };
+
+        struct Any : detail::VendoreBaseTag
+        {
+            static std::string getName()
+            {
+                return "Any";
+            }
+        };
+        constexpr auto any = Any{};
+    } // namespace vendor
+#endif
     namespace layer
     {
         ALPAKA_TAG(thread);

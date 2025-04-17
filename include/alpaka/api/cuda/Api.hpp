@@ -49,6 +49,11 @@ namespace alpaka
         struct IsPlatformAvailable::Op<api::Cuda> : std::true_type
         {
         };
+
+        template<>
+        struct IsDeviceSupportedBy::Op<device::NvidiaGpu, api::Cuda> : std::true_type
+        {
+        };
 #endif
     } // namespace onHost::trait
 

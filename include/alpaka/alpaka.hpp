@@ -30,7 +30,7 @@
 #include "alpaka/onAcc/tag.hpp"
 #include "alpaka/onHost.hpp"
 #include "alpaka/onHost/Device.hpp"
-#include "alpaka/onHost/Platform.hpp"
+#include "alpaka/onHost/DeviceSelector.hpp"
 #include "alpaka/onHost/Queue.hpp"
 #include "alpaka/onHost/mem/View.hpp"
 #include "alpaka/onHost/mem/stdContainer.hpp"

@@ -104,9 +104,15 @@ namespace alpaka::onHost
                 ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::streamSynchronize(getNativeHandle()));
             }
 
+            auto getDevice() const
+            {
+                return m_device;
+            }
+
             friend struct alpaka::internal::GetApi;
             friend struct onHost::internal::Memcpy;
             friend struct onHost::internal::Memset;
+            friend struct internal::GetDevice;
             friend struct CallKernel;
         };
 

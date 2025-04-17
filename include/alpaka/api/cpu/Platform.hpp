@@ -49,21 +49,26 @@ namespace alpaka::onHost
 
             friend struct internal::GetDeviceCount;
 
-            uint32_t getDeviceCount() const
+            uint32_t getDeviceCount(device::concepts::DeviceTag auto deviceTag) const
             {
-                return 1u;
+                constexpr bool isSupportedDev
+                    = trait::IsDeviceSupportedBy::Op<ALPAKA_TYPEOF(deviceTag), api::Cpu>::value;
+                if constexpr(isSupportedDev)
+                    return 1;
+
+                return 0;
             }
 
             friend struct internal::MakeDevice;
 
-            Handle<cpu::Device<Platform>> makeDevice(uint32_t const& idx)
+            Handle<cpu::Device<Platform>> makeDevice(uint32_t const& idx, device::concepts::DeviceTag auto deviceTag)
             {
-                uint32_t const numDevices = getDeviceCount();
+                uint32_t const numDevices = getDeviceCount(deviceTag);
                 if(idx >= numDevices)
                 {
                     std::stringstream ssErr;
-                    ssErr << "Unable to return device handle for CPU device with index " << idx
-                          << " because there are only " << numDevices << " devices!";
+                    ssErr << "Unable to return device handle with index " << idx << " because there are only "
+                          << numDevices << " devices of type '" << alpaka::onHost::getStaticName(deviceTag) << "' !";
                     throw std::runtime_error(ssErr.str());
                 }
                 if(auto sharedPtr = device.lock())
@@ -85,7 +90,7 @@ namespace alpaka::onHost
         template<>
         struct MakePlatform::Op<api::Cpu>
         {
-            auto operator()(auto&&) const
+            auto operator()(api::Cpu) const
             {
                 return make_sharedSingleton<cpu::Platform>();
             }

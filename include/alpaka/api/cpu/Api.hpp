@@ -46,6 +46,12 @@ namespace alpaka
         struct IsPlatformAvailable::Op<api::Cpu> : std::true_type
         {
         };
+
+        template<>
+        struct IsDeviceSupportedBy::Op<device::Cpu, api::Cpu> : std::true_type
+        {
+        };
+
     } // namespace onHost::trait
 
     namespace trait

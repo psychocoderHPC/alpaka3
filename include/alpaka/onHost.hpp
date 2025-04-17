@@ -7,11 +7,38 @@
 #include "alpaka/KernelBundle.hpp"
 #include "alpaka/concepts.hpp"
 #include "alpaka/onHost/DeviceProperties.hpp"
+#include "alpaka/onHost/DeviceSelector.hpp"
 #include "alpaka/onHost/concepts.hpp"
+#include "alpaka/tag.hpp"
 #include "alpaka/trait.hpp"
 
 namespace alpaka::onHost
 {
+    /** create a object to get access to devices */
+    inline auto makeDeviceSelector(alpaka::concepts::Api auto api, alpaka::device::concepts::DeviceTag auto deviceTag)
+    {
+        return DeviceSelector{api, deviceTag};
+    }
+
+    template<typename deferEvaluation = void>
+    inline auto makeHostDevice()
+    {
+        return DeviceSelector{
+            std::conditional_t<std::is_same_v<deferEvaluation, bool>, api::Cpu, api::Cpu>{},
+            device::cpu}
+            .makeDevice(0);
+    }
+
+    inline constexpr decltype(auto) getDevice(auto&& any)
+    {
+        return internal::getDevice(ALPAKA_FORWARD(any));
+    }
+
+    inline constexpr decltype(auto) getDevice(alpaka::concepts::HasGet auto&& any)
+    {
+        return internal::getDevice(*any.get());
+    }
+
     /** Get extents of an object
      *
      * @param any can be a view, a data
@@ -50,12 +77,6 @@ namespace alpaka::onHost
 
     /** @} */
 
-    /** create a platform to get access to devices */
-    inline concepts::PlatformHandle auto makePlatform(alpaka::concepts::Api auto&& api)
-    {
-        return internal::makePlatform(ALPAKA_FORWARD(api));
-    }
-
     inline std::convertible_to<std::string> auto getStaticName(auto const& any)
     {
         return alpaka::internal::GetStaticName::Op<ALPAKA_TYPEOF(any)>{}(any);
@@ -69,21 +90,6 @@ namespace alpaka::onHost
     inline std::convertible_to<std::string> auto getName(concepts::NameHandle auto const& any)
     {
         return alpaka::internal::GetName::Op<std::decay_t<decltype(*any.get())>>{}(*any.get());
-    }
-
-    /** Number of devices accessible by the platform. */
-    inline uint32_t getDeviceCount(concepts::PlatformHandle auto const& platform)
-    {
-        return internal::GetDeviceCount::Op<std::decay_t<decltype(*platform.get())>>{}(*platform.get());
-    }
-
-    /** create a device
-     *
-     * @param idx index of the device, range [0,getDeviceCount)
-     */
-    inline concepts::DeviceHandle auto makeDevice(concepts::PlatformHandle auto const& platform, uint32_t idx)
-    {
-        return internal::MakeDevice::Op<std::decay_t<decltype(*platform.get())>>{}(*platform.get(), idx);
     }
 
     /** Get the native handle type
@@ -137,6 +143,16 @@ namespace alpaka::onHost
         KernelBundle<TKernelFn, TArgs...> const& kernelBundle)
     {
         internal::enqueue(*queue.get(), executor, specification, kernelBundle);
+    }
+
+    template<typename TKernelFn, typename... TArgs>
+    inline void enqueue(
+        concepts::QueueHandle auto const& queue,
+        auto const& specification,
+        KernelBundle<TKernelFn, TArgs...> const& kernelBundle)
+    {
+        auto executor = supportedMappings(getDevice(queue));
+        internal::enqueue(*queue.get(), std::get<0>(executor), specification, kernelBundle);
     }
 
     /** Enqueue a operation which is executed on the host side
@@ -207,6 +223,16 @@ namespace alpaka::onHost
             extentsVec);
     }
 
+    template<typename T_Type>
+    inline auto alloc(alpaka::concepts::VectorOrScalar auto const& extents)
+    {
+        auto device = makeHostDevice<T_Type>();
+        Vec const extentsVec = extents;
+        return internal::Alloc::Op<T_Type, std::decay_t<decltype(*device.get())>, ALPAKA_TYPEOF(extentsVec)>{}(
+            *device.get(),
+            extentsVec);
+    }
+
     /** allocate memory on the given device based on a view
      *
      * Derives type and extents of the memory from the view.
@@ -219,6 +245,12 @@ namespace alpaka::onHost
      */
     inline auto allocMirror(auto const& device, auto const& view)
     {
+        return alloc<alpaka::trait::GetValueType_t<ALPAKA_TYPEOF(view)>>(device, getExtents(view));
+    }
+
+    inline auto allocHostMirror(auto const& view)
+    {
+        auto device = makeHostDevice<ALPAKA_TYPEOF(view)>();
         return alloc<alpaka::trait::GetValueType_t<ALPAKA_TYPEOF(view)>>(device, getExtents(view));
     }
 

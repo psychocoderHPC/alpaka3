@@ -116,9 +116,15 @@ namespace alpaka::onHost
                 m_workerThread.submit([task]() { task(); });
             }
 
+            auto getDevice() const
+            {
+                return m_device;
+            }
+
             friend struct internal::Wait;
             friend struct internal::Memcpy;
             friend struct internal::Memset;
+            friend struct internal::GetDevice;
             friend struct alpaka::internal::GetApi;
         };
     } // namespace cpu

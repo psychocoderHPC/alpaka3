@@ -48,6 +48,11 @@ namespace alpaka
         struct IsPlatformAvailable::Op<api::Hip> : std::true_type
         {
         };
+
+        template<>
+        struct IsDeviceSupportedBy::Op<device::AmdGpu, api::Hip> : std::true_type
+        {
+        };
 #endif
     } // namespace onHost::trait
 

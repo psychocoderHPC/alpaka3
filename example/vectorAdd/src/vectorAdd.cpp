@@ -60,6 +60,7 @@ auto example(T_Cfg const& cfg, size_t numElements) -> int
     using IdxVec = Vec<std::size_t, 1u>;
 
     auto api = cfg[object::api];
+    auto devType = cfg[object::device];
     auto exec = cfg[object::exec];
 
     // Define problem size
@@ -74,20 +75,16 @@ auto example(T_Cfg const& cfg, size_t numElements) -> int
     std::cout << "Using alpaka accelerator: " << core::demangledName(exec) << " for " << api.getName() << std::endl;
 
     // Select a device
-    onHost::Platform platform = onHost::makePlatform(api);
-    onHost::Device devAcc = platform.makeDevice(0);
+    auto devSelector = onHost::makeDeviceSelector(api::cpu /*cpp*/, device::cpu);
+    onHost::Device devAcc = devSelector.makeDevice(0);
 
     // Create a queue on the device
     onHost::Queue queue = devAcc.makeQueue();
 
-    // Get the host device for allocating memory on the host.
-    onHost::Platform platformHost = onHost::makePlatform(api::cpu);
-    onHost::Device devHost = platformHost.makeDevice(0);
-
     // Allocate 3 host memory buffers
-    auto bufHostA = onHost::alloc<Data>(devHost, extent);
-    auto bufHostB = onHost::allocMirror(devHost, bufHostA);
-    auto bufHostC = onHost::allocMirror(devHost, bufHostA);
+    auto bufHostA = onHost::alloc<Data>(extent);
+    auto bufHostB = onHost::allocHostMirror(bufHostA);
+    auto bufHostC = onHost::allocHostMirror(bufHostA);
 
     // C++14 random generator for uniformly distributed numbers in {1,..,42}
     std::random_device rd{};
@@ -125,7 +122,7 @@ auto example(T_Cfg const& cfg, size_t numElements) -> int
     {
         onHost::wait(queue);
         auto const beginT = std::chrono::high_resolution_clock::now();
-        onHost::enqueue(queue, exec, dataBlocking, taskKernel);
+        onHost::enqueue(queue,dataBlocking, taskKernel);
         onHost::wait(queue); // wait in case we are using an asynchronous queue to time actual kernel runtime
         auto const endT = std::chrono::high_resolution_clock::now();
         std::cout << "Time for kernel execution: " << std::chrono::duration<double>(endT - beginT).count() << 's'
@@ -213,5 +210,5 @@ auto main(int argc, char* argv[]) -> int
     // Execute the example once for each enabled API and executor.
     return executeForEach(
         [=](auto const& tag) { return example(tag, numElements); },
-        onHost::allExecutorsAndApis(onHost::enabledApis));
+        onHost::allBackends(onHost::enabledApis));
 }
