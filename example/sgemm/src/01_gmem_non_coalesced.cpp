@@ -50,7 +50,7 @@ int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeEx
     std::normal_distribution<float> dist{0.f, 1.f};
 
     // tolerance
-    constexpr float epsilon = 0.0001f;
+    constexpr float epsilon = 1e-4;
 
     constexpr Vec2D A_size = {1024, 256};
     constexpr Vec2D B_size = {256, 1024};
