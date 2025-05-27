@@ -11,7 +11,6 @@ void naive_matrix_mult(
     const float alpha, const float beta)
 {
     auto A_dim = A.getExtents();
-    auto B_dim = B.getExtents();
     auto C_dim = C.getExtents();
     for (uint32_t i = 0; i < C_dim.x(); ++i)
     {

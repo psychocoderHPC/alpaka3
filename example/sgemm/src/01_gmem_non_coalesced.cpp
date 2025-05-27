@@ -14,25 +14,27 @@
 #include <random>
 #include <vector>
 
+using namespace alpaka;
+
 struct GMemCoalescedKernel
 {
     template<typename TAcc>
     ALPAKA_FN_ACC void operator()(TAcc const& acc, auto const in1, auto const in2, auto out, float alpha, float beta)
         const
     {
-        for(auto linearIndex : alpaka::onAcc::makeIdxMap(
-                acc,
-                alpaka::onAcc::worker::linearThreadsInGrid,
-                alpaka::IdxRange{out.getExtents().product()}))
+        for(auto linearIndex :
+            onAcc::makeIdxMap(acc, onAcc::worker::linearThreadsInGrid, IdxRange{out.getExtents().product()}))
         {
-            int lIndex = linearIndex[0];
+            using IndexType = typename ALPAKA_TYPEOF(out.getExtents())::index_type;
+
+            IndexType lIndex = linearIndex[0];
 
             // This index calculation emulates what a naive CUDA implementation might do
-            int row = lIndex / out.getExtents().y();
-            int col = lIndex % out.getExtents().y();
+            IndexType row = lIndex / out.getExtents().y();
+            IndexType col = lIndex % out.getExtents().y();
 
             float tmp = 0.0;
-            for(auto i = 0; i < in1.getExtents().y(); ++i)
+            for(IndexType i = 0; i < in1.getExtents().y(); ++i)
             {
                 tmp += in1[Vec2D{i, row}] * in2[Vec2D{col, i}];
             }
@@ -41,10 +43,7 @@ struct GMemCoalescedKernel
     }
 };
 
-void testGMemCoalescedKernel(
-    alpaka::onHost::concepts::Device auto host,
-    alpaka::onHost::concepts::Device auto device,
-    auto computeExec)
+int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeExec)
 {
     // random number generator with a gaussian distribution
     std::random_device rd{};
@@ -54,19 +53,10 @@ void testGMemCoalescedKernel(
     // tolerance
     constexpr float epsilon = 0.0001f;
 
-    // 2-dimensional and linearised buffer size
-    // constexpr Vec2D in1_size = {1024, 256};
-    // constexpr Vec2D in2_size = {256, 1024};
-    // constexpr Vec2D out_size = {256, 256};
-    // constexpr Vec2D in1_size = {10, 8};
-    // constexpr Vec2D in2_size = {4, 10};
-    // constexpr Vec2D out_size = {4, 8};
-    // constexpr Vec2D in1_size = {10, 4};
-    // constexpr Vec2D in2_size = {8, 10};
-    // constexpr Vec2D out_size = {8, 4};
-    constexpr Vec2D in1_size = {2048, 2048};
-    constexpr Vec2D in2_size = {2048, 2048};
-    constexpr Vec2D out_size = {2048, 2048};
+    constexpr Vec2D in1_size = {1024, 256};
+    constexpr Vec2D in2_size = {256, 1024};
+    constexpr Vec2D out_size = {in1_size.x(), in2_size.y()};
+    constexpr size_t flopCount = in1_size.y() * out_size.product() * 2u + 2u * out_size.product();
     static_assert(in1_size.y() == in2_size.x());
     static_assert(in1_size.x() == out_size.x());
     static_assert(in2_size.y() == out_size.y());
@@ -74,9 +64,9 @@ void testGMemCoalescedKernel(
     float beta = 0.5;
 
     // allocate input and output host buffers in pinned memory accessible by the Platform devices
-    auto in1_h = alpaka::onHost::alloc<float>(host, in1_size);
-    auto in2_h = alpaka::onHost::alloc<float>(host, in2_size);
-    auto out_h = alpaka::onHost::alloc<float>(host, out_size);
+    auto in1_h = onHost::allocHost<float>(in1_size);
+    auto in2_h = onHost::allocHost<float>(in2_size);
+    auto out_h = onHost::allocHost<float>(out_size);
 
     // fill the input buffers with random data, and the output buffer with zeros
     for(uint32_t i = 0; i < in1_size.x(); ++i)
@@ -90,27 +80,27 @@ void testGMemCoalescedKernel(
             out_h[Vec2D{j, i}] = 0.;
 
     // run the test the given device
-    alpaka::onHost::Queue queue = device.makeQueue();
-    alpaka::onHost::Queue queue2 = host.makeQueue();
+    onHost::Queue queue = device.makeQueue();
 
     // allocate input and output buffers on the device
-    auto in1_d = alpaka::onHost::allocMirror(device, in1_h);
-    auto in2_d = alpaka::onHost::allocMirror(device, in2_h);
-    auto out_d = alpaka::onHost::allocMirror(device, out_h);
+    auto in1_d = onHost::allocMirror(device, in1_h);
+    auto in2_d = onHost::allocMirror(device, in2_h);
+    auto out_d = onHost::allocMirror(device, out_h);
 
     // copy the input data to the device; the size is known from the buffer objects
-    alpaka::onHost::memcpy(queue, in1_d, in1_h);
-    alpaka::onHost::memcpy(queue, in2_d, in2_h);
+    onHost::memcpy(queue, in1_d, in1_h);
+    onHost::memcpy(queue, in2_d, in2_h);
 
-    // fill the output buffer with zeros; the size is known from the buffer objects
-    alpaka::onHost::memset(queue, out_d, 0x00);
+    // fill the output buffer with zeros; the si
+    onHost::memset(queue, out_d, 0x00);
 
-    auto frameSpec = alpaka::onHost::FrameSpec{Vec2D{8, 8}, Vec2D{32, 32}};
-
-    alpaka::onHost::wait(queue);
-    auto start = std::chrono::high_resolution_clock::now();
+    auto frameSpec = onHost::FrameSpec{Vec2D{8, 8}, Vec2D{32, 32}};
 
     std::cout << "Testing GMemCoalescedKernel with scalar indices with a grid of " << frameSpec << "\n";
+
+    onHost::wait(queue);
+    auto const beginT = std::chrono::high_resolution_clock::now();
+
     queue.enqueue(
         computeExec,
         frameSpec,
@@ -121,79 +111,72 @@ void testGMemCoalescedKernel(
         alpha,
         beta);
 
-    alpaka::onHost::wait(queue);
+    onHost::wait(queue);
+    auto const endT = std::chrono::high_resolution_clock::now();
 
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    std::cout << "Kernel took " << duration << std::endl;
+    double duration = std::chrono::duration<double>(endT - beginT).count();
+    std::cout << "Time for kernel execution: " << duration << " s" << std::endl;
+    std::cout << "  - flop count : " << flopCount << std::endl;
+    std::cout << "  - performance: " << static_cast<double>(flopCount) / 1.e12 / duration << " tflop/s" << std::endl;
 
     // copy the results from the device to the host
-    alpaka::onHost::memcpy(queue, out_h, out_d);
+    onHost::memcpy(queue, out_h, out_d);
 
     // check the results
-    auto cpu_out = alpaka::onHost::allocMirror(host, out_h);
-    // alpaka::onHost::memset(queue, cpu_out, 0x00);
-
-    for(int i = 0; i < out_size.x(); i++)
-    {
-        for(int j = 0; j < out_size.y(); j++)
-        {
-            cpu_out[Vec2D{j, i}] = 0.;
-        }
-    }
+    auto cpu_out = onHost::allocHostMirror(out_h);
+    onHost::memset(queue, cpu_out, 0x00);
 
     // wait for all the operations to complete
-    alpaka::onHost::wait(queue);
+    onHost::wait(queue);
 
     // Perform a naive CPU matrix multiplication to compare the results
     naive_matrix_mult(in1_h, in2_h, cpu_out, alpha, beta);
 
+    bool mismatch = false;
     for(uint32_t i = 0; i < out_size.product(); ++i)
     {
-        auto lIdx = alpaka::mapToND(out_size, i);
+        auto lIdx = mapToND(out_size, i);
         if(!(std::abs(out_h[lIdx] - cpu_out[lIdx]) < epsilon))
+        {
             std::cout << "MISMATCH at " << lIdx << " kernel=" << out_h[lIdx] << " cpu=" << cpu_out[lIdx] << std::endl;
+            mismatch = true;
+        }
         assert(std::abs(out_h[lIdx] - cpu_out[lIdx]) < epsilon);
     }
 
-    std::cout << "success\n";
+    if(!mismatch)
+        std::cout << "success\n";
+
+    return mismatch ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
 int example(auto const cfg)
 {
-    auto deviceApi = cfg[alpaka::object::api];
-    auto computeExec = cfg[alpaka::object::exec];
+    auto deviceSpec = cfg[object::deviceSpec];
+    auto computeExec = cfg[object::exec];
 
-    // initialise the accelerator platform
-    alpaka::onHost::Platform platform = alpaka::onHost::makePlatform(deviceApi);
+    std::cout << "Using alpaka accelerator: " << core::demangledName(computeExec) << " for "
+              << deviceSpec.getApi().getName() << " " << deviceSpec.getDeviceKind().getName() << std::endl;
 
-    // require at least one device
-    std::size_t n = alpaka::onHost::getDeviceCount(platform);
-
-    if(n == 0)
+    // Select a device
+    auto devSelector = onHost::makeDeviceSelector(deviceSpec);
+    if(!devSelector.isAvailable())
     {
-        return EXIT_FAILURE;
+        std::cout << "No device available for " << deviceSpec.getName() << std::endl;
+        return EXIT_SUCCESS;
     }
 
-    // use the single host device
-    alpaka::onHost::Platform host_platform = alpaka::onHost::makePlatform(alpaka::api::cpu);
-    alpaka::onHost::Device host = host_platform.makeDevice(0);
-    std::cout << "Host:   " << alpaka::onHost::getName(host) << "\n\n";
-
     // use the first device
-    alpaka::onHost::Device device = platform.makeDevice(0);
-    std::cout << "Device: " << alpaka::onHost::getName(device) << "\n\n";
+    onHost::Device device = devSelector.makeDevice(0);
+    std::cout << "Device: " << onHost::getName(device) << "\n\n";
 
-    testGMemCoalescedKernel(host, device, computeExec);
-
-    return EXIT_SUCCESS;
+    return testGMemCoalescedKernel(device, computeExec);
 }
 
 auto main() -> int
 {
-    using namespace alpaka;
     // Execute the example once for each enabled API and executor.
-    return executeForEach(
-        [=](auto const& tag) { return example(tag); },
-        onHost::allExecutorsAndApis(onHost::enabledApis));
+    return executeForEachIfHasDevice(
+        [=](auto const& cfg) { return example(cfg); },
+        onHost::allBackends(onHost::enabledApis));
 }
