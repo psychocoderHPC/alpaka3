@@ -19,8 +19,7 @@ using namespace alpaka;
 struct GMemCoalescedKernel
 {
     template<typename TAcc>
-    ALPAKA_FN_ACC void operator()(TAcc const& acc, auto const in1, auto const in2, auto out, float alpha, float beta)
-        const
+    ALPAKA_FN_ACC void operator()(TAcc const& acc, auto const A, auto const B, auto out, float alpha, float beta) const
     {
         for(auto linearIndex :
             onAcc::makeIdxMap(acc, onAcc::worker::linearThreadsInGrid, IdxRange{out.getExtents().product()}))
@@ -34,9 +33,9 @@ struct GMemCoalescedKernel
             IndexType col = lIndex % out.getExtents().y();
 
             float tmp = 0.0;
-            for(IndexType i = 0; i < in1.getExtents().y(); ++i)
+            for(IndexType i = 0; i < A.getExtents().y(); ++i)
             {
-                tmp += in1[Vec2D{i, row}] * in2[Vec2D{col, i}];
+                tmp += A[Vec2D{i, row}] * B[Vec2D{col, i}];
             }
             out[Vec2D{col, row}] = alpha * tmp + beta * out[Vec2D{col, row}];
         }
@@ -53,46 +52,46 @@ int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeEx
     // tolerance
     constexpr float epsilon = 0.0001f;
 
-    constexpr Vec2D in1_size = {1024, 256};
-    constexpr Vec2D in2_size = {256, 1024};
-    constexpr Vec2D out_size = {in1_size.x(), in2_size.y()};
-    constexpr size_t flopCount = in1_size.y() * out_size.product() * 2u + 2u * out_size.product();
-    static_assert(in1_size.y() == in2_size.x());
-    static_assert(in1_size.x() == out_size.x());
-    static_assert(in2_size.y() == out_size.y());
+    constexpr Vec2D A_size = {1024, 256};
+    constexpr Vec2D B_size = {256, 1024};
+    constexpr Vec2D C_size = {A_size.x(), B_size.y()};
+    constexpr size_t flopCount = A_size.y() * C_size.product() * 2u + 2u * C_size.product();
+    static_assert(A_size.y() == B_size.x());
+    static_assert(A_size.x() == C_size.x());
+    static_assert(B_size.y() == C_size.y());
     float alpha = 1.0;
     float beta = 0.5;
 
     // allocate input and output host buffers in pinned memory accessible by the Platform devices
-    auto in1_h = onHost::allocHost<float>(in1_size);
-    auto in2_h = onHost::allocHost<float>(in2_size);
-    auto out_h = onHost::allocHost<float>(out_size);
+    auto A_h = onHost::allocHost<float>(A_size);
+    auto B_h = onHost::allocHost<float>(B_size);
+    auto C_h = onHost::allocHost<float>(C_size);
 
     // fill the input buffers with random data, and the output buffer with zeros
-    for(uint32_t i = 0; i < in1_size.x(); ++i)
-        for(uint32_t j = 0; j < in1_size.y(); ++j)
-            in1_h[Vec2D{j, i}] = dist(rand);
-    for(uint32_t i = 0; i < in2_size.x(); ++i)
-        for(uint32_t j = 0; j < in2_size.y(); ++j)
-            in2_h[Vec2D{j, i}] = dist(rand);
-    for(uint32_t i = 0; i < out_size.x(); ++i)
-        for(uint32_t j = 0; j < out_size.y(); ++j)
-            out_h[Vec2D{j, i}] = 0.;
+    for(uint32_t i = 0; i < A_size.x(); ++i)
+        for(uint32_t j = 0; j < A_size.y(); ++j)
+            A_h[Vec2D{j, i}] = dist(rand);
+    for(uint32_t i = 0; i < B_size.x(); ++i)
+        for(uint32_t j = 0; j < B_size.y(); ++j)
+            B_h[Vec2D{j, i}] = dist(rand);
+    for(uint32_t i = 0; i < C_size.x(); ++i)
+        for(uint32_t j = 0; j < C_size.y(); ++j)
+            C_h[Vec2D{j, i}] = 0.;
 
     // run the test the given device
     onHost::Queue queue = device.makeQueue();
 
     // allocate input and output buffers on the device
-    auto in1_d = onHost::allocMirror(device, in1_h);
-    auto in2_d = onHost::allocMirror(device, in2_h);
-    auto out_d = onHost::allocMirror(device, out_h);
+    auto A_d = onHost::allocMirror(device, A_h);
+    auto B_d = onHost::allocMirror(device, B_h);
+    auto C_d = onHost::allocMirror(device, C_h);
 
     // copy the input data to the device; the size is known from the buffer objects
-    onHost::memcpy(queue, in1_d, in1_h);
-    onHost::memcpy(queue, in2_d, in2_h);
+    onHost::memcpy(queue, A_d, A_h);
+    onHost::memcpy(queue, B_d, B_h);
 
     // fill the output buffer with zeros; the si
-    onHost::memset(queue, out_d, 0x00);
+    onHost::memset(queue, C_d, 0x00);
 
     auto frameSpec = onHost::FrameSpec{Vec2D{8, 8}, Vec2D{32, 32}};
 
@@ -105,9 +104,9 @@ int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeEx
         computeExec,
         frameSpec,
         GMemCoalescedKernel{},
-        in1_d.getMdSpan(),
-        in2_d.getMdSpan(),
-        out_d.getMdSpan(),
+        A_d.getMdSpan(),
+        B_d.getMdSpan(),
+        C_d.getMdSpan(),
         alpha,
         beta);
 
@@ -120,28 +119,28 @@ int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeEx
     std::cout << "  - performance: " << static_cast<double>(flopCount) / 1.e12 / duration << " tflop/s" << std::endl;
 
     // copy the results from the device to the host
-    onHost::memcpy(queue, out_h, out_d);
+    onHost::memcpy(queue, C_h, C_d);
 
     // check the results
-    auto cpu_out = onHost::allocHostMirror(out_h);
+    auto cpu_out = onHost::allocHostMirror(C_h);
     onHost::memset(queue, cpu_out, 0x00);
 
     // wait for all the operations to complete
     onHost::wait(queue);
 
     // Perform a naive CPU matrix multiplication to compare the results
-    naive_matrix_mult(in1_h, in2_h, cpu_out, alpha, beta);
+    naive_matrix_mult(A_h, B_h, cpu_out, alpha, beta);
 
     bool mismatch = false;
-    for(uint32_t i = 0; i < out_size.product(); ++i)
+    for(uint32_t i = 0; i < C_size.product(); ++i)
     {
-        auto lIdx = mapToND(out_size, i);
-        if(!(std::abs(out_h[lIdx] - cpu_out[lIdx]) < epsilon))
+        auto lIdx = mapToND(C_size, i);
+        if(!(std::abs(C_h[lIdx] - cpu_out[lIdx]) < epsilon))
         {
-            std::cout << "MISMATCH at " << lIdx << " kernel=" << out_h[lIdx] << " cpu=" << cpu_out[lIdx] << std::endl;
+            std::cout << "MISMATCH at " << lIdx << " kernel=" << C_h[lIdx] << " cpu=" << cpu_out[lIdx] << std::endl;
             mismatch = true;
         }
-        assert(std::abs(out_h[lIdx] - cpu_out[lIdx]) < epsilon);
+        assert(std::abs(C_h[lIdx] - cpu_out[lIdx]) < epsilon);
     }
 
     if(!mismatch)
