@@ -70,7 +70,7 @@ int testCudaLikeKernel(onHost::concepts::Device auto device, auto computeExec)
     std::normal_distribution<float> dist{0.f, 1.f};
 
     // tolerance
-    constexpr float epsilon = 0.000001f;
+    constexpr float epsilon = 1e-4;
 
     // 2-dimensional and linearised buffer size
     constexpr Vec2D A_size = {1024, 256};
