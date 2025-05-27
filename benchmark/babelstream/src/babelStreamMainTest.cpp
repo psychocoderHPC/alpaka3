@@ -160,6 +160,7 @@ void testKernels(auto const deviceSpec, auto const exec)
 
     onHost::Device devAcc = devSelector.makeDevice(0);
 
+
 #if ALPAKA_LANG_ONEAPI
     // support for double precision is not guaranteed for sycl devices such as Intel GPUs
     if constexpr(std::is_same_v<DataType, double> && deviceSpec.getApi() == api::oneApi)

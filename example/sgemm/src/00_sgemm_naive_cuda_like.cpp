@@ -8,10 +8,13 @@
 #include <alpaka/alpaka.hpp>
 
 #include <cassert>
+#include <chrono>
 #include <cstdio>
 #include <iostream>
 #include <random>
 #include <vector>
+
+using namespace alpaka;
 
 // This kernel demonstrates the basic/unoptimized GEMM operation using a CUDA like programming model.
 // This is actually an example of bad practice as the alpaka framework provides primitives to write platform
@@ -24,24 +27,26 @@ struct CudaLikeSGEMM
         const
     {
         // Depending on the FrameSpec given to the kernel, these functions may return multidimensional indices.
-        auto threadIndexMD = acc[alpaka::layer::thread].idx();
-        auto blockDimensionMD = acc[alpaka::layer::thread].count();
-        auto blockIndexMD = acc[alpaka::layer::block].idx();
-        auto gridDimensionMD = acc[alpaka::layer::block].count();
+        auto threadIndexMD = acc[layer::thread].idx();
+        auto blockDimensionMD = acc[layer::thread].count();
+        auto blockIndexMD = acc[layer::block].idx();
+        auto gridDimensionMD = acc[layer::block].count();
+
+        using IndexType = typename ALPAKA_TYPEOF(gridDimensionMD)::index_type;
 
         // Global index calculation for 2D grid-stride
         // Instead of .x()/.y() we could also use square brackets
         // Attention: index[0] would correspond to y and index[1] to x!
-        int const x = blockIndexMD.x() * blockDimensionMD.x() + threadIndexMD.x();
-        int const y = blockIndexMD.y() * blockDimensionMD.y() + threadIndexMD.y();
+        IndexType const x = blockIndexMD.x() * blockDimensionMD.x() + threadIndexMD.x();
+        IndexType const y = blockIndexMD.y() * blockDimensionMD.y() + threadIndexMD.y();
 
         // Nested loop for calculating SGEMM for mxn and nxk matrices
-        for(int row = x; row < out.getExtents().x(); row += blockDimensionMD.x() * gridDimensionMD.x())
+        for(IndexType row = x; row < out.getExtents().x(); row += blockDimensionMD.x() * gridDimensionMD.x())
         {
-            for(int col = y; col < out.getExtents().y(); col += blockDimensionMD.y() * gridDimensionMD.y())
+            for(IndexType col = y; col < out.getExtents().y(); col += blockDimensionMD.y() * gridDimensionMD.y())
             {
                 float tmp = 0.;
-                for(int k = 0; k < in1.getExtents().y(); k++)
+                for(IndexType k = 0; k < in1.getExtents().y(); k++)
                 {
                     // 2D buffers can be accessed via a 2D Vector
                     // Notice how 'row' which stems from our x index is used as the second index in our buffers
@@ -58,10 +63,7 @@ struct CudaLikeSGEMM
     }
 };
 
-void testCudaLikeKernel(
-    alpaka::onHost::concepts::Device auto host,
-    alpaka::onHost::concepts::Device auto device,
-    auto computeExec)
+int testCudaLikeKernel(onHost::concepts::Device auto device, auto computeExec)
 {
     // random number generator with a gaussian distribution
     std::random_device rd{};
@@ -74,7 +76,8 @@ void testCudaLikeKernel(
     // 2-dimensional and linearised buffer size
     constexpr Vec2D in1_size = {1024, 256};
     constexpr Vec2D in2_size = {256, 1024};
-    constexpr Vec2D out_size = {256, 256};
+    constexpr Vec2D out_size = {in1_size.x(), in2_size.y()};
+    constexpr size_t flopCount = in1_size.y() * out_size.product() * 2u + 2u * out_size.product();
     static_assert(in1_size.y() == in2_size.x());
     static_assert(in1_size.x() == out_size.x());
     static_assert(in2_size.y() == out_size.y());
@@ -82,9 +85,9 @@ void testCudaLikeKernel(
     float beta = 0.5;
 
     // allocate input and output host buffers in pinned memory accessible by the Platform devices
-    auto in1_h = alpaka::onHost::alloc<float>(host, in1_size);
-    auto in2_h = alpaka::onHost::alloc<float>(host, in2_size);
-    auto out_h = alpaka::onHost::alloc<float>(host, out_size);
+    auto in1_h = onHost::allocHost<float>(in1_size);
+    auto in2_h = onHost::allocHost<float>(in2_size);
+    auto out_h = onHost::allocHost<float>(out_size);
 
     // fill the input buffers with random data, and the output buffer with zeros
     for(uint32_t i = 0; i < in1_size.x(); ++i)
@@ -98,31 +101,34 @@ void testCudaLikeKernel(
             out_h[Vec2D{j, i}] = 0.;
 
     // run the test the given device
-    alpaka::onHost::Queue queue = device.makeQueue();
+    onHost::Queue queue = device.makeQueue();
 
     // allocate input and output buffers on the device
-    auto in1_d = alpaka::onHost::allocMirror(device, in1_h);
-    auto in2_d = alpaka::onHost::allocMirror(device, in2_h);
-    auto out_d = alpaka::onHost::allocMirror(device, out_h);
+    auto in1_d = onHost::allocMirror(device, in1_h);
+    auto in2_d = onHost::allocMirror(device, in2_h);
+    auto out_d = onHost::allocMirror(device, out_h);
 
     // copy the input data to the device; the size is known from the buffer objects
-    alpaka::onHost::memcpy(queue, in1_d, in1_h);
-    alpaka::onHost::memcpy(queue, in2_d, in2_h);
+    onHost::memcpy(queue, in1_d, in1_h);
+    onHost::memcpy(queue, in2_d, in2_h);
 
     // fill the output buffer with zeros; the size is known from the buffer objects
-    alpaka::onHost::memset(queue, out_d, 0x00);
+    onHost::memset(queue, out_d, 0x00);
 
-
-    auto threadSpec = alpaka::onHost::ThreadSpec{Vec2D{2, 2}, Vec2D{2, 2}};
+    auto threadSpec = onHost::ThreadSpec{Vec2D{2, 2}, Vec2D{2, 2}};
 
     // launch the 1-dimensional kernel with scalar size
-    if constexpr(alpaka::isSeqExecutor(computeExec))
+    if constexpr(isSeqExecutor(computeExec))
     {
         std::cout << "Sequential Executor detected!" << std::endl;
-        threadSpec = alpaka::onHost::ThreadSpec{Vec2D{2, 2}, Vec2D{1, 1}};
+        threadSpec = onHost::ThreadSpec{Vec2D{2, 2}, Vec2D{1, 1}};
     }
 
-    // std::cout << "Testing CudaLikeSGEMM with scalar indices with a grid of " << threadSpec << "\n";
+    std::cout << "Testing CudaLikeSGEMM with scalar indices with a grid of " << threadSpec.m_numBlocks << ","
+              << threadSpec.m_numThreads << "\n";
+
+    onHost::wait(queue);
+    auto const beginT = std::chrono::high_resolution_clock::now();
     queue.enqueue(
         computeExec,
         threadSpec,
@@ -132,66 +138,72 @@ void testCudaLikeKernel(
         out_d.getMdSpan(),
         alpha,
         beta);
+    onHost::wait(queue);
+    auto const endT = std::chrono::high_resolution_clock::now();
+
+    double duration = std::chrono::duration<double>(endT - beginT).count();
+    std::cout << "Time for kernel execution: " << duration << " s" << std::endl;
+    std::cout << "  - flop count : " << flopCount << std::endl;
+    std::cout << "  - performance: " << static_cast<double>(flopCount) / 1.e12 / duration << " tflop/s" << std::endl;
 
     // copy the results from the device to the host
-    alpaka::onHost::memcpy(queue, out_h, out_d);
+    onHost::memcpy(queue, out_h, out_d);
 
     // check the results
-    auto cpu_out = alpaka::onHost::allocMirror(host, out_h);
-    alpaka::onHost::memset(queue, cpu_out, 0x00);
+    auto cpu_out = onHost::allocHostMirror(out_h);
+    onHost::memset(queue, cpu_out, 0x00);
 
     // wait for all the operations to complete
-    alpaka::onHost::wait(queue);
+    onHost::wait(queue);
 
     // Perform a naive CPU matrix multiplication to compare the results
     naive_matrix_mult(in1_h, in2_h, cpu_out, alpha, beta);
 
+    bool mismatch = false;
     for(uint32_t i = 0; i < out_size.product(); ++i)
     {
-        auto lIdx = alpaka::mapToND(out_size, i);
+        auto lIdx = mapToND(out_size, i);
         if(!(std::abs(out_h[lIdx] - cpu_out[lIdx]) < epsilon))
+        {
             std::cout << "MISMATCH at " << lIdx << " kernel=" << out_h[lIdx] << " cpu=" << cpu_out[lIdx] << std::endl;
+            mismatch = true;
+        }
         assert(std::abs(out_h[lIdx] - cpu_out[lIdx]) < epsilon);
     }
 
-    std::cout << "success\n";
+    if(!mismatch)
+        std::cout << "success\n";
+
+    return mismatch ? EXIT_FAILURE : EXIT_SUCCESS;
 }
 
 int example(auto const cfg)
 {
-    auto deviceApi = cfg[alpaka::object::api];
-    auto computeExec = cfg[alpaka::object::exec];
+    auto deviceSpec = cfg[object::deviceSpec];
+    auto computeExec = cfg[object::exec];
 
-    // initialise the accelerator platform
-    alpaka::onHost::Platform platform = alpaka::onHost::makePlatform(deviceApi);
+    std::cout << "Using alpaka accelerator: " << core::demangledName(computeExec) << " for "
+              << deviceSpec.getApi().getName() << " " << deviceSpec.getDeviceKind().getName() << std::endl;
 
-    // require at least one device
-    std::size_t n = alpaka::onHost::getDeviceCount(platform);
-
-    if(n == 0)
+    // Select a device
+    auto devSelector = onHost::makeDeviceSelector(deviceSpec);
+    if(!devSelector.isAvailable())
     {
-        return EXIT_FAILURE;
+        std::cout << "No device available for " << deviceSpec.getName() << std::endl;
+        return EXIT_SUCCESS;
     }
 
-    // use the single host device
-    alpaka::onHost::Platform host_platform = alpaka::onHost::makePlatform(alpaka::api::cpu);
-    alpaka::onHost::Device host = host_platform.makeDevice(0);
-    std::cout << "Host:   " << alpaka::onHost::getName(host) << "\n\n";
-
     // use the first device
-    alpaka::onHost::Device device = platform.makeDevice(0);
-    std::cout << "Device: " << alpaka::onHost::getName(device) << "\n\n";
+    onHost::Device device = devSelector.makeDevice(0);
+    std::cout << "Device: " << onHost::getName(device) << "\n\n";
 
-    testCudaLikeKernel(host, device, computeExec);
-
-    return EXIT_SUCCESS;
+    return testCudaLikeKernel(device, computeExec);
 }
 
 auto main() -> int
 {
-    using namespace alpaka;
     // Execute the example once for each enabled API and executor.
-    return executeForEach(
-        [=](auto const& tag) { return example(tag); },
-        onHost::allExecutorsAndApis(onHost::enabledApis));
+    return executeForEachIfHasDevice(
+        [=](auto const& cfg) { return example(cfg); },
+        onHost::allBackends(onHost::enabledApis));
 }
