@@ -21,37 +21,37 @@ struct SMemKernel
     template<typename TAcc>
     ALPAKA_FN_ACC void operator()(TAcc const& acc, auto const A, auto const B, auto out, float alpha, float beta) const
     {
-        auto numFramesMD = acc[frame::count];
         auto frameExtentMD = acc[frame::extent];
 
-        using IndexType = typename ALPAKA_TYPEOF(numFramesMD)::index_type;
+        using IndexType = typename ALPAKA_TYPEOF(out.getExtents())::index_type;
 
         // Go over each tile
-        for(auto tileIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::blocksInGrid, IdxRange{numFramesMD}))
+        for(auto tileOffsetMD : onAcc::makeIdxMap(
+                acc,
+                onAcc::worker::blocksInGrid,
+                IdxRange{ALPAKA_TYPEOF(out.getExtents())::all(0), out.getExtents(), frameExtentMD}))
         {
             // this seems like way too much shared memory usage
-            auto sharedIn1Tile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
-            auto sharedIn2Tile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
+            auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
+            auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
 
             auto tmp = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
 
+            for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{frameExtentMD}))
+                tmp[tileElemIndexMD] = 0.;
+
             // iterate through input buffers with stride of smem size
             // Assumption: frameExtent is quadratic, problem size is dividable by frameExtent
-            for(IndexType chunkStride = 0; chunkStride < A.getExtents().y(); chunkStride += frameExtentMD.y())
+            for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += frameExtentMD.x())
             {
                 // populate smem
                 for(auto tileElemIndexMD :
                     onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{frameExtentMD}))
-                { // buffer access: in[col, row]
-                    // TODO here we could use memory coalescing
-                    sharedIn1Tile[tileElemIndexMD] = A[Vec2D{
-                        chunkStride + tileElemIndexMD.y(),
-                        frameExtentMD.x() * tileIndexMD.x() + tileElemIndexMD.x()}];
-                    sharedIn2Tile[tileElemIndexMD] = B[Vec2D{
-                        frameExtentMD.y() * tileIndexMD.y() + tileElemIndexMD.y(),
-                        chunkStride + tileElemIndexMD.x()}];
-                    if(chunkStride == 0)
-                        tmp[tileElemIndexMD] = 0.;
+                {
+                    sharedATile[tileElemIndexMD]
+                        = A[Vec2D{tileOffsetMD.y() + tileElemIndexMD.y(), tileElemIndexMD.x() + chunkOffset}];
+                    sharedBTile[tileElemIndexMD]
+                        = B[Vec2D{tileElemIndexMD.y() + chunkOffset, tileOffsetMD.x() + tileElemIndexMD.x()}];
                 }
 
                 /* This call is equal to `onAcc::syncBlockThreads(acc)`
@@ -64,10 +64,10 @@ struct SMemKernel
                 for(auto tileElemIndexMD :
                     onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{frameExtentMD}))
                 {
-                    for(IndexType i = 0; i < frameExtentMD.y(); i++)
+                    for(IndexType k = 0; k < frameExtentMD.x(); k++)
                     {
-                        tmp[tileElemIndexMD] += sharedIn1Tile[Vec2D{i, tileElemIndexMD.x()}]
-                                                * sharedIn2Tile[Vec2D{tileElemIndexMD.y(), i}];
+                        tmp[tileElemIndexMD]
+                            += sharedATile[Vec2D{tileElemIndexMD.y(), k}] * sharedBTile[Vec2D{k, tileElemIndexMD.x()}];
                     }
                 }
 
@@ -76,8 +76,8 @@ struct SMemKernel
 
             for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{frameExtentMD}))
             {
-                out[tileIndexMD * frameExtentMD + tileElemIndexMD]
-                    = alpha * tmp[tileElemIndexMD] + beta * out[tileIndexMD * frameExtentMD + tileElemIndexMD];
+                out[tileOffsetMD + tileElemIndexMD]
+                    = alpha * tmp[tileElemIndexMD] + beta * out[tileOffsetMD + tileElemIndexMD];
             }
         }
     }
@@ -93,13 +93,13 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // tolerance
     constexpr float epsilon = 1e-4;
 
-    constexpr Vec2D A_size = {1024, 256};
-    constexpr Vec2D B_size = {256, 1024};
-    constexpr Vec2D C_size = {A_size.x(), B_size.y()};
-    constexpr size_t flopCount = A_size.y() * C_size.product() * 2u + 2u * C_size.product();
-    static_assert(A_size.y() == B_size.x());
-    static_assert(A_size.x() == C_size.x());
-    static_assert(B_size.y() == C_size.y());
+    constexpr Vec2D A_size = {256, 1024};
+    constexpr Vec2D B_size = {1024, 256};
+    constexpr Vec2D C_size = {A_size.y(), B_size.x()};
+    constexpr size_t flopCount = static_cast<size_t>(A_size.x()) * C_size.product() * 2u + 2u * C_size.product();
+    static_assert(A_size.x() == B_size.y());
+    static_assert(A_size.y() == C_size.y());
+    static_assert(B_size.x() == C_size.x());
     float alpha = 1.0;
     float beta = 0.5;
 
@@ -109,14 +109,14 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     auto C_h = onHost::allocHost<float>(C_size);
 
     // fill the input buffers with random data, and the output buffer with zeros
-    for(uint32_t i = 0; i < A_size.x(); ++i)
-        for(uint32_t j = 0; j < A_size.y(); ++j)
+    for(uint32_t j = 0; j < A_size.y(); ++j)
+        for(uint32_t i = 0; i < A_size.x(); ++i)
             A_h[Vec2D{j, i}] = dist(rand);
-    for(uint32_t i = 0; i < B_size.x(); ++i)
-        for(uint32_t j = 0; j < B_size.y(); ++j)
+    for(uint32_t j = 0; j < B_size.y(); ++j)
+        for(uint32_t i = 0; i < B_size.x(); ++i)
             B_h[Vec2D{j, i}] = dist(rand);
-    for(uint32_t i = 0; i < C_size.x(); ++i)
-        for(uint32_t j = 0; j < C_size.y(); ++j)
+    for(uint32_t j = 0; j < C_size.y(); ++j)
+        for(uint32_t i = 0; i < C_size.x(); ++i)
             C_h[Vec2D{j, i}] = 0.;
 
     // run the test the given device
@@ -135,10 +135,9 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::memset(queue, C_d, 0x00);
 
     int const frameExtent1D = 16;
-    auto frameExtent = CVec<uint32_t, frameExtent1D, frameExtent1D>{};
-    int framecountX = std::ceil(C_size.x() / frameExtent.x());
-    int framecountY = std::ceil(C_size.y() / frameExtent.y());
-    auto frameSpec = onHost::FrameSpec{Vec2D{framecountY, framecountX}, frameExtent};
+    concepts::CVector auto frameExtent = CVec<uint32_t, frameExtent1D, frameExtent1D>{};
+    concepts::Vector auto framecount = divExZero(C_size, frameExtent);
+    auto frameSpec = onHost::FrameSpec{framecount, frameExtent};
 
     // Assumption for this kernel: Our SMEM is quadratic and cleanly divides sizes of out buffer
     static_assert(C_size.x() % frameExtent.x() == 0);
@@ -150,8 +149,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::wait(queue);
     auto const beginT = std::chrono::high_resolution_clock::now();
 
-    queue
-        .enqueue(computeExec, frameSpec, SMemKernel{}, A_d.getMdSpan(), B_d.getMdSpan(), C_d.getMdSpan(), alpha, beta);
+    queue.enqueue(computeExec, frameSpec, SMemKernel{}, A_d, B_d, C_d, alpha, beta);
 
     onHost::wait(queue);
     auto const endT = std::chrono::high_resolution_clock::now();
