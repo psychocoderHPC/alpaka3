@@ -16,28 +16,21 @@
 
 using namespace alpaka;
 
-struct GMemCoalescedKernel
+struct GMemNonCoalescedKernel
 {
     template<typename TAcc>
     ALPAKA_FN_ACC void operator()(TAcc const& acc, auto const A, auto const B, auto out, float alpha, float beta) const
     {
-        for(auto linearIndex :
-            onAcc::makeIdxMap(acc, onAcc::worker::linearThreadsInGrid, IdxRange{out.getExtents().product()}))
+        using IndexType = typename ALPAKA_TYPEOF(out.getExtents())::index_type;
+
+        for(auto [col, row] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
         {
-            using IndexType = typename ALPAKA_TYPEOF(out.getExtents())::index_type;
-
-            IndexType lIndex = linearIndex[0];
-
-            // This index calculation emulates what a naive CUDA implementation might do
-            IndexType row = lIndex / out.getExtents().y();
-            IndexType col = lIndex % out.getExtents().y();
-
             float tmp = 0.0;
-            for(IndexType i = 0; i < A.getExtents().y(); ++i)
+            for(IndexType k = 0; k < A.getExtents().x(); ++k)
             {
-                tmp += A[Vec2D{i, row}] * B[Vec2D{col, i}];
+                tmp += A[Vec2D{row, k}] * B[Vec2D{k, col}];
             }
-            out[Vec2D{col, row}] = alpha * tmp + beta * out[Vec2D{col, row}];
+            out[Vec2D{row, col}] = alpha * tmp + beta * out[Vec2D{row, col}];
         }
     }
 };
@@ -52,13 +45,13 @@ int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeEx
     // tolerance
     constexpr float epsilon = 1e-4;
 
-    constexpr Vec2D A_size = {1024, 256};
-    constexpr Vec2D B_size = {256, 1024};
-    constexpr Vec2D C_size = {A_size.x(), B_size.y()};
-    constexpr size_t flopCount = A_size.y() * C_size.product() * 2u + 2u * C_size.product();
-    static_assert(A_size.y() == B_size.x());
-    static_assert(A_size.x() == C_size.x());
-    static_assert(B_size.y() == C_size.y());
+    constexpr Vec2D A_size = {256, 1024};
+    constexpr Vec2D B_size = {1024, 256};
+    constexpr Vec2D C_size = {A_size.y(), B_size.x()};
+    constexpr size_t flopCount = static_cast<size_t>(A_size.x()) * C_size.product() * 2u + 2u * C_size.product();
+    static_assert(A_size.x() == B_size.y());
+    static_assert(A_size.y() == C_size.y());
+    static_assert(B_size.x() == C_size.x());
     float alpha = 1.0;
     float beta = 0.5;
 
@@ -68,14 +61,14 @@ int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeEx
     auto C_h = onHost::allocHost<float>(C_size);
 
     // fill the input buffers with random data, and the output buffer with zeros
-    for(uint32_t i = 0; i < A_size.x(); ++i)
-        for(uint32_t j = 0; j < A_size.y(); ++j)
+    for(uint32_t j = 0; j < A_size.y(); ++j)
+        for(uint32_t i = 0; i < A_size.x(); ++i)
             A_h[Vec2D{j, i}] = dist(rand);
-    for(uint32_t i = 0; i < B_size.x(); ++i)
-        for(uint32_t j = 0; j < B_size.y(); ++j)
+    for(uint32_t j = 0; j < B_size.y(); ++j)
+        for(uint32_t i = 0; i < B_size.x(); ++i)
             B_h[Vec2D{j, i}] = dist(rand);
-    for(uint32_t i = 0; i < C_size.x(); ++i)
-        for(uint32_t j = 0; j < C_size.y(); ++j)
+    for(uint32_t j = 0; j < C_size.y(); ++j)
+        for(uint32_t i = 0; i < C_size.x(); ++i)
             C_h[Vec2D{j, i}] = 0.;
 
     // run the test the given device
@@ -93,22 +86,14 @@ int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeEx
     // fill the output buffer with zeros; the si
     onHost::memset(queue, C_d, 0x00);
 
-    auto frameSpec = onHost::FrameSpec{Vec2D{8, 8}, Vec2D{32, 32}};
+    auto frameSpec = onHost::FrameSpec{divExZero(C_size, Vec2D{16, 16}), Vec2D{16, 16}};
 
-    std::cout << "Testing GMemCoalescedKernel with scalar indices with a grid of " << frameSpec << "\n";
+    std::cout << "Testing GMemNonCoalescedKernel with scalar indices with a grid of " << frameSpec << "\n";
 
     onHost::wait(queue);
     auto const beginT = std::chrono::high_resolution_clock::now();
 
-    queue.enqueue(
-        computeExec,
-        frameSpec,
-        GMemCoalescedKernel{},
-        A_d.getMdSpan(),
-        B_d.getMdSpan(),
-        C_d.getMdSpan(),
-        alpha,
-        beta);
+    queue.enqueue(computeExec, frameSpec, GMemNonCoalescedKernel{}, A_d, B_d, C_d, alpha, beta);
 
     onHost::wait(queue);
     auto const endT = std::chrono::high_resolution_clock::now();
