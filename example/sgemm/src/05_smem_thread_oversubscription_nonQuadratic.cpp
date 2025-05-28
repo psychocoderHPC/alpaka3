@@ -40,33 +40,60 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                 IdxRange{ALPAKA_TYPEOF(out.getExtents())::all(0), out.getExtents(), chunkExtent}))
         {
             // this seems like way too much shared memory usage
-            auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, chunkExtent);
-            auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, chunkExtent);
+            concepts::CVector auto sAExtent = CVec<uint32_t, chunkExtent.y(), chunkExtent.x()>{};
+            concepts::CVector auto sBExtent = CVec<uint32_t, chunkExtent.x(), chunkExtent.y()>{};
+            auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, sAExtent);
+            auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, sBExtent);
+
+            static_assert(sAExtent.x() == sBExtent.y());
 
             constexpr auto independentThread = onAcc::WorkerGroup{CVec<uint32_t, 0, 0>{}, CVec<uint32_t, 1, 1>{}};
 
-            constexpr concepts::CVector auto elemPerThread = CVec<
-                uint32_t,
-                chunkExtent.y() / threadBlockExtentMD.y(),
-                chunkExtent.x() / threadBlockExtentMD.x()>{};
-            using TVecX = alpaka::Vec<float, elemPerThread.x()>;
-            using TVec = alpaka::Vec<TVecX, elemPerThread.y()>;
+            // 4,1 elements per thread
+            constexpr auto elem = chunkExtent / threadBlockExtentMD;
+           // printf("elem: %u,%u\n", elem.y(), elem.x());
+            constexpr concepts::CVector auto elemPerThreadA = CVec<uint32_t, elem.y(), elem.x()>{};
+            constexpr concepts::CVector auto elemPerThreadB = CVec<uint32_t, elem.x(), elem.y()>{};
+            constexpr concepts::CVector auto elemPerThreadC = CVec<uint32_t, elem.y(), elem.y()>{};
 
-            TVec tmp = {0}; // TVec::all(TVecX::all(0.f));
+            using TVecAX = alpaka::Vec<float, elemPerThreadA.x()>;
+            using TVecA = alpaka::Vec<TVecAX, elemPerThreadA.y()>;
+
+            using TVecBX = alpaka::Vec<float, elemPerThreadB.y()>;
+            using TVecB = alpaka::Vec<TVecBX, elemPerThreadB.x()>;
+
+            using TVecCX = alpaka::Vec<float, elemPerThreadC.y()>;
+            using TVecC = alpaka::Vec<TVecCX, elemPerThreadC.y()>;
+
+            TVecA tmpA = {0};
+            TVecB tmpB = {0};
+            TVecC tmpC = {0};
+
 
             // iterate through input buffers with stride of smem size
             // Assumption: frameExtent is quadratic, problem size is dividable by frameExtent
             for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += chunkExtent.x())
             {
+                // std::cout << "------A----\n";
                 // populate smem
-                for(auto tileElemIndexMD :
-                    onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{chunkExtent}))
+                for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{sAExtent}))
                 {
                     sharedATile[tileElemIndexMD]
                         = A[Vec2D{tileOffsetMD.y() + tileElemIndexMD.y(), tileElemIndexMD.x() + chunkOffset}];
+                    //    std::cout << sharedATile[tileElemIndexMD] << ",";
+                    //     if(tileElemIndexMD.x() == sAExtent.x() - 1)
+                    //         std::cout << "\n";
+                }
+                // std::cout << "------B----\n";
+                for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{sBExtent}))
+                {
                     sharedBTile[tileElemIndexMD]
                         = B[Vec2D{tileElemIndexMD.y() + chunkOffset, tileOffsetMD.x() + tileElemIndexMD.x()}];
+                    //   std::cout << sharedBTile[tileElemIndexMD] << ",";
+                    //  if(tileElemIndexMD.x() == sBExtent.x() - 1)
+                    //      std::cout << "\n";
                 }
+                // std::cout << "-----------\n";
 
                 /* This call is equal to `onAcc::syncBlockThreads(acc)`
                  *
@@ -74,25 +101,58 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                  * different traversing schema. Therefore, you should not assume any thread and data element relation.
                  */
                 alpaka::onAcc::syncBlockThreads(acc);
-
-                for(auto tElemIdxMD : onAcc::makeIdxMap(acc, independentThread, IdxRange{elemPerThread}))
+                for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += 1)
                 {
-                    for(IndexType k = 0; k < chunkExtent.x(); k++)
+                    //  std::cout << "------A cache----" << elemPerThreadA << "\n";
+                    for(auto tElemIdxMD : onAcc::makeIdxMap(acc, independentThread, IdxRange{elemPerThreadA}))
                     {
-                        concepts::Vector auto tileElemIndexMD = tElemIdxMD * threadBlockExtentMD + threadIdxMD;
-                        tmp[tElemIdxMD.y()][tElemIdxMD.x()]
-                            += sharedATile[Vec2D{tileElemIndexMD.y(), k}] * sharedBTile[Vec2D{k, tileElemIndexMD.x()}];
+                        tmpA[tElemIdxMD.y()][tElemIdxMD.x()] = sharedATile[Vec2D{
+                            threadIdxMD.y() * elemPerThreadA.y() + tElemIdxMD.y(),
+                            tElemIdxMD.x() + dotIdx}];
+                        //    std::cout << tmpA[tElemIdxMD.y()][tElemIdxMD.x()] << ",";
+                        //    if(tElemIdxMD.x() == elemPerThreadA.x() - 1)
+                        //        std::cout << "\n";
                     }
+                    //  std::cout << "------B cache----" << elemPerThreadB << "\n";
+                    for(auto tElemIdxMD : onAcc::makeIdxMap(acc, independentThread, IdxRange{elemPerThreadB}))
+                    {
+                        tmpB[tElemIdxMD.y()][tElemIdxMD.x()] = sharedBTile[Vec2D{
+                            tElemIdxMD.y() + dotIdx,
+                            threadIdxMD.x() * elemPerThreadB.x() + tElemIdxMD.x()}];
+                        //   std::cout << tmpB[tElemIdxMD.y()][tElemIdxMD.x()] << ",";
+                        //   if(tElemIdxMD.x() == elemPerThreadB.x() - 1)
+                        //      std::cout << "\n";
+                    }
+                    // std::cout << "------C cache----" << elemPerThreadC << "\n";
+                    for(auto tElemIdxMD :
+                        onAcc::makeIdxMap(acc, independentThread, IdxRange{elemPerThreadC})[CVec<uint32_t, 0, 1>{}])
+                    {
+                        for(uint32_t foo = 0u; foo < elemPerThreadA.x(); foo += elemPerThreadA.x())
+                        {
+                            tmpC[tElemIdxMD.y()][tElemIdxMD.x()]
+                                += tmpA[tElemIdxMD.y()][foo] * tmpB[foo][tElemIdxMD.x()];
+                            //       std::cout << tmpC[tElemIdxMD.y()][tElemIdxMD.x()] << ", " <<
+                            //       tmpA[tElemIdxMD.y()][foo]
+                            //                  << "," << tmpB[foo][tElemIdxMD.x()] << "\n";
+                            //         if(tElemIdxMD.x() == elemPerThreadC.x() - 1)
+                            //            std::cout << "\n";
+                        }
+                    }
+                    //  std::cout << "------\n";
                 }
 
                 alpaka::onAcc::syncBlockThreads(acc);
             }
 
-            for(auto tElemIdxMD : onAcc::makeIdxMap(acc, independentThread, IdxRange{elemPerThread}))
+            // std::cout << "------C out----" << elemPerThreadC << "\n";
+            for(auto tElemIdxMD : onAcc::makeIdxMap(acc, independentThread, IdxRange{elemPerThreadC}))
             {
-                concepts::Vector auto tileElemIndexMD = tElemIdxMD * threadBlockExtentMD + threadIdxMD;
+                concepts::Vector auto tileElemIndexMD = threadIdxMD * elemPerThreadC + tElemIdxMD;
                 out[tileOffsetMD + tileElemIndexMD]
-                    = alpha * tmp[tElemIdxMD.y()][tElemIdxMD.x()] + beta * out[tileOffsetMD + tileElemIndexMD];
+                    = alpha * tmpC[tElemIdxMD.y()][tElemIdxMD.x()] + beta * out[tileOffsetMD + tileElemIndexMD];
+                //    std::cout << tileOffsetMD + tileElemIndexMD << "|" << out[tileOffsetMD + tileElemIndexMD] << ",";
+                //    if(tElemIdxMD.x() == elemPerThreadC.x() - 1)
+                //        std::cout << "\n";
             }
         }
     }
@@ -149,11 +209,10 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // fill the output buffer with zeros; the si
     onHost::memset(queue, C_d, 0x00);
 
-    constexpr uint32_t frameExtent1D = 16;
-    constexpr uint32_t elemPerThreadDim = 2u;
-    concepts::CVector auto frameExtent = CVec<uint32_t, frameExtent1D, frameExtent1D>{};
-    concepts::CVector auto chunkExtent
-        = CVec<uint32_t, frameExtent1D * elemPerThreadDim, frameExtent1D * elemPerThreadDim>{};
+    constexpr uint32_t frameExtent1D = 2u;
+    constexpr uint32_t elemPerThread = 2u;
+    concepts::CVector auto frameExtent = CVec<uint32_t, frameExtent1D, frameExtent1D * elemPerThread>{};
+    concepts::CVector auto chunkExtent = CVec<uint32_t, frameExtent.x(), frameExtent.x()>{};
     concepts::Vector auto framecount = divExZero(C_size, chunkExtent);
     // workaround: we need fewer threads than the chunk extent has element, we will use frameExtent, currently the
     // number of threads in FrameSpec can not have a different type than the frameExtent
@@ -162,7 +221,6 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // Assumption for this kernel: Our SMEM is quadratic and cleanly divides sizes of out buffer
     static_assert(C_size.x() % chunkExtent.x() == 0);
     static_assert(C_size.y() % chunkExtent.y() == 0);
-    static_assert(chunkExtent.x() == chunkExtent.y());
 
     std::cout << "Testing SMemThreadOversubscriptionNonQuadraticKernel with scalar indices with a grid of "
               << frameSpec << "and chunk extent=" << chunkExtent << "\n";
