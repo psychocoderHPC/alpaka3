@@ -19,9 +19,15 @@ using namespace alpaka;
 struct SMemThreadOversubscriptionKernel
 {
     template<typename TAcc>
-    ALPAKA_FN_ACC void operator()(TAcc const& acc, auto const A, auto const B, auto out, float alpha, float beta) const
+    ALPAKA_FN_ACC void operator()(
+        TAcc const& acc,
+        auto const A,
+        auto const B,
+        auto out,
+        float alpha,
+        float beta,
+        concepts::CVector auto chunkExtent) const
     {
-        concepts::CVector auto frameExtentMD = acc[frame::extent];
         concepts::Vector auto threadIdxMD = acc[layer::thread].idx();
         concepts::CVector auto threadBlockExtentMD = acc[layer::thread].count();
 
@@ -31,18 +37,18 @@ struct SMemThreadOversubscriptionKernel
         for(auto tileOffsetMD : onAcc::makeIdxMap(
                 acc,
                 onAcc::worker::blocksInGrid,
-                IdxRange{ALPAKA_TYPEOF(out.getExtents())::all(0), out.getExtents(), frameExtentMD}))
+                IdxRange{ALPAKA_TYPEOF(out.getExtents())::all(0), out.getExtents(), chunkExtent}))
         {
             // this seems like way too much shared memory usage
-            auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
-            auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
+            auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, chunkExtent);
+            auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, chunkExtent);
 
             constexpr auto independentThread = onAcc::WorkerGroup{CVec<uint32_t, 0, 0>{}, CVec<uint32_t, 1, 1>{}};
 
             constexpr concepts::CVector auto elemPerThread = CVec<
                 uint32_t,
-                frameExtentMD.y() / threadBlockExtentMD.y(),
-                frameExtentMD.x() / threadBlockExtentMD.x()>{};
+                chunkExtent.y() / threadBlockExtentMD.y(),
+                chunkExtent.x() / threadBlockExtentMD.x()>{};
             using TVecX = alpaka::Vec<float, elemPerThread.x()>;
             using TVec = alpaka::Vec<TVecX, elemPerThread.y()>;
 
@@ -50,11 +56,11 @@ struct SMemThreadOversubscriptionKernel
 
             // iterate through input buffers with stride of smem size
             // Assumption: frameExtent is quadratic, problem size is dividable by frameExtent
-            for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += frameExtentMD.x())
+            for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += chunkExtent.x())
             {
                 // populate smem
                 for(auto tileElemIndexMD :
-                    onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{frameExtentMD}))
+                    onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{chunkExtent}))
                 {
                     sharedATile[tileElemIndexMD]
                         = A[Vec2D{tileOffsetMD.y() + tileElemIndexMD.y(), tileElemIndexMD.x() + chunkOffset}];
@@ -71,7 +77,7 @@ struct SMemThreadOversubscriptionKernel
 
                 for(auto tElemIdxMD : onAcc::makeIdxMap(acc, independentThread, IdxRange{elemPerThread}))
                 {
-                    for(IndexType k = 0; k < frameExtentMD.x(); k++)
+                    for(IndexType k = 0; k < chunkExtent.x(); k++)
                     {
                         concepts::Vector auto tileElemIndexMD = tElemIdxMD * threadBlockExtentMD + threadIdxMD;
                         tmp[tElemIdxMD.y()][tElemIdxMD.x()]
@@ -143,22 +149,28 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // fill the output buffer with zeros; the si
     onHost::memset(queue, C_d, 0x00);
 
-    int const frameExtent1D = 16;
+    constexpr uint32_t frameExtent1D = 16;
+    constexpr uint32_t elemPerThreadDim = 2u;
     concepts::CVector auto frameExtent = CVec<uint32_t, frameExtent1D, frameExtent1D>{};
-    concepts::Vector auto framecount = divExZero(C_size, frameExtent);
+    concepts::CVector auto chunkExtent
+        = CVec<uint32_t, frameExtent1D * elemPerThreadDim, frameExtent1D * elemPerThreadDim>{};
+    concepts::Vector auto framecount = divExZero(C_size, chunkExtent);
+    // workaround: we need fewer threads than the chunk extent has element, we will use frameExtent, currently the
+    // number of threads in FrameSpec can not have a different type than the frameExtent
     auto frameSpec = onHost::FrameSpec{framecount, frameExtent};
 
     // Assumption for this kernel: Our SMEM is quadratic and cleanly divides sizes of out buffer
-    static_assert(C_size.x() % frameExtent.x() == 0);
-    static_assert(C_size.y() % frameExtent.y() == 0);
-    static_assert(frameExtent.x() == frameExtent.y());
+    static_assert(C_size.x() % chunkExtent.x() == 0);
+    static_assert(C_size.y() % chunkExtent.y() == 0);
+    static_assert(chunkExtent.x() == chunkExtent.y());
 
-    std::cout << "Testing SMemThreadOversubscriptionKernel with scalar indices with a grid of " << frameSpec << "\n";
+    std::cout << "Testing SMemThreadOversubscriptionKernel with scalar indices with a grid of " << frameSpec
+              << "and chunk extent=" << chunkExtent << "\n";
 
     onHost::wait(queue);
     auto const beginT = std::chrono::high_resolution_clock::now();
 
-    queue.enqueue(computeExec, frameSpec, SMemThreadOversubscriptionKernel{}, A_d, B_d, C_d, alpha, beta);
+    queue.enqueue(computeExec, frameSpec, SMemThreadOversubscriptionKernel{}, A_d, B_d, C_d, alpha, beta, chunkExtent);
 
     onHost::wait(queue);
     auto const endT = std::chrono::high_resolution_clock::now();
