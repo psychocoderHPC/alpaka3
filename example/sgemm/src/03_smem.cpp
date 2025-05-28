@@ -21,7 +21,9 @@ struct SMemKernel
     template<typename TAcc>
     ALPAKA_FN_ACC void operator()(TAcc const& acc, auto const A, auto const B, auto out, float alpha, float beta) const
     {
-        auto frameExtentMD = acc[frame::extent];
+        concepts::CVector auto frameExtentMD = acc[frame::extent];
+        concepts::Vector auto threadIdxMD = acc[layer::thread].idx();
+        concepts::CVector auto threadBlockExtentMD = acc[layer::thread].count();
 
         using IndexType = typename ALPAKA_TYPEOF(out.getExtents())::index_type;
 
@@ -35,10 +37,16 @@ struct SMemKernel
             auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
             auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
 
-            auto tmp = onAcc::declareSharedMdArray<float, uniqueId()>(acc, frameExtentMD);
+            constexpr auto independentThread = onAcc::WorkerGroup{CVec<uint32_t, 0, 0>{}, CVec<uint32_t, 1, 1>{}};
 
-            for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{frameExtentMD}))
-                tmp[tileElemIndexMD] = 0.;
+            constexpr concepts::CVector auto elemPerThread = CVec<
+                uint32_t,
+                frameExtentMD.y() / threadBlockExtentMD.y(),
+                frameExtentMD.x() / threadBlockExtentMD.x()>{};
+            using TVecX = alpaka::Vec<float, elemPerThread.x()>;
+            using TVec = alpaka::Vec<TVecX, elemPerThread.y()>;
+
+            TVec tmp = {0}; // TVec::all(TVecX::all(0.f));
 
             // iterate through input buffers with stride of smem size
             // Assumption: frameExtent is quadratic, problem size is dividable by frameExtent
@@ -61,12 +69,12 @@ struct SMemKernel
                  */
                 alpaka::onAcc::syncBlockThreads(acc);
 
-                for(auto tileElemIndexMD :
-                    onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{frameExtentMD}))
+                for(auto tElemIdxMD : onAcc::makeIdxMap(acc, independentThread, IdxRange{elemPerThread}))
                 {
                     for(IndexType k = 0; k < frameExtentMD.x(); k++)
                     {
-                        tmp[tileElemIndexMD]
+                        concepts::Vector auto tileElemIndexMD = tElemIdxMD * threadBlockExtentMD + threadIdxMD;
+                        tmp[tElemIdxMD.y()][tElemIdxMD.x()]
                             += sharedATile[Vec2D{tileElemIndexMD.y(), k}] * sharedBTile[Vec2D{k, tileElemIndexMD.x()}];
                     }
                 }
@@ -74,10 +82,11 @@ struct SMemKernel
                 alpaka::onAcc::syncBlockThreads(acc);
             }
 
-            for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{frameExtentMD}))
+            for(auto tElemIdxMD : onAcc::makeIdxMap(acc, independentThread, IdxRange{elemPerThread}))
             {
+                concepts::Vector auto tileElemIndexMD = tElemIdxMD * threadBlockExtentMD + threadIdxMD;
                 out[tileOffsetMD + tileElemIndexMD]
-                    = alpha * tmp[tileElemIndexMD] + beta * out[tileOffsetMD + tileElemIndexMD];
+                    = alpha * tmp[tElemIdxMD.y()][tElemIdxMD.x()] + beta * out[tileOffsetMD + tileElemIndexMD];
             }
         }
     }
@@ -134,7 +143,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // fill the output buffer with zeros; the si
     onHost::memset(queue, C_d, 0x00);
 
-    int const frameExtent1D = 16;
+    uint32_t const frameExtent1D = 16;
     concepts::CVector auto frameExtent = CVec<uint32_t, frameExtent1D, frameExtent1D>{};
     concepts::Vector auto framecount = divExZero(C_size, frameExtent);
     auto frameSpec = onHost::FrameSpec{framecount, frameExtent};
