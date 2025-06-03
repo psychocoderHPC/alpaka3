@@ -27,7 +27,8 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
         float alpha,
         float beta,
         concepts::CVector auto chunkExtent,
-        concepts::CVector auto elemPerThread) const
+        concepts::CVector auto elemPerThread,
+        concepts::CVector auto bk) const
     {
         concepts::Vector auto threadIdxMD = acc[layer::thread].idx();
         //    concepts::CVector auto frameExtent = acc[frame::extent];
@@ -44,24 +45,34 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
             constexpr uint32_t numElem = elemPerThread.x();
 
             // this seems like way too much shared memory usage
-            concepts::CVector auto sBExtent = CVec<uint32_t, chunkExtent.y(), chunkExtent.x()>{};
-            concepts::CVector auto sAExtent = CVec<uint32_t, chunkExtent.y(), sBExtent.y()>{};
+            concepts::CVector auto sBExtent = CVec<uint32_t, bk.x(), chunkExtent.x()>{};
+            concepts::CVector auto sAExtent = CVec<uint32_t, chunkExtent.y(), bk.x()>{};
 
             auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, sAExtent);
             auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, sBExtent);
 
             static_assert(sAExtent.x() == sBExtent.y());
 
-
+#if 0
             using TVecA = alpaka::Vec<float, numElem>;
             using TVecB = alpaka::Vec<float, numElem>;
-
             using TVecCX = alpaka::Vec<float, numElem>;
             using TVecC = alpaka::Vec<TVecCX, numElem>;
 
             TVecA tmpA = {0};
             TVecB tmpB = {0};
             TVecC tmpC = TVecC::all(TVecCX::all(0));
+#else
+            using TVecA = alpaka::Simd<float, numElem, Alignment<16>>;
+            using TVecB = alpaka::Simd<float, numElem, Alignment<16>>;
+
+            using TVecCX = alpaka::Simd<float, numElem, Alignment<16>>;
+            using TVecC = alpaka::Simd<TVecCX, numElem>;
+
+            TVecA tmpA = {0};
+            TVecB tmpB = {0};
+            TVecC tmpC = TVecC::all(TVecCX::all(0));
+#endif
 
 
             // iterate through input buffers with stride of smem size
@@ -70,14 +81,26 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
             {
                 // std::cout << "------A----\n";
                 // populate smem
+#if 0
                 for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{sAExtent}))
                 {
                     sharedATile[tileElemIndexMD]
                         = A[Vec2D{tileOffsetMD.y() + tileElemIndexMD.y(), tileElemIndexMD.x() + chunkOffset}];
-                    //    std::cout << sharedATile[tileElemIndexMD] << ",";
-                    //     if(tileElemIndexMD.x() == sAExtent.x() - 1)
-                    //         std::cout << "\n";
                 }
+                [[maybe_unused]] auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInBlock};
+#else
+                auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInBlock};
+                simdGrid.template concurrent<16u, Alignment<16>>(
+                    acc,
+                    sAExtent,
+                    [&](auto const&, auto sharedA, auto const& a) constexpr {
+                        sharedA = a[Vec2D{tileOffsetMD.y(), chunkOffset}].load();
+                    },
+                    sharedATile,
+                    A);
+#endif
+
+#if 0
                 // std::cout << "------B----\n";
                 for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{sBExtent}))
                 {
@@ -91,6 +114,17 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     //      std::cout << "\n";
                 }
                 // std::cout << "-----------\n";
+#else
+                simdGrid.template concurrent<16u, Alignment<16>>(
+                    acc,
+                    sBExtent,
+                    [&](auto const&, auto sharedB, auto const& b) constexpr {
+                        sharedB = b[Vec2D{chunkOffset, tileOffsetMD.x()}].load();
+                    },
+                    sharedBTile,
+                    B);
+#endif
+
 
                 /* This call is equal to `onAcc::syncBlockThreads(acc)`
                  *
@@ -110,15 +144,22 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     }
 
                     // std::cout << "\n------B cache----" << numElem << "\n";
+#if 0
                     for(uint32_t k = 0u; k < numElem; ++k)
                     {
                         tmpB[k] = sharedBTile[Vec2D{dotIdx, threadIdxMD.x() * numElem + k}];
-                        //  if(threadIdxMD.x() == 1u)
-                        //      printf("B %u,%u %u -> %f\n",dotIdx,threadIdxMD.x() * numElem + k, k,tmpB[k]);
-                        //   std::cout << tmpB[k] << ",";
-                        //   if(tElemIdxMD.x() == elemPerThreadB.x() - 1)
-                        //      std::cout << "\n";
                     }
+#else
+
+                    auto sharedBPtr = SimdPtr{
+                        sharedBTile,
+                        Vec2D{dotIdx, threadIdxMD.x() * numElem},
+                        Alignment<16>{},
+                        CVec<uint32_t, numElem>{}};
+                    tmpB = sharedBPtr.load();
+#endif
+
+#if 0
                     //  std::cout << "\n------C cache----" << numElem << "\n";
                     for(uint32_t j = 0u; j < numElem; ++j)
                         for(uint32_t i = 0u; i < numElem; ++i)
@@ -128,13 +169,17 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                             //     if(i == numElem - 1)
                             //         std::cout << "\n";
                         }
-
+#else
+                    for(uint32_t j = 0u; j < numElem; ++j)
+                        tmpC[j] += tmpA[j] * tmpB;
+#endif
                     //  std::cout << "------\n";
                 }
 
                 alpaka::onAcc::syncBlockThreads(acc);
             }
 
+#if 0
             // std::cout << "------C out----" << elemPerThreadC << "\n";
             for(uint32_t j = 0u; j < numElem; ++j)
                 for(uint32_t i = 0u; i < numElem; ++i)
@@ -147,6 +192,16 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     //    ","; if(tElemIdxMD.x() == elemPerThreadC.x() - 1)
                     //        std::cout << "\n";
                 }
+#else
+            concepts::Vector auto cTileOffsetMD = tileOffsetMD + threadIdxMD * numElem;
+            auto cSimdPtr = SimdPtr{out, cTileOffsetMD, Alignment<16>{}, CVec<uint32_t, numElem>{}};
+            for(uint32_t j = 0u; j < numElem; ++j)
+            {
+                auto cShifted = cSimdPtr[Vec2D{j, 0}];
+                cShifted = alpha * tmpC[j] + beta * cShifted.load();
+            }
+
+#endif
         }
     }
 };
@@ -202,8 +257,9 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // fill the output buffer with zeros; the si
     onHost::memset(queue, C_d, 0x00);
 
-    constexpr uint32_t elemPerThread = 4u;
-    concepts::CVector auto frameExtent = CVec<uint32_t, 16, 2>{};
+    constexpr uint32_t bk = 8;
+    constexpr uint32_t elemPerThread = 8u;
+    concepts::CVector auto frameExtent = CVec<uint32_t, 8, 8>{};
     concepts::CVector auto chunkExtent
         = CVec<uint32_t, frameExtent.y() * elemPerThread, frameExtent.x() * elemPerThread>{};
     concepts::Vector auto framecount = divExZero(C_size, chunkExtent);
@@ -221,17 +277,22 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::wait(queue);
     auto const beginT = std::chrono::high_resolution_clock::now();
 
-    queue.enqueue(
-        computeExec,
-        frameSpec,
-        SMemThreadOversubscriptionNonQuadraticKernel{},
-        A_d,
-        B_d,
-        C_d,
-        alpha,
-        beta,
-        chunkExtent,
-        CVec<uint32_t, elemPerThread>{});
+    constexpr uint32_t repeat = 50;
+    for(uint32_t i = 0; i < repeat; ++i)
+    {
+        queue.enqueue(
+            computeExec,
+            frameSpec,
+            SMemThreadOversubscriptionNonQuadraticKernel{},
+            A_d,
+            B_d,
+            C_d,
+            alpha,
+            beta,
+            chunkExtent,
+            CVec<uint32_t, elemPerThread>{},
+            CVec<uint32_t, bk>{});
+    }
 
     onHost::wait(queue);
     auto const endT = std::chrono::high_resolution_clock::now();
@@ -239,7 +300,9 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     double duration = std::chrono::duration<double>(endT - beginT).count();
     std::cout << "Time for kernel execution: " << duration << " s" << std::endl;
     std::cout << "  - flop count : " << flopCount << std::endl;
-    std::cout << "  - performance: " << static_cast<double>(flopCount) / 1.e12 / duration << " tflop/s" << std::endl;
+    std::cout << "  - performance: "
+              << static_cast<double>(flopCount) / 1.e12 / (duration / static_cast<double>(repeat)) << " tflop/s"
+              << std::endl;
 
     // copy the results from the device to the host
     onHost::memcpy(queue, C_h, C_d);
