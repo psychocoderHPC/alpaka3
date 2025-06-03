@@ -74,13 +74,7 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     },
                     sharedATile,
                     A);
-
-                for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{sBExtent}))
-                {
-                    sharedBTile[tileElemIndexMD]
-                        = B[Vec2D{tileElemIndexMD.y() + chunkOffset, tileOffsetMD.x() + tileElemIndexMD.x()}];
-                }
-
+                
                 simdGrid.template concurrent<16u, Alignment<16>>(
                     acc,
                     sBExtent,
