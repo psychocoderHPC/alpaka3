@@ -52,7 +52,7 @@ namespace alpaka::onHost
             return alpaka::internal::GetName::Op<std::decay_t<decltype(*m_queue.get())>>{}(*m_queue.get());
         }
 
-        [[nodiscard]] uint32_t getNativeHandle() const
+        [[nodiscard]] decltype(auto) getNativeHandle() const
         {
             return internal::getNativeHandle(*m_queue.get());
         }
