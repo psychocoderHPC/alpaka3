@@ -182,6 +182,59 @@ namespace alpaka
         DataPitches<value_type, T_Pitches> m_pitch;
     };
 
+    template<typename T_Base, concepts::CVector T_Transpose, concepts::Alignment T_MemAlignment>
+    struct MdSpanTransposed : T_Base
+    {
+        using value_type = typename T_Base::value_type;
+        using reference = value_type&;
+        using pointer = value_type*;
+        using index_type = typename T_Base::index_type;
+
+
+        /*Object must init by copy a valid instance*/
+        constexpr MdSpanTransposed() = default;
+
+        /** Constructor
+         *
+         * @param pointer pointer to the memory
+         * @param extents number of elements
+         * @param pitchBytes pitch in bytes per dimension
+         * @param memAlignmentInByte alignment in bytes (zero will set alignment to element alignment)
+         */
+        constexpr MdSpanTransposed(
+            T_Base baseMdSpan,
+            T_Transpose transposeVector,
+            [[maybe_unused]] T_MemAlignment const& memAlignmentInByte = T_MemAlignment{})
+            : T_Base(baseMdSpan)
+        {
+        }
+
+        MdSpanTransposed(MdSpanTransposed const&) = default;
+        MdSpanTransposed(MdSpanTransposed&&) = default;
+        constexpr MdSpanTransposed& operator=(MdSpanTransposed const&) = default;
+        constexpr MdSpanTransposed& operator=(MdSpanTransposed&&) = default;
+
+        static consteval auto getAlignment()
+        {
+            return T_MemAlignment{};
+        }
+
+        /** get value at the given index
+         *
+         * @param idx n-dimensional offset, relative to the origin pointer
+         * @return reference to the value
+         */
+        constexpr reference operator[](concepts::Vector auto const& idx) const
+        {
+            return T_Base::operator[](idx.swizzle(T_Transpose{}));
+        }
+
+        constexpr reference operator[](std::integral auto const& idx) const requires(T_Base::dim() == 1u)
+        {
+            return T_Base::operator[](Vec{idx}.swizzle(T_Transpose{}));
+        }
+    };
+
     /** access a C array with compile time extents via a runtime md index. */
     template<std::integral auto T_numDims, uint32_t T_dim = 0u>
     struct ResolveArrayAccess

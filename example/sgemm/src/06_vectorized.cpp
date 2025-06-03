@@ -47,8 +47,9 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
             // this seems like way too much shared memory usage
             concepts::CVector auto sBExtent = CVec<uint32_t, bk.x(), chunkExtent.x()>{};
             concepts::CVector auto sAExtent = CVec<uint32_t, chunkExtent.y(), bk.x()>{};
-
-            auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, sAExtent);
+            // shared a matrix is stored transposed to support shared to register vector loads
+            auto sharedATile
+                = onAcc::declareSharedMdArray<float, uniqueId()>(acc, CVec<uint32_t, sAExtent.x(), sAExtent.y()>{});
             auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, sBExtent);
 
             static_assert(sAExtent.x() == sBExtent.y());
@@ -61,25 +62,25 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
             auto regMdC = MdSpanArray<float[numElem][numElem], Alignment<16u>>{regC};
 
 
+            auto aTransposed = MdSpanTransposed{sharedATile, CVec<uint32_t, 1, 0>{}, Alignment<>{}};
             // iterate through input buffers with stride of smem size
             // Assumption: frameExtent is quadratic, problem size is dividable by frameExtent
-            for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += sAExtent.x())
+            for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += bk.x())
             {
                 auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInBlock};
                 simdGrid.template concurrent<16u, Alignment<16>>(
                     acc,
                     sAExtent,
-                    [&](auto const&, auto sharedA, auto const& a) constexpr {
-                        sharedA = a[Vec2D{tileOffsetMD.y(), chunkOffset}].load();
-                    },
-                    sharedATile,
-                    A);
+                    [&](auto const&, auto const& a) constexpr
+                    {
+                        auto globalMemValue = a[Vec2D{tileOffsetMD.y(), chunkOffset}].load();
 
-                for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{sBExtent}))
-                {
-                    sharedBTile[tileElemIndexMD]
-                        = B[Vec2D{tileElemIndexMD.y() + chunkOffset, tileOffsetMD.x() + tileElemIndexMD.x()}];
-                }
+                        for(auto i = 0u; i < globalMemValue.dim(); ++i)
+                        {
+                            aTransposed[a.getIdx() + Vec2D{0, i}] = globalMemValue[i];
+                        }
+                    },
+                    A);
 
                 simdGrid.template concurrent<16u, Alignment<16>>(
                     acc,
@@ -99,9 +100,15 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                 alpaka::onAcc::syncBlockThreads(acc);
                 for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += 1)
                 {
-                    for(uint32_t k = 0u; k < numElem; ++k)
+                    for(uint32_t k = 0u; k < numElem; k += 4)
                     {
-                        regMdA[k] = sharedATile[Vec2D{threadIdxMD.y() * numElem + k, dotIdx}];
+                        auto regAPtr = SimdPtr{regMdA, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                        auto sAPtr = SimdPtr{
+                            sharedATile,
+                            Vec2D{dotIdx, threadIdxMD.y() * numElem + k},
+                            Alignment<16u>{},
+                            CVec<uint32_t, 4u>{}};
+                        regAPtr = sAPtr.load();
                     }
 
 

@@ -74,7 +74,7 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     },
                     sharedATile,
                     A);
-                
+
                 simdGrid.template concurrent<16u, Alignment<16>>(
                     acc,
                     sBExtent,

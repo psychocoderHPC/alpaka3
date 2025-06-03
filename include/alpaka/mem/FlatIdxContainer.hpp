@@ -203,31 +203,32 @@ namespace alpaka::onAcc
             if constexpr(std::is_same_v<T_IdxMapperFn, layout::Strided>)
             {
                 auto groupOffset = threadIdx * m_idxRange.m_stride;
-                groupOffset.ref(selectedDims) -= groupOffset[selectedDims];
+                groupOffset.ref(selectedDims) -= groupOffset.swizzle(selectedDims);
 
                 auto begin = m_idxRange.m_begin + groupOffset;
 
-                auto linearCurrent = linearize(numThreads[selectedDims], threadIdx[selectedDims]);
-                auto linearStride = numThreads[selectedDims].product();
-                auto strideMD = m_idxRange.m_stride[selectedDims];
-                auto extentMD = divCeil(m_idxRange.distance()[selectedDims], strideMD);
+                auto linearCurrent = linearize(numThreads.swizzle(selectedDims), threadIdx.swizzle(selectedDims));
+                auto linearStride = numThreads.swizzle(selectedDims).product();
+                auto strideMD = m_idxRange.m_stride.swizzle(selectedDims);
+                auto extentMD = divCeil(m_idxRange.distance().swizzle(selectedDims), strideMD);
 
                 return const_iterator(begin, linearCurrent, linearStride, extentMD.product(), extentMD, strideMD);
             }
             else if constexpr(std::is_same_v<T_IdxMapperFn, layout::Contigious>)
             {
                 auto groupOffset = threadIdx * m_idxRange.m_stride;
-                groupOffset.ref(selectedDims) -= groupOffset[selectedDims];
+                groupOffset.ref(selectedDims) -= groupOffset.swizzle(selectedDims);
 
                 auto begin = m_idxRange.m_begin + groupOffset;
 
-                auto strideMD = m_idxRange.m_stride[selectedDims];
+                auto strideMD = m_idxRange.m_stride.swizzle(selectedDims);
                 auto numElements = divCeil(
-                    m_idxRange.distance()[selectedDims].product(),
-                    (m_threadSpace.m_threadCount[selectedDims].product() * strideMD.product()));
+                    m_idxRange.distance().swizzle(selectedDims).product(),
+                    (m_threadSpace.m_threadCount.swizzle(selectedDims).product() * strideMD.product()));
                 auto linearCurrent
-                    = linearize(m_threadSpace.m_threadCount[selectedDims], threadIdx[selectedDims]) * numElements;
-                auto extentMD = divCeil(m_idxRange.distance()[selectedDims], strideMD);
+                    = linearize(m_threadSpace.m_threadCount.swizzle(selectedDims), threadIdx.swizzle(selectedDims))
+                      * numElements;
+                auto extentMD = divCeil(m_idxRange.distance().swizzle(selectedDims), strideMD);
                 return const_iterator(
                     begin,
                     linearCurrent,
@@ -245,17 +246,19 @@ namespace alpaka::onAcc
 
             if constexpr(std::is_same_v<T_IdxMapperFn, layout::Strided>)
             {
-                auto extentMD = divCeil(m_idxRange.distance()[selectedDims], m_idxRange.m_stride[selectedDims]);
+                auto extentMD
+                    = divCeil(m_idxRange.distance().swizzle(selectedDims), m_idxRange.m_stride.swizzle(selectedDims));
                 return const_iterator_end(extentMD.product());
             }
             else if constexpr(std::is_same_v<T_IdxMapperFn, layout::Contigious>)
             {
-                auto strideMD = m_idxRange.m_stride[selectedDims];
+                auto strideMD = m_idxRange.m_stride.swizzle(selectedDims);
                 auto numElements = divCeil(
-                    m_idxRange.distance()[selectedDims].product(),
-                    (numThreads[selectedDims].product() * strideMD.product()));
-                auto linearCurrent = linearize(numThreads[selectedDims], threadIdx[selectedDims]) * numElements;
-                auto extentMD = divCeil(m_idxRange.distance()[selectedDims], strideMD);
+                    m_idxRange.distance().swizzle(selectedDims).product(),
+                    (numThreads.swizzle(selectedDims).product() * strideMD.product()));
+                auto linearCurrent
+                    = linearize(numThreads.swizzle(selectedDims), threadIdx.swizzle(selectedDims)) * numElements;
+                auto extentMD = divCeil(m_idxRange.distance().swizzle(selectedDims), strideMD);
                 return const_iterator_end(std::min(linearCurrent + numElements, extentMD.product()));
             }
         }

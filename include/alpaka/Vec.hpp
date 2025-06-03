@@ -513,7 +513,7 @@ namespace alpaka
 
         /** swizzle operator */
         template<typename T, T... T_values>
-        constexpr auto operator[](Vec<T, sizeof...(T_values), detail::CVec<T, T_values...>> const v) const
+        constexpr auto swizzle(Vec<T, sizeof...(T_values), detail::CVec<T, T_values...>> const v) const
         {
             using InType = ALPAKA_TYPEOF(v);
             return Vec<T_Type, InType::dim()>{(*this)[T_values]...};
