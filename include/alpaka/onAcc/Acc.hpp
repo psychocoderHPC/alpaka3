@@ -130,7 +130,7 @@ namespace alpaka::onAcc
          * variables.
          */
         constexpr size_t id = T_uniqueId ^ 0x9e37'79b9'7f4a'7c15;
-        constexpr auto alignment = Alignment<alignof(T)>{};
+        constexpr auto alignment = Alignment<16u>{};
         return MdSpanArray<CArrayType, ALPAKA_TYPEOF(alignment)>{declareSharedVar<CArrayType, id>(acc)};
     }
 
