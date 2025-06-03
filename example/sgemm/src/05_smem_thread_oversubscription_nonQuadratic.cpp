@@ -31,7 +31,7 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
         concepts::CVector auto bk) const
     {
         concepts::Vector auto threadIdxMD = acc[layer::thread].idx();
-        //    concepts::CVector auto frameExtent = acc[frame::extent];
+        concepts::CVector auto frameExtent = acc[layer::thread].count();
 
 
         using IndexType = typename ALPAKA_TYPEOF(out.getExtents())::index_type;
@@ -153,7 +153,7 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                         auto regBPtr = SimdPtr{regMdB, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                         auto sBPtr = SimdPtr{
                             sharedBTile,
-                            Vec2D{dotIdx, threadIdxMD.x() * numElem + k},
+                            Vec2D{dotIdx, threadIdxMD.x() * 4 + k * frameExtent.x()},
                             Alignment<16u>{},
                             CVec<uint32_t, 4u>{}};
                         regBPtr = sBPtr.load();
@@ -201,12 +201,14 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     //        std::cout << "\n";
                 }
 #else
-            concepts::Vector auto cTileOffsetMD = tileOffsetMD + threadIdxMD * numElem;
+
             for(uint32_t j = 0u; j < numElem; ++j)
             {
                 for(uint32_t k = 0u; k < numElem; k += 4)
                 {
-                    auto cSimdPtr = SimdPtr{out, cTileOffsetMD + Vec2D{j,k}, Alignment<16>{}, CVec<uint32_t, 4u>{}};
+                    concepts::Vector auto cTileOffsetMD
+                        = tileOffsetMD + threadIdxMD * Vec2D{numElem, 4} + Vec2D{j, k * frameExtent.x()};
+                    auto cSimdPtr = SimdPtr{out, cTileOffsetMD, Alignment<16>{}, CVec<uint32_t, 4u>{}};
                     auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                     cSimdPtr = alpha * regCPtr.load() + beta * cSimdPtr.load();
                 }
@@ -270,7 +272,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
 
     constexpr uint32_t bk = 8;
     constexpr uint32_t elemPerThread = 8u;
-    concepts::CVector auto frameExtent = CVec<uint32_t, 8, 8>{};
+    concepts::CVector auto frameExtent = CVec<uint32_t, 4, 32>{};
     concepts::CVector auto chunkExtent
         = CVec<uint32_t, frameExtent.y() * elemPerThread, frameExtent.x() * elemPerThread>{};
     concepts::Vector auto framecount = divExZero(C_size, chunkExtent);
@@ -288,7 +290,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::wait(queue);
     auto const beginT = std::chrono::high_resolution_clock::now();
 
-    constexpr uint32_t repeat = 50;
+    constexpr uint32_t repeat = 2;
     for(uint32_t i = 0; i < repeat; ++i)
     {
         queue.enqueue(

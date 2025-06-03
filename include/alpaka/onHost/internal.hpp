@@ -66,7 +66,7 @@ namespace alpaka::onHost
             };
         };
 
-        static auto getNativeHandle(auto&& any)
+        static decltype(auto) getNativeHandle(auto&& any)
         {
             return GetNativeHandle::Op<std::decay_t<decltype(any)>>{}(any);
         }
