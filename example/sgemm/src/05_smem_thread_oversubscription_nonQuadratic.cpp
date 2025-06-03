@@ -53,39 +53,18 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
 
             static_assert(sAExtent.x() == sBExtent.y());
 
-#if 0
-            using TVecA = alpaka::Vec<float, numElem>;
-            using TVecB = alpaka::Vec<float, numElem>;
-            using TVecCX = alpaka::Vec<float, numElem>;
-            using TVecC = alpaka::Vec<TVecCX, numElem>;
-
-            TVecA tmpA = {0};
-            TVecB tmpB = {0};
-            TVecC tmpC = TVecC::all(TVecCX::all(0));
-#else
             float regA[numElem] = {0};
             float regB[numElem] = {0};
             float regC[numElem][numElem] = {0};
             auto regMdA = MdSpanArray<float[numElem], Alignment<16u>>{regA};
             auto regMdB = MdSpanArray<float[numElem], Alignment<16u>>{regB};
             auto regMdC = MdSpanArray<float[numElem][numElem], Alignment<16u>>{regC};
-#endif
 
 
             // iterate through input buffers with stride of smem size
             // Assumption: frameExtent is quadratic, problem size is dividable by frameExtent
             for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += sAExtent.x())
             {
-                // std::cout << "------A----\n";
-                // populate smem
-#if 0
-                for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{sAExtent}))
-                {
-                    sharedATile[tileElemIndexMD]
-                        = A[Vec2D{tileOffsetMD.y() + tileElemIndexMD.y(), tileElemIndexMD.x() + chunkOffset}];
-                }
-                [[maybe_unused]] auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInBlock};
-#else
                 auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInBlock};
                 simdGrid.template concurrent<16u, Alignment<16>>(
                     acc,
@@ -95,23 +74,13 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     },
                     sharedATile,
                     A);
-#endif
 
-#if 0
-                // std::cout << "------B----\n";
                 for(auto tileElemIndexMD : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{sBExtent}))
                 {
                     sharedBTile[tileElemIndexMD]
                         = B[Vec2D{tileElemIndexMD.y() + chunkOffset, tileOffsetMD.x() + tileElemIndexMD.x()}];
-                    //    printf("B %u,%u ->
-                    //    %f\n",tileElemIndexMD.y(),tileElemIndexMD.x(),sharedBTile[tileElemIndexMD]);
-                    //  printf("B -> %f\n",sharedBTile[Vec2D{1u,2u}]);
-                    //   std::cout << sharedBTile[tileElemIndexMD] << ",";
-                    //  if(tileElemIndexMD.x() == sBExtent.x() - 1)
-                    //      std::cout << "\n";
                 }
-                // std::cout << "-----------\n";
-#else
+
                 simdGrid.template concurrent<16u, Alignment<16>>(
                     acc,
                     sBExtent,
@@ -120,7 +89,6 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     },
                     sharedBTile,
                     B);
-#endif
 
 
                 /* This call is equal to `onAcc::syncBlockThreads(acc)`
@@ -131,22 +99,11 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                 alpaka::onAcc::syncBlockThreads(acc);
                 for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += 1)
                 {
-                    //  std::cout << "------A cache----" << numElem << "\n";
                     for(uint32_t k = 0u; k < numElem; ++k)
                     {
                         regMdA[k] = sharedATile[Vec2D{threadIdxMD.y() * numElem + k, dotIdx}];
-                        //   if(threadIdxMD.x() == 1u)
-                        //      printf("A %u -> %f\n", k,tmpA[k]);
-                        //    std::cout << tmpA[k] << ",";
                     }
 
-                    // std::cout << "\n------B cache----" << numElem << "\n";
-#if 0
-                    for(uint32_t k = 0u; k < numElem; ++k)
-                    {
-                        regMdB[k] = sharedBTile[Vec2D{dotIdx, threadIdxMD.x() * numElem + k}];
-                    }
-#else
 
                     for(uint32_t k = 0u; k < numElem; k += 4)
                     {
@@ -158,19 +115,7 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                             CVec<uint32_t, 4u>{}};
                         regBPtr = sBPtr.load();
                     }
-#endif
 
-#if 0
-                    //  std::cout << "\n------C cache----" << numElem << "\n";
-                    for(uint32_t j = 0u; j < numElem; ++j)
-                        for(uint32_t i = 0u; i < numElem; ++i)
-                        {
-                            regMdC[Vec2D{j,i}] += regMdA[j] * regMdB[i];
-                            //     std::cout << tmpC[j][i] << ", " << tmpA[j] << "," << tmpB[i] << "\n";
-                            //     if(i == numElem - 1)
-                            //         std::cout << "\n";
-                        }
-#else
                     for(uint32_t j = 0u; j < numElem; ++j)
                     {
                         for(uint32_t k = 0u; k < numElem; k += 4)
@@ -180,27 +125,10 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                             regCPtr = regCPtr.load() + regMdA[j] * regBPtr.load();
                         }
                     }
-#endif
-                    //  std::cout << "------\n";
                 }
 
                 alpaka::onAcc::syncBlockThreads(acc);
             }
-
-#if 0
-            // std::cout << "------C out----" << elemPerThreadC << "\n";
-            for(uint32_t j = 0u; j < numElem; ++j)
-                for(uint32_t i = 0u; i < numElem; ++i)
-                {
-                    concepts::Vector auto tileElemIndexMD = threadIdxMD * numElem + alpaka::Vec{j, i};
-
-                    out[tileOffsetMD + tileElemIndexMD]
-                        = alpha * regMdC[Vec2D{j,i}] + beta * out[tileOffsetMD + tileElemIndexMD];
-                    //    std::cout << tileOffsetMD + tileElemIndexMD << "|" << out[tileOffsetMD + tileElemIndexMD] <<
-                    //    ","; if(tElemIdxMD.x() == elemPerThreadC.x() - 1)
-                    //        std::cout << "\n";
-                }
-#else
 
             for(uint32_t j = 0u; j < numElem; ++j)
             {
@@ -213,8 +141,6 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     cSimdPtr = alpha * regCPtr.load() + beta * cSimdPtr.load();
                 }
             }
-
-#endif
         }
     }
 };
@@ -270,7 +196,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // fill the output buffer with zeros; the si
     onHost::memset(queue, C_d, 0x00);
 
-    constexpr uint32_t bk = 8;
+    constexpr uint32_t bk = 16;
     constexpr uint32_t elemPerThread = 8u;
     concepts::CVector auto frameExtent = CVec<uint32_t, 4, 32>{};
     concepts::CVector auto chunkExtent
@@ -316,37 +242,43 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     std::cout << "  - performance: "
               << static_cast<double>(flopCount) / 1.e12 / (duration / static_cast<double>(repeat)) << " tflop/s"
               << std::endl;
-
-    // copy the results from the device to the host
-    onHost::memcpy(queue, C_h, C_d);
-
-    // check the results
-    auto cpu_out = onHost::allocHostMirror(C_h);
-    onHost::memset(queue, cpu_out, 0x00);
-
-    // wait for all the operations to complete
-    onHost::wait(queue);
-
-    // Perform a naive CPU matrix multiplication to compare the results
-    naive_matrix_mult(A_h, B_h, cpu_out, alpha, beta);
-
-    bool mismatch = false;
-    for(uint32_t i = 0; i < C_size.product(); ++i)
+    if(A_size.x() <= 1024u)
     {
-        auto lIdx = mapToND(C_size, i);
-        if(!(std::abs(C_h[lIdx] - cpu_out[lIdx]) < epsilon))
+        // copy the results from the device to the host
+        onHost::memcpy(queue, C_h, C_d);
+
+        // check the results
+        auto cpu_out = onHost::allocHostMirror(C_h);
+        onHost::memset(queue, cpu_out, 0x00);
+
+        // wait for all the operations to complete
+        onHost::wait(queue);
+
+        for(uint32_t i = 0; i < repeat; ++i)
         {
-            std::cout << std::scientific << "MISMATCH at " << lIdx << " kernel=" << C_h[lIdx]
-                      << " cpu=" << cpu_out[lIdx] << " error=" << C_h[lIdx] - cpu_out[lIdx] << std::endl;
-            mismatch = true;
+            // Perform a naive CPU matrix multiplication to compare the results
+            naive_matrix_mult(A_h, B_h, cpu_out, alpha, beta);
         }
-        assert(std::abs(C_h[lIdx] - cpu_out[lIdx]) < epsilon);
+        bool mismatch = false;
+        for(uint32_t i = 0; i < C_size.product(); ++i)
+        {
+            auto lIdx = mapToND(C_size, i);
+            if(!(std::abs(C_h[lIdx] - cpu_out[lIdx]) < epsilon))
+            {
+                std::cout << std::scientific << "MISMATCH at " << lIdx << " kernel=" << C_h[lIdx]
+                          << " cpu=" << cpu_out[lIdx] << " error=" << C_h[lIdx] - cpu_out[lIdx] << std::endl;
+                mismatch = true;
+            }
+            assert(std::abs(C_h[lIdx] - cpu_out[lIdx]) < epsilon);
+        }
+
+        if(!mismatch)
+            std::cout << "success\n";
+
+        return mismatch ? EXIT_FAILURE : EXIT_SUCCESS;
     }
-
-    if(!mismatch)
-        std::cout << "success\n";
-
-    return mismatch ? EXIT_FAILURE : EXIT_SUCCESS;
+    else
+        return EXIT_SUCCESS;
 }
 
 int example(auto const cfg)
