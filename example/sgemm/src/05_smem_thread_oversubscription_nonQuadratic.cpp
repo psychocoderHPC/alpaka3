@@ -63,15 +63,12 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
             TVecB tmpB = {0};
             TVecC tmpC = TVecC::all(TVecCX::all(0));
 #else
-            using TVecA = alpaka::Simd<float, numElem, Alignment<16>>;
-            using TVecB = alpaka::Simd<float, numElem, Alignment<16>>;
-
-            using TVecCX = alpaka::Simd<float, numElem, Alignment<16>>;
-            using TVecC = alpaka::Simd<TVecCX, numElem>;
-
-            TVecA tmpA = {0};
-            TVecB tmpB = {0};
-            TVecC tmpC = TVecC::all(TVecCX::all(0));
+            float regA[numElem] = {0};
+            float regB[numElem] = {0};
+            float regC[numElem][numElem] = {0};
+            auto regMdA = MdSpanArray<float[numElem], Alignment<16u>>{regA};
+            auto regMdB = MdSpanArray<float[numElem], Alignment<16u>>{regB};
+            auto regMdC = MdSpanArray<float[numElem][numElem], Alignment<16u>>{regC};
 #endif
 
 
@@ -137,7 +134,7 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     //  std::cout << "------A cache----" << numElem << "\n";
                     for(uint32_t k = 0u; k < numElem; ++k)
                     {
-                        tmpA[k] = sharedATile[Vec2D{threadIdxMD.y() * numElem + k, dotIdx}];
+                        regMdA[k] = sharedATile[Vec2D{threadIdxMD.y() * numElem + k, dotIdx}];
                         //   if(threadIdxMD.x() == 1u)
                         //      printf("A %u -> %f\n", k,tmpA[k]);
                         //    std::cout << tmpA[k] << ",";
@@ -147,16 +144,20 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
 #if 0
                     for(uint32_t k = 0u; k < numElem; ++k)
                     {
-                        tmpB[k] = sharedBTile[Vec2D{dotIdx, threadIdxMD.x() * numElem + k}];
+                        regMdB[k] = sharedBTile[Vec2D{dotIdx, threadIdxMD.x() * numElem + k}];
                     }
 #else
 
-                    auto sharedBPtr = SimdPtr{
-                        sharedBTile,
-                        Vec2D{dotIdx, threadIdxMD.x() * numElem},
-                        Alignment<16>{},
-                        CVec<uint32_t, numElem>{}};
-                    tmpB = sharedBPtr.load();
+                    for(uint32_t k = 0u; k < numElem; k += 4)
+                    {
+                        auto regBPtr = SimdPtr{regMdB, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                        auto sBPtr = SimdPtr{
+                            sharedBTile,
+                            Vec2D{dotIdx, threadIdxMD.x() * numElem + k},
+                            Alignment<16u>{},
+                            CVec<uint32_t, 4u>{}};
+                        regBPtr = sBPtr.load();
+                    }
 #endif
 
 #if 0
@@ -164,14 +165,21 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     for(uint32_t j = 0u; j < numElem; ++j)
                         for(uint32_t i = 0u; i < numElem; ++i)
                         {
-                            tmpC[j][i] += tmpA[j] * tmpB[i];
+                            regMdC[Vec2D{j,i}] += regMdA[j] * regMdB[i];
                             //     std::cout << tmpC[j][i] << ", " << tmpA[j] << "," << tmpB[i] << "\n";
                             //     if(i == numElem - 1)
                             //         std::cout << "\n";
                         }
 #else
                     for(uint32_t j = 0u; j < numElem; ++j)
-                        tmpC[j] += tmpA[j] * tmpB;
+                    {
+                        for(uint32_t k = 0u; k < numElem; k += 4)
+                        {
+                            auto regBPtr = SimdPtr{regMdB, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                            auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                            regCPtr = regCPtr.load() + regMdA[j] * regBPtr.load();
+                        }
+                    }
 #endif
                     //  std::cout << "------\n";
                 }
@@ -187,18 +195,21 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
                     concepts::Vector auto tileElemIndexMD = threadIdxMD * numElem + alpaka::Vec{j, i};
 
                     out[tileOffsetMD + tileElemIndexMD]
-                        = alpha * tmpC[j][i] + beta * out[tileOffsetMD + tileElemIndexMD];
+                        = alpha * regMdC[Vec2D{j,i}] + beta * out[tileOffsetMD + tileElemIndexMD];
                     //    std::cout << tileOffsetMD + tileElemIndexMD << "|" << out[tileOffsetMD + tileElemIndexMD] <<
                     //    ","; if(tElemIdxMD.x() == elemPerThreadC.x() - 1)
                     //        std::cout << "\n";
                 }
 #else
             concepts::Vector auto cTileOffsetMD = tileOffsetMD + threadIdxMD * numElem;
-            auto cSimdPtr = SimdPtr{out, cTileOffsetMD, Alignment<16>{}, CVec<uint32_t, numElem>{}};
             for(uint32_t j = 0u; j < numElem; ++j)
             {
-                auto cShifted = cSimdPtr[Vec2D{j, 0}];
-                cShifted = alpha * tmpC[j] + beta * cShifted.load();
+                for(uint32_t k = 0u; k < numElem; k += 4)
+                {
+                    auto cSimdPtr = SimdPtr{out, cTileOffsetMD + Vec2D{j,k}, Alignment<16>{}, CVec<uint32_t, 4u>{}};
+                    auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                    cSimdPtr = alpha * regCPtr.load() + beta * cSimdPtr.load();
+                }
             }
 
 #endif
