@@ -16,7 +16,7 @@
 
 using namespace alpaka;
 
-struct VectorizedKernel
+struct VectorizedNonQuadraticElementsKernel
 {
     template<typename TAcc>
     ALPAKA_FN_ACC void operator()(
@@ -229,7 +229,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
         queue.enqueue(
             computeExec,
             frameSpec,
-            VectorizedKernel{},
+            VectorizedNonQuadraticElementsKernel{},
             A_d,
             B_d,
             C_d,
