@@ -31,7 +31,7 @@ struct VectorizedNonQuadraticElementsKernel
         concepts::CVector auto bk) const
     {
         concepts::Vector auto threadIdxMD = acc[layer::thread].idx();
-        concepts::CVector auto frameExtent = acc[layer::thread].count();
+        concepts::CVector auto threadsInBlock = acc[layer::thread].count();
 
 
         using IndexType = typename ALPAKA_TYPEOF(out.getExtents())::index_type;
@@ -52,17 +52,17 @@ struct VectorizedNonQuadraticElementsKernel
 
             static_assert(sAExtent.x() == sBExtent.y());
 
-            float regA[elemPerThread.y()] = {0};
-            float regB[elemPerThread.x()] = {0};
+            constexpr uint32_t regLoadElem = 1u;
+            float regA[regLoadElem][elemPerThread.y()] = {0};
+            float regB[regLoadElem][elemPerThread.x()] = {0};
             float regC[elemPerThread.y()][elemPerThread.x()] = {0};
-            auto regMdA = MdSpanArray<float[elemPerThread.y()], Alignment<16u>>{regA};
-            auto regMdB = MdSpanArray<float[elemPerThread.x()], Alignment<16u>>{regB};
+            auto regMdA = MdSpanArray<float[regLoadElem][elemPerThread.y()], Alignment<16u>>{regA};
+            auto regMdB = MdSpanArray<float[regLoadElem][elemPerThread.x()], Alignment<16u>>{regB};
             auto regMdC = MdSpanArray<float[elemPerThread.y()][elemPerThread.x()], Alignment<16u>>{regC};
 
 
             auto aTransposed = MdSpanTransposed{sharedATile, CVec<uint32_t, 1, 0>{}, Alignment<>{}};
-            // iterate through input buffers with stride of smem size
-            // Assumption: frameExtent is quadratic, problem size is dividable by frameExtent
+
             for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += bk.x())
             {
                 auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInBlock};
@@ -96,40 +96,43 @@ struct VectorizedNonQuadraticElementsKernel
                  * different traversing schema. Therefore, you should not assume any thread and data element relation.
                  */
                 alpaka::onAcc::syncBlockThreads(acc);
-                for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += 1)
+                for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += regLoadElem)
                 {
-                    for(uint32_t k = 0u; k < elemPerThread.y(); k += 4)
-                    {
-                        auto regAPtr = SimdPtr{regMdA, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                        auto sAPtr = SimdPtr{
-                            sharedATile,
-                            Vec2D{dotIdx, threadIdxMD.y() * elemPerThread.y() + k},
-                            Alignment<16u>{},
-                            CVec<uint32_t, 4u>{}};
-                        regAPtr = sAPtr.load();
-                    }
+                    for(uint32_t d = 0u; d < regLoadElem; ++d)
+                        for(uint32_t k = 0u; k < elemPerThread.y(); k += 4)
+                        {
+                            auto regAPtr = SimdPtr{regMdA, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                            auto sAPtr = SimdPtr{
+                                sharedATile,
+                                Vec2D{dotIdx + d, threadIdxMD.y() * elemPerThread.y() + k},
+                                Alignment<16u>{},
+                                CVec<uint32_t, 4u>{}};
+                            regAPtr = sAPtr.load();
+                        }
 
 
-                    for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
-                    {
-                        auto regBPtr = SimdPtr{regMdB, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                        auto sBPtr = SimdPtr{
-                            sharedBTile,
-                            Vec2D{dotIdx, threadIdxMD.x() * 4 + k * frameExtent.x()},
-                            Alignment<16u>{},
-                            CVec<uint32_t, 4u>{}};
-                        regBPtr = sBPtr.load();
-                    }
-
-                    for(uint32_t j = 0u; j < elemPerThread.y(); ++j)
-                    {
+                    for(uint32_t d = 0u; d < regLoadElem; ++d)
                         for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
                         {
-                            auto regBPtr = SimdPtr{regMdB, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                            auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                            regCPtr = regCPtr.load() + regMdA[j] * regBPtr.load();
+                            auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                            auto sBPtr = SimdPtr{
+                                sharedBTile,
+                                Vec2D{dotIdx + d, threadIdxMD.x() * 4 + k * threadsInBlock.x()},
+                                Alignment<16u>{},
+                                CVec<uint32_t, 4u>{}};
+                            regBPtr = sBPtr.load();
                         }
-                    }
+
+                    for(uint32_t d = 0u; d < regLoadElem; ++d)
+                        for(uint32_t j = 0u; j < elemPerThread.y(); ++j)
+                        {
+                            for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
+                            {
+                                auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                                auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                                regCPtr = regCPtr.load() + regMdA[Vec2D{d, j}] * regBPtr.load();
+                            }
+                        }
                 }
 
                 alpaka::onAcc::syncBlockThreads(acc);
@@ -140,7 +143,7 @@ struct VectorizedNonQuadraticElementsKernel
                 for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
                 {
                     concepts::Vector auto cTileOffsetMD
-                        = tileOffsetMD + threadIdxMD * Vec2D{elemPerThread.y(), 4} + Vec2D{j, k * frameExtent.x()};
+                        = tileOffsetMD + threadIdxMD * Vec2D{elemPerThread.y(), 4} + Vec2D{j, k * threadsInBlock.x()};
                     auto cSimdPtr = SimdPtr{out, cTileOffsetMD, Alignment<16>{}, CVec<uint32_t, 4u>{}};
                     auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                     cSimdPtr = alpha * regCPtr.load() + beta * cSimdPtr.load();
