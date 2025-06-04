@@ -27,12 +27,13 @@ struct VectorizedNonQuadraticElementsKernel
         float alpha,
         float beta,
         concepts::CVector auto chunkExtent,
-        concepts::CVector auto elemPerThread,
         concepts::CVector auto bk) const
     {
         concepts::Vector auto threadIdxMD = acc[layer::thread].idx();
         concepts::CVector auto threadsInBlock = acc[layer::thread].count();
 
+        constexpr auto elemPerWorker = chunkExtent / threadsInBlock;
+        auto elemPerThread = CVec<uint32_t, elemPerWorker.y(), elemPerWorker.x()>{};
 
         using IndexType = typename ALPAKA_TYPEOF(out.getExtents())::index_type;
 
@@ -53,11 +54,15 @@ struct VectorizedNonQuadraticElementsKernel
             static_assert(sAExtent.x() == sBExtent.y());
 
             constexpr uint32_t regLoadElem = 1u;
+            /** This definition is required to pass the CUDA compiler evaluation if cuda and host executes are used,
+             * not sure why it is not required for A. */
+            using RegBArrayType = float[regLoadElem][elemPerThread.x()];
+
             float regA[regLoadElem][elemPerThread.y()] = {0};
             float regB[regLoadElem][elemPerThread.x()] = {0};
             float regC[elemPerThread.y()][elemPerThread.x()] = {0};
             auto regMdA = MdSpanArray<float[regLoadElem][elemPerThread.y()], Alignment<16u>>{regA};
-            auto regMdB = MdSpanArray<float[regLoadElem][elemPerThread.x()], Alignment<16u>>{regB};
+            auto regMdB = MdSpanArray<RegBArrayType, Alignment<16u>>{regB};
             auto regMdC = MdSpanArray<float[elemPerThread.y()][elemPerThread.x()], Alignment<16u>>{regC};
 
 
@@ -224,7 +229,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::wait(queue);
     auto const beginT = std::chrono::high_resolution_clock::now();
 
-    constexpr uint32_t repeat = 50;
+    constexpr uint32_t repeat = 10;
     for(uint32_t i = 0; i < repeat; ++i)
     {
         queue.enqueue(
@@ -237,7 +242,6 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
             alpha,
             beta,
             chunkExtent,
-            elemPerThread,
             CVec<uint32_t, bk>{});
     }
 
