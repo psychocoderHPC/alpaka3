@@ -42,8 +42,6 @@ struct VectorizedNonQuadraticElementsKernel
                 onAcc::worker::blocksInGrid,
                 IdxRange{ALPAKA_TYPEOF(out.getExtents())::all(0), out.getExtents(), chunkExtent}))
         {
-            constexpr uint32_t numElem = elemPerThread.x();
-
             // this seems like way too much shared memory usage
             concepts::CVector auto sBExtent = CVec<uint32_t, bk.x(), chunkExtent.x()>{};
             concepts::CVector auto sAExtent = CVec<uint32_t, chunkExtent.y(), bk.x()>{};
@@ -54,12 +52,12 @@ struct VectorizedNonQuadraticElementsKernel
 
             static_assert(sAExtent.x() == sBExtent.y());
 
-            float regA[numElem] = {0};
-            float regB[numElem] = {0};
-            float regC[numElem][numElem] = {0};
-            auto regMdA = MdSpanArray<float[numElem], Alignment<16u>>{regA};
-            auto regMdB = MdSpanArray<float[numElem], Alignment<16u>>{regB};
-            auto regMdC = MdSpanArray<float[numElem][numElem], Alignment<16u>>{regC};
+            float regA[elemPerThread.y()] = {0};
+            float regB[elemPerThread.x()] = {0};
+            float regC[elemPerThread.y()][elemPerThread.x()] = {0};
+            auto regMdA = MdSpanArray<float[elemPerThread.y()], Alignment<16u>>{regA};
+            auto regMdB = MdSpanArray<float[elemPerThread.x()], Alignment<16u>>{regB};
+            auto regMdC = MdSpanArray<float[elemPerThread.y()][elemPerThread.x()], Alignment<16u>>{regC};
 
 
             auto aTransposed = MdSpanTransposed{sharedATile, CVec<uint32_t, 1, 0>{}, Alignment<>{}};
@@ -100,19 +98,19 @@ struct VectorizedNonQuadraticElementsKernel
                 alpaka::onAcc::syncBlockThreads(acc);
                 for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += 1)
                 {
-                    for(uint32_t k = 0u; k < numElem; k += 4)
+                    for(uint32_t k = 0u; k < elemPerThread.y(); k += 4)
                     {
                         auto regAPtr = SimdPtr{regMdA, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                         auto sAPtr = SimdPtr{
                             sharedATile,
-                            Vec2D{dotIdx, threadIdxMD.y() * numElem + k},
+                            Vec2D{dotIdx, threadIdxMD.y() * elemPerThread.y() + k},
                             Alignment<16u>{},
                             CVec<uint32_t, 4u>{}};
                         regAPtr = sAPtr.load();
                     }
 
 
-                    for(uint32_t k = 0u; k < numElem; k += 4)
+                    for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
                     {
                         auto regBPtr = SimdPtr{regMdB, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                         auto sBPtr = SimdPtr{
@@ -123,9 +121,9 @@ struct VectorizedNonQuadraticElementsKernel
                         regBPtr = sBPtr.load();
                     }
 
-                    for(uint32_t j = 0u; j < numElem; ++j)
+                    for(uint32_t j = 0u; j < elemPerThread.y(); ++j)
                     {
-                        for(uint32_t k = 0u; k < numElem; k += 4)
+                        for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
                         {
                             auto regBPtr = SimdPtr{regMdB, Vec1D{k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                             auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
@@ -137,12 +135,12 @@ struct VectorizedNonQuadraticElementsKernel
                 alpaka::onAcc::syncBlockThreads(acc);
             }
 
-            for(uint32_t j = 0u; j < numElem; ++j)
+            for(uint32_t j = 0u; j < elemPerThread.y(); ++j)
             {
-                for(uint32_t k = 0u; k < numElem; k += 4)
+                for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
                 {
                     concepts::Vector auto cTileOffsetMD
-                        = tileOffsetMD + threadIdxMD * Vec2D{numElem, 4} + Vec2D{j, k * frameExtent.x()};
+                        = tileOffsetMD + threadIdxMD * Vec2D{elemPerThread.y(), 4} + Vec2D{j, k * frameExtent.x()};
                     auto cSimdPtr = SimdPtr{out, cTileOffsetMD, Alignment<16>{}, CVec<uint32_t, 4u>{}};
                     auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                     cSimdPtr = alpha * regCPtr.load() + beta * cSimdPtr.load();
@@ -204,10 +202,10 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::memset(queue, C_d, 0x00);
 
     constexpr uint32_t bk = 16;
-    constexpr uint32_t elemPerThread = 8u;
+    constexpr auto elemPerThread = CVec<uint32_t, 8u, 8u>{};
     concepts::CVector auto frameExtent = CVec<uint32_t, 4, 32>{};
     concepts::CVector auto chunkExtent
-        = CVec<uint32_t, frameExtent.y() * elemPerThread, frameExtent.x() * elemPerThread>{};
+        = CVec<uint32_t, frameExtent.y() * elemPerThread.y(), frameExtent.x() * elemPerThread.x()>{};
     concepts::Vector auto framecount = divExZero(C_size, chunkExtent);
     // workaround: we need fewer threads than the chunk extent has element, we will use frameExtent, currently the
     // number of threads in FrameSpec can not have a different type than the frameExtent
@@ -223,7 +221,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::wait(queue);
     auto const beginT = std::chrono::high_resolution_clock::now();
 
-    constexpr uint32_t repeat = 2;
+    constexpr uint32_t repeat = 50;
     for(uint32_t i = 0; i < repeat; ++i)
     {
         queue.enqueue(
@@ -236,7 +234,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
             alpha,
             beta,
             chunkExtent,
-            CVec<uint32_t, elemPerThread>{},
+            elemPerThread,
             CVec<uint32_t, bk>{});
     }
 
