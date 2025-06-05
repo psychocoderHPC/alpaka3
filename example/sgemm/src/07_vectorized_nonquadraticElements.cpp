@@ -119,11 +119,14 @@ struct VectorizedNonQuadraticElementsKernel
                             uint32_t,
                             4u>{}}.load();
 
+                    constexpr auto numTiles = sAExtent / 4u;
+                    auto tileIdx = tileElemIndexMD / 4u;
+                    auto tileSlot = linearize(numTiles, tileIdx);
                     for(auto i = 0u; i < 4; ++i)
                     {
                         auto sAPtr = SimdPtr{
                             sharedATile,
-                            Vec2D{sAExtent.x() * tileElemIndexMD.y() / 4u + tileElemIndexMD.x() + i, 0u},
+                            Vec2D{tileSlot + numTiles.product() * i, 0u},
                             Alignment<16u>{},
                             CVec<uint32_t, 4u>{}};
                         auto foo = Simd<float, 4u, Alignment<16u>>{a0[i], a1[i], a2[i], a3[i]};
@@ -133,6 +136,7 @@ struct VectorizedNonQuadraticElementsKernel
                     // aTransposed[tileElemIndexMD]
                     //     = A[Vec2D{tileOffsetMD.y() + tileElemIndexMD.y(), chunkOffset + tileElemIndexMD.x()}];
                 }
+
 #endif
 
                 simdGrid.template concurrent<16u, Alignment<16>>(
@@ -156,17 +160,20 @@ struct VectorizedNonQuadraticElementsKernel
                     for(uint32_t d = 0u; d < regLoadElem; ++d)
                         for(uint32_t k = 0u; k < elemPerThread.y(); k += 4)
                         {
+                            constexpr auto numTiles = sAExtent / 4u;
+                            auto tileIdx = Vec2D{threadIdxMD.y() * elemPerThread.y() + k,dotIdx+d} / 4u;
+                            auto tileSlot = linearize(numTiles, tileIdx);
+
                             auto regAPtr = SimdPtr{regMdA, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                             auto sAPtr = SimdPtr{
                                 sharedATile,
                                 Vec2D{
-                                    sAExtent.x() * (threadIdxMD.y() * elemPerThread.y() / 4 + k / 4) + dotIdx + d,
+                                    tileSlot + numTiles.product() * ((dotIdx+d) % 4),
                                     0u},
                                 Alignment<16u>{},
                                 CVec<uint32_t, 4u>{}};
                             regAPtr = sAPtr.load();
                         }
-
                     for(uint32_t d = 0u; d < regLoadElem; ++d)
                         for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
                         {
@@ -260,9 +267,9 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // fill the output buffer with zeros; the si
     onHost::memset(queue, C_d, 0x00);
 
-    constexpr uint32_t bk = 16;
+    constexpr uint32_t bk = 8;
     constexpr auto elemPerThread = CVec<uint32_t, 8u, 8u>{};
-    concepts::CVector auto frameExtent = CVec<uint32_t, 4, 32>{};
+    concepts::CVector auto frameExtent = CVec<uint32_t, 8,16>{};
     concepts::CVector auto chunkExtent
         = CVec<uint32_t, frameExtent.y() * elemPerThread.y(), frameExtent.x() * elemPerThread.x()>{};
     concepts::Vector auto framecount = divExZero(C_size, chunkExtent);
@@ -280,7 +287,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::wait(queue);
     auto const beginT = std::chrono::high_resolution_clock::now();
 
-    constexpr uint32_t repeat = 2;
+    constexpr uint32_t repeat = 50;
     for(uint32_t i = 0; i < repeat; ++i)
     {
         queue.enqueue(
