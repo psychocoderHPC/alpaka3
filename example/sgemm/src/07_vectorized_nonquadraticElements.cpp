@@ -47,8 +47,9 @@ struct VectorizedNonQuadraticElementsKernel
             concepts::CVector auto sBExtent = CVec<uint32_t, bk.x(), chunkExtent.x()>{};
             concepts::CVector auto sAExtent = CVec<uint32_t, chunkExtent.y(), bk.x()>{};
             // shared a matrix is stored transposed to support shared to register vector loads
-            auto sharedATile
-                = onAcc::declareSharedMdArray<float, uniqueId()>(acc, CVec<uint32_t, sAExtent.x(), sAExtent.y()>{});
+            auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(
+                acc,
+                CVec<uint32_t, sAExtent.y() * sAExtent.x() / 4u, 4u>{});
             auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, sBExtent);
 
             static_assert(sAExtent.x() == sBExtent.y());
@@ -66,11 +67,10 @@ struct VectorizedNonQuadraticElementsKernel
             auto regMdC = MdSpanArray<float[elemPerThread.y()][elemPerThread.x()], Alignment<16u>>{regC};
 
 
-            auto aTransposed = MdSpanTransposed{sharedATile, CVec<uint32_t, 1, 0>{}, Alignment<>{}};
-
             for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += bk.x())
             {
                 auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInBlock};
+#if 0
                 simdGrid.template concurrent<16u, Alignment<16>>(
                     acc,
                     sAExtent,
@@ -84,6 +84,56 @@ struct VectorizedNonQuadraticElementsKernel
                         }
                     },
                     A);
+#else
+                for(auto tileElemIndexMD : onAcc::makeIdxMap(
+                        acc,
+                        onAcc::worker::threadsInBlock,
+                        IdxRange{Vec2D::all(0u), sAExtent, Vec2D{4u, 4u}}))
+                {
+                    auto a0 = SimdPtr{
+                        A,
+                        Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 0u, chunkOffset + tileElemIndexMD.x()},
+                        Alignment<16u>{},
+                        CVec<
+                            uint32_t,
+                            4u>{}}.load();
+                    auto a1 = SimdPtr{
+                        A,
+                        Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 1u, chunkOffset + tileElemIndexMD.x()},
+                        Alignment<16u>{},
+                        CVec<
+                            uint32_t,
+                            4u>{}}.load();
+                    auto a2 = SimdPtr{
+                        A,
+                        Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 2u, chunkOffset + tileElemIndexMD.x()},
+                        Alignment<16u>{},
+                        CVec<
+                            uint32_t,
+                            4u>{}}.load();
+                    auto a3 = SimdPtr{
+                        A,
+                        Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 3u, chunkOffset + tileElemIndexMD.x()},
+                        Alignment<16u>{},
+                        CVec<
+                            uint32_t,
+                            4u>{}}.load();
+
+                    for(auto i = 0u; i < 4; ++i)
+                    {
+                        auto sAPtr = SimdPtr{
+                            sharedATile,
+                            Vec2D{sAExtent.x() * tileElemIndexMD.y() / 4u + tileElemIndexMD.x() + i, 0u},
+                            Alignment<16u>{},
+                            CVec<uint32_t, 4u>{}};
+                        auto foo = Simd<float, 4u, Alignment<16u>>{a0[i], a1[i], a2[i], a3[i]};
+                        static_assert(std::is_same_v<decltype(sAPtr.load()), decltype(foo)>);
+                        sAPtr = foo;
+                    }
+                    // aTransposed[tileElemIndexMD]
+                    //     = A[Vec2D{tileOffsetMD.y() + tileElemIndexMD.y(), chunkOffset + tileElemIndexMD.x()}];
+                }
+#endif
 
                 simdGrid.template concurrent<16u, Alignment<16>>(
                     acc,
@@ -109,12 +159,13 @@ struct VectorizedNonQuadraticElementsKernel
                             auto regAPtr = SimdPtr{regMdA, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                             auto sAPtr = SimdPtr{
                                 sharedATile,
-                                Vec2D{dotIdx + d, threadIdxMD.y() * elemPerThread.y() + k},
+                                Vec2D{
+                                    sAExtent.x() * (threadIdxMD.y() * elemPerThread.y() / 4 + k / 4) + dotIdx + d,
+                                    0u},
                                 Alignment<16u>{},
                                 CVec<uint32_t, 4u>{}};
                             regAPtr = sAPtr.load();
                         }
-
 
                     for(uint32_t d = 0u; d < regLoadElem; ++d)
                         for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
@@ -229,7 +280,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::wait(queue);
     auto const beginT = std::chrono::high_resolution_clock::now();
 
-    constexpr uint32_t repeat = 10;
+    constexpr uint32_t repeat = 2;
     for(uint32_t i = 0; i < repeat; ++i)
     {
         queue.enqueue(

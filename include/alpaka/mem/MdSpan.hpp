@@ -372,5 +372,11 @@ namespace alpaka
         struct IsMdSpan<T> : std::true_type
         {
         };
+
+        template<typename T>
+        requires(isSpecializationOf_v<std::remove_cvref_t<T>, MdSpanTransposed>)
+        struct IsMdSpan<T> : std::true_type
+        {
+        };
     } // namespace trait
 } // namespace alpaka
