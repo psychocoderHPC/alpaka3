@@ -16,6 +16,145 @@
 
 using namespace alpaka;
 
+ALPAKA_FN_INLINE constexpr void loadAToShared(
+    auto const& acc,
+    concepts::MdSpan auto const& sharedATile,
+    concepts::MdSpan auto const& A,
+    concepts::Vector auto const& tileOffsetMD,
+    concepts::Vector auto const& sAExtent,
+    auto aXOffset)
+{
+    for(auto tileElemIndexMD :
+        onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{Vec2D::all(0u), sAExtent, Vec2D{4u, 4u}}))
+    {
+        auto a0 = SimdPtr{
+            A,
+            Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 0u, aXOffset + tileElemIndexMD.x()},
+            Alignment<16u>{},
+            CVec<
+                uint32_t,
+                4u>{}}.load();
+        auto a1 = SimdPtr{
+            A,
+            Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 1u, aXOffset + tileElemIndexMD.x()},
+            Alignment<16u>{},
+            CVec<
+                uint32_t,
+                4u>{}}.load();
+        auto a2 = SimdPtr{
+            A,
+            Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 2u, aXOffset + tileElemIndexMD.x()},
+            Alignment<16u>{},
+            CVec<
+                uint32_t,
+                4u>{}}.load();
+        auto a3 = SimdPtr{
+            A,
+            Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 3u, aXOffset + tileElemIndexMD.x()},
+            Alignment<16u>{},
+            CVec<
+                uint32_t,
+                4u>{}}.load();
+
+        auto numTiles = sAExtent / 4u;
+        auto tileIdx = tileElemIndexMD / 4u;
+        auto tileSlot = linearize(numTiles, tileIdx);
+        for(auto i = 0u; i < 4; ++i)
+        {
+            auto sAPtr = SimdPtr{
+                sharedATile,
+                Vec2D{tileSlot + numTiles.product() * i, 0u},
+                Alignment<16u>{},
+                CVec<uint32_t, 4u>{}};
+            auto foo = Simd<float, 4u, Alignment<16u>>{a0[i], a1[i], a2[i], a3[i]};
+            static_assert(std::is_same_v<decltype(sAPtr.load()), decltype(foo)>);
+            sAPtr = foo;
+        }
+    }
+}
+
+ALPAKA_FN_INLINE constexpr void loadBToShared(
+    auto const& acc,
+    concepts::MdSpan auto const& sharedBTile,
+    concepts::MdSpan auto const& B,
+    concepts::Vector auto const& tileOffsetMD,
+    concepts::Vector auto const& sBExtent,
+    auto bYOffset)
+{
+    auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInBlock};
+    simdGrid.template concurrent<16u, Alignment<16>>(
+        acc,
+        sBExtent,
+        [&](auto const&, auto sharedB, auto const& b) constexpr {
+            sharedB = b[Vec2D{bYOffset, tileOffsetMD.x()}].load();
+        },
+        sharedBTile,
+        B);
+}
+
+ALPAKA_FN_INLINE constexpr void computeCTile(
+    auto const& acc,
+    auto& regMdC,
+    concepts::MdSpan auto const& sharedATile,
+    concepts::MdSpan auto const& sharedBTile,
+    concepts::Vector auto const& threadIdxMD,
+    concepts::CVector auto threadsInBlock,
+    concepts::Vector auto const& sAExtent,
+    concepts::CVector auto elemPerThread)
+{
+    constexpr uint32_t regLoadElem = 1u;
+
+    float regA[regLoadElem][elemPerThread.y()];
+    float regB[regLoadElem][elemPerThread.x()];
+
+    auto regMdA = MdSpanArray<float[regLoadElem][elemPerThread.y()], Alignment<16u>>{regA};
+
+    /** This definition is required to pass the CUDA compiler evaluation if cuda and host executes are used,
+     * not sure why it is not required for A. */
+    using RegBArrayType = float[regLoadElem][elemPerThread.x()];
+    auto regMdB = MdSpanArray<RegBArrayType, Alignment<16u>>{regB};
+    for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += regLoadElem)
+    {
+        for(uint32_t d = 0u; d < regLoadElem; ++d)
+            for(uint32_t k = 0u; k < elemPerThread.y(); k += 4)
+            {
+                auto numTiles = sAExtent / 4u;
+                auto tileIdx = Vec2D{threadIdxMD.y() * elemPerThread.y() + k, dotIdx + d} / 4u;
+                auto tileSlot = linearize(numTiles, tileIdx);
+
+                auto regAPtr = SimdPtr{regMdA, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                auto sAPtr = SimdPtr{
+                    sharedATile,
+                    Vec2D{tileSlot + numTiles.product() * ((dotIdx + d) % 4), 0u},
+                    Alignment<16u>{},
+                    CVec<uint32_t, 4u>{}};
+                regAPtr = sAPtr.load();
+            }
+        for(uint32_t d = 0u; d < regLoadElem; ++d)
+            for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
+            {
+                auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                auto sBPtr = SimdPtr{
+                    sharedBTile,
+                    Vec2D{dotIdx + d, threadIdxMD.x() * 4 + k * threadsInBlock.x()},
+                    Alignment<16u>{},
+                    CVec<uint32_t, 4u>{}};
+                regBPtr = sBPtr.load();
+            }
+
+        for(uint32_t d = 0u; d < regLoadElem; ++d)
+            for(uint32_t j = 0u; j < elemPerThread.y(); ++j)
+            {
+                for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
+                {
+                    auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                    auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                    regCPtr = regCPtr.load() + regMdA[Vec2D{d, j}] * regBPtr.load();
+                }
+            }
+    }
+}
+
 struct VectorizedNonQuadraticElementsKernel
 {
     template<typename TAcc>
@@ -54,149 +193,25 @@ struct VectorizedNonQuadraticElementsKernel
 
             static_assert(sAExtent.x() == sBExtent.y());
 
-            constexpr uint32_t regLoadElem = 1u;
-            /** This definition is required to pass the CUDA compiler evaluation if cuda and host executes are used,
-             * not sure why it is not required for A. */
-            using RegBArrayType = float[regLoadElem][elemPerThread.x()];
-
-            float regA[regLoadElem][elemPerThread.y()] = {0};
-            float regB[regLoadElem][elemPerThread.x()] = {0};
             float regC[elemPerThread.y()][elemPerThread.x()] = {0};
-            auto regMdA = MdSpanArray<float[regLoadElem][elemPerThread.y()], Alignment<16u>>{regA};
-            auto regMdB = MdSpanArray<RegBArrayType, Alignment<16u>>{regB};
             auto regMdC = MdSpanArray<float[elemPerThread.y()][elemPerThread.x()], Alignment<16u>>{regC};
-
 
             for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += bk.x())
             {
-                auto simdGrid = onAcc::SimdAlgo{onAcc::worker::threadsInBlock};
-#if 0
-                simdGrid.template concurrent<16u, Alignment<16>>(
-                    acc,
-                    sAExtent,
-                    [&](auto const&, auto const& a) constexpr
-                    {
-                        auto globalMemValue = a[Vec2D{tileOffsetMD.y(), chunkOffset}].load();
+                loadAToShared(acc, sharedATile, A, tileOffsetMD, sAExtent, chunkOffset);
+                loadBToShared(acc, sharedBTile, B, tileOffsetMD, sBExtent, chunkOffset);
 
-                        for(auto i = 0u; i < globalMemValue.dim(); ++i)
-                        {
-                            aTransposed[a.getIdx() + Vec2D{0, i}] = globalMemValue[i];
-                        }
-                    },
-                    A);
-#else
-                for(auto tileElemIndexMD : onAcc::makeIdxMap(
-                        acc,
-                        onAcc::worker::threadsInBlock,
-                        IdxRange{Vec2D::all(0u), sAExtent, Vec2D{4u, 4u}}))
-                {
-                    auto a0 = SimdPtr{
-                        A,
-                        Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 0u, chunkOffset + tileElemIndexMD.x()},
-                        Alignment<16u>{},
-                        CVec<
-                            uint32_t,
-                            4u>{}}.load();
-                    auto a1 = SimdPtr{
-                        A,
-                        Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 1u, chunkOffset + tileElemIndexMD.x()},
-                        Alignment<16u>{},
-                        CVec<
-                            uint32_t,
-                            4u>{}}.load();
-                    auto a2 = SimdPtr{
-                        A,
-                        Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 2u, chunkOffset + tileElemIndexMD.x()},
-                        Alignment<16u>{},
-                        CVec<
-                            uint32_t,
-                            4u>{}}.load();
-                    auto a3 = SimdPtr{
-                        A,
-                        Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 3u, chunkOffset + tileElemIndexMD.x()},
-                        Alignment<16u>{},
-                        CVec<
-                            uint32_t,
-                            4u>{}}.load();
-
-                    constexpr auto numTiles = sAExtent / 4u;
-                    auto tileIdx = tileElemIndexMD / 4u;
-                    auto tileSlot = linearize(numTiles, tileIdx);
-                    for(auto i = 0u; i < 4; ++i)
-                    {
-                        auto sAPtr = SimdPtr{
-                            sharedATile,
-                            Vec2D{tileSlot + numTiles.product() * i, 0u},
-                            Alignment<16u>{},
-                            CVec<uint32_t, 4u>{}};
-                        auto foo = Simd<float, 4u, Alignment<16u>>{a0[i], a1[i], a2[i], a3[i]};
-                        static_assert(std::is_same_v<decltype(sAPtr.load()), decltype(foo)>);
-                        sAPtr = foo;
-                    }
-                    // aTransposed[tileElemIndexMD]
-                    //     = A[Vec2D{tileOffsetMD.y() + tileElemIndexMD.y(), chunkOffset + tileElemIndexMD.x()}];
-                }
-
-#endif
-
-                simdGrid.template concurrent<16u, Alignment<16>>(
-                    acc,
-                    sBExtent,
-                    [&](auto const&, auto sharedB, auto const& b) constexpr {
-                        sharedB = b[Vec2D{chunkOffset, tileOffsetMD.x()}].load();
-                    },
-                    sharedBTile,
-                    B);
-
-
-                /* This call is equal to `onAcc::syncBlockThreads(acc)`
-                 *
-                 * The synchronization is required because we will use for the second loop over frame element indicis a
-                 * different traversing schema. Therefore, you should not assume any thread and data element relation.
-                 */
                 alpaka::onAcc::syncBlockThreads(acc);
-                for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += regLoadElem)
-                {
-                    for(uint32_t d = 0u; d < regLoadElem; ++d)
-                        for(uint32_t k = 0u; k < elemPerThread.y(); k += 4)
-                        {
-                            constexpr auto numTiles = sAExtent / 4u;
-                            auto tileIdx = Vec2D{threadIdxMD.y() * elemPerThread.y() + k,dotIdx+d} / 4u;
-                            auto tileSlot = linearize(numTiles, tileIdx);
 
-                            auto regAPtr = SimdPtr{regMdA, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                            auto sAPtr = SimdPtr{
-                                sharedATile,
-                                Vec2D{
-                                    tileSlot + numTiles.product() * ((dotIdx+d) % 4),
-                                    0u},
-                                Alignment<16u>{},
-                                CVec<uint32_t, 4u>{}};
-                            regAPtr = sAPtr.load();
-                        }
-                    for(uint32_t d = 0u; d < regLoadElem; ++d)
-                        for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
-                        {
-                            auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                            auto sBPtr = SimdPtr{
-                                sharedBTile,
-                                Vec2D{dotIdx + d, threadIdxMD.x() * 4 + k * threadsInBlock.x()},
-                                Alignment<16u>{},
-                                CVec<uint32_t, 4u>{}};
-                            regBPtr = sBPtr.load();
-                        }
-
-                    for(uint32_t d = 0u; d < regLoadElem; ++d)
-                        for(uint32_t j = 0u; j < elemPerThread.y(); ++j)
-                        {
-                            for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
-                            {
-                                auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                                auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                                regCPtr = regCPtr.load() + regMdA[Vec2D{d, j}] * regBPtr.load();
-                            }
-                        }
-                }
+                computeCTile(
+                    acc,
+                    regMdC,
+                    sharedATile,
+                    sharedBTile,
+                    threadIdxMD,
+                    threadsInBlock,
+                    sAExtent,
+                    elemPerThread);
 
                 alpaka::onAcc::syncBlockThreads(acc);
             }
@@ -267,9 +282,9 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // fill the output buffer with zeros; the si
     onHost::memset(queue, C_d, 0x00);
 
-    constexpr uint32_t bk = 8;
+    constexpr uint32_t bk = 16;
     constexpr auto elemPerThread = CVec<uint32_t, 8u, 8u>{};
-    concepts::CVector auto frameExtent = CVec<uint32_t, 8,16>{};
+    concepts::CVector auto frameExtent = CVec<uint32_t, 8, 8>{};
     concepts::CVector auto chunkExtent
         = CVec<uint32_t, frameExtent.y() * elemPerThread.y(), frameExtent.x() * elemPerThread.x()>{};
     concepts::Vector auto framecount = divExZero(C_size, chunkExtent);
