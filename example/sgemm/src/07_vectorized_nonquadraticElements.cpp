@@ -115,6 +115,7 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
     auto regMdB = MdSpanArray<RegBArrayType, Alignment<16u>>{regB};
     for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += regLoadElem)
     {
+#if 0
         for(uint32_t d = 0u; d < regLoadElem; ++d)
             for(uint32_t k = 0u; k < elemPerThread.y(); k += 4)
             {
@@ -152,6 +153,73 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
                     regCPtr = regCPtr.load() + regMdA[Vec2D{d, j}] * regBPtr.load();
                 }
             }
+
+#else
+        for(uint32_t d = 0u; d < regLoadElem; ++d)
+            for(uint32_t k = 0u; k < elemPerThread.y() / 2u; k += 4)
+            {
+                auto numTiles = sAExtent / 4u;
+                auto tileIdx = Vec2D{threadIdxMD.y() * elemPerThread.y() + k, dotIdx + d} / 4u;
+                auto tileSlot = linearize(numTiles, tileIdx);
+
+                auto regAPtr = SimdPtr{regMdA, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                auto sAPtr = SimdPtr{
+                    sharedATile,
+                    Vec2D{tileSlot + numTiles.product() * ((dotIdx + d) % 4), 0u},
+                    Alignment<16u>{},
+                    CVec<uint32_t, 4u>{}};
+                regAPtr = sAPtr.load();
+            }
+        for(uint32_t d = 0u; d < regLoadElem; ++d)
+            for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
+            {
+                auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                auto sBPtr = SimdPtr{
+                    sharedBTile,
+                    Vec2D{dotIdx + d, threadIdxMD.x() * 4 + k * threadsInBlock.x()},
+                    Alignment<16u>{},
+                    CVec<uint32_t, 4u>{}};
+                regBPtr = sBPtr.load();
+            }
+
+        for(uint32_t d = 0u; d < regLoadElem; ++d)
+            for(uint32_t j = 0u; j < elemPerThread.y() / 2u; ++j)
+            {
+                for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
+                {
+                    auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                    auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                    regCPtr = regCPtr.load() + regMdA[Vec2D{d, j}] * regBPtr.load();
+                }
+            }
+        for(uint32_t d = 0u; d < regLoadElem; ++d)
+            for(uint32_t k = elemPerThread.y() / 2u; k < elemPerThread.y(); k += 4)
+            {
+                auto numTiles = sAExtent / 4u;
+                auto tileIdx = Vec2D{threadIdxMD.y() * elemPerThread.y() + k, dotIdx + d} / 4u;
+                auto tileSlot = linearize(numTiles, tileIdx);
+
+                auto regAPtr
+                    = SimdPtr{regMdA, Vec2D{d, k - elemPerThread.y() / 2u}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                auto sAPtr = SimdPtr{
+                    sharedATile,
+                    Vec2D{tileSlot + numTiles.product() * ((dotIdx + d) % 4), 0u},
+                    Alignment<16u>{},
+                    CVec<uint32_t, 4u>{}};
+                regAPtr = sAPtr.load();
+            }
+
+        for(uint32_t d = 0u; d < regLoadElem; ++d)
+            for(uint32_t j = elemPerThread.y() / 2u; j < elemPerThread.y(); ++j)
+            {
+                for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
+                {
+                    auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                    auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                    regCPtr = regCPtr.load() + regMdA[Vec2D{d, j - elemPerThread.y() / 2u}] * regBPtr.load();
+                }
+            }
+#endif
     }
 }
 
@@ -190,6 +258,7 @@ struct VectorizedNonQuadraticElementsKernel
                 acc,
                 CVec<uint32_t, sAExtent.y() * sAExtent.x() / 4u, 4u>{});
             auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, sBExtent);
+
 
             static_assert(sAExtent.x() == sBExtent.y());
 
@@ -283,8 +352,8 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::memset(queue, C_d, 0x00);
 
     constexpr uint32_t bk = 16;
-    constexpr auto elemPerThread = CVec<uint32_t, 8u, 8u>{};
-    concepts::CVector auto frameExtent = CVec<uint32_t, 8, 8>{};
+    constexpr auto elemPerThread = CVec<uint32_t, 8u, 4u>{};
+    concepts::CVector auto frameExtent = CVec<uint32_t, 4, 32>{};
     concepts::CVector auto chunkExtent
         = CVec<uint32_t, frameExtent.y() * elemPerThread.y(), frameExtent.x() * elemPerThread.x()>{};
     concepts::Vector auto framecount = divExZero(C_size, chunkExtent);
