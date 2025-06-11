@@ -104,10 +104,10 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
 {
     constexpr uint32_t regLoadElem = 1u;
 
-    float regA[regLoadElem][elemPerThread.y()];
+    float regA[regLoadElem][4u];
     float regB[regLoadElem][elemPerThread.x()];
 
-    auto regMdA = MdSpanArray<float[regLoadElem][elemPerThread.y()], Alignment<16u>>{regA};
+    auto regMdA = MdSpanArray<float[regLoadElem][4u], Alignment<16u>>{regA};
 
     /** This definition is required to pass the CUDA compiler evaluation if cuda and host executes are used,
      * not sure why it is not required for A. */
@@ -115,22 +115,7 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
     auto regMdB = MdSpanArray<RegBArrayType, Alignment<16u>>{regB};
     for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += regLoadElem)
     {
-#if 0
-        for(uint32_t d = 0u; d < regLoadElem; ++d)
-            for(uint32_t k = 0u; k < elemPerThread.y(); k += 4)
-            {
-                auto numTiles = sAExtent / 4u;
-                auto tileIdx = Vec2D{threadIdxMD.y() * elemPerThread.y() + k, dotIdx + d} / 4u;
-                auto tileSlot = linearize(numTiles, tileIdx);
-
-                auto regAPtr = SimdPtr{regMdA, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                auto sAPtr = SimdPtr{
-                    sharedATile,
-                    Vec2D{tileSlot + numTiles.product() * ((dotIdx + d) % 4), 0u},
-                    Alignment<16u>{},
-                    CVec<uint32_t, 4u>{}};
-                regAPtr = sAPtr.load();
-            }
+#if 1
         for(uint32_t d = 0u; d < regLoadElem; ++d)
             for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
             {
@@ -144,13 +129,27 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
             }
 
         for(uint32_t d = 0u; d < regLoadElem; ++d)
-            for(uint32_t j = 0u; j < elemPerThread.y(); ++j)
+            for(uint32_t kk = 0u; kk < elemPerThread.y(); kk += 4)
             {
-                for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
+                auto numTiles = sAExtent / 4u;
+                auto tileIdx = Vec2D{threadIdxMD.y() * elemPerThread.y() + kk, dotIdx + d} / 4u;
+                auto tileSlot = linearize(numTiles, tileIdx);
+
+                auto regAPtr = SimdPtr{regMdA, Vec2D{d, 0}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                auto sAPtr = SimdPtr{
+                    sharedATile,
+                    Vec2D{tileSlot + numTiles.product() * ((dotIdx + d) % 4), 0u},
+                    Alignment<16u>{},
+                    CVec<uint32_t, 4u>{}};
+                regAPtr = sAPtr.load();
+                for(uint32_t j = 0u; j < 4; ++j)
                 {
-                    auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                    auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
-                    regCPtr = regCPtr.load() + regMdA[Vec2D{d, j}] * regBPtr.load();
+                    for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
+                    {
+                        auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                        auto regCPtr = SimdPtr{regMdC, Vec2D{kk + j, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+                        regCPtr = regCPtr.load() + regMdA[Vec2D{d, j}] * regBPtr.load();
+                    }
                 }
             }
 
