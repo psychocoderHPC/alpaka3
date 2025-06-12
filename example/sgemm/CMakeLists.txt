@@ -34,6 +34,24 @@ if (NOT TARGET alpaka::alpaka)
     endif ()
 endif ()
 
+if(alpaka_DEP_CUDA)
+    find_package(CUDAToolkit)
+    if(NOT CUDAToolkit_FOUND)
+        message(STATUS "Optional CUDAToolkit not found, but required by alpaka.")
+    else()
+        message(STATUS "Found optional CUDAToolkit")
+    endif()
+endif()
+
+if(alpaka_DEP_HIP)
+    find_package(HIPBLAS)
+    if(NOT HIPBLAS_FOUND)
+        message(STATUS "Optional HIPBLAS not found, but required by alpaka.")
+    else()
+        message(STATUS "Found optional HIPBLAS")
+    endif()
+endif()
+
 #-------------------------------------------------------------------------------
 # Add executable.
 
@@ -46,6 +64,15 @@ foreach (gmmExampleFile ${sgemmSource})
     target_link_libraries(${gmmName} PUBLIC alpaka::alpaka)
     set_target_properties(${gmmName} PROPERTIES FOLDER sgemm)
     target_compile_features(${gmmName} PRIVATE cxx_std_20)
+
+    if(CUDAToolkit_FOUND)
+        target_link_libraries(${gmmName} PRIVATE CUDA::cublas)
+        target_compile_definitions(${gmmName} PRIVATE ALPAKA_HAS_CUBLAS=1)
+    endif()
+    if(HIPBLAS_FOUND)
+        target_link_libraries(${gmmName} PRIVATE roc::hipblas)
+        target_compile_definitions(${gmmName} PRIVATE ALPAKA_HAS_HIPBLAS=0)
+    endif()
 
     add_test(NAME ${gmmName} COMMAND ${gmmName})
 endforeach ()
