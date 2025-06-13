@@ -71,7 +71,7 @@ foreach (gmmExampleFile ${sgemmSource})
     endif()
     if(HIPBLAS_FOUND)
         target_link_libraries(${gmmName} PRIVATE roc::hipblas)
-        target_compile_definitions(${gmmName} PRIVATE ALPAKA_HAS_HIPBLAS=0)
+        target_compile_definitions(${gmmName} PRIVATE ALPAKA_HAS_HIPBLAS=1)
     endif()
 
     add_test(NAME ${gmmName} COMMAND ${gmmName})

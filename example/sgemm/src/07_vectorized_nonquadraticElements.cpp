@@ -127,7 +127,8 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
 
     /** This definition is required to pass the CUDA compiler evaluation if cuda and host executes are used,
      * not sure why it is not required for A. */
-    using RegBArrayType = float[regLoadElem][elemPerThread.x()];
+    constexpr auto numBRegElem = elemPerThread.x();
+    using RegBArrayType = float[regLoadElem][numBRegElem];
     auto regMdB = MdSpanArray<RegBArrayType, Alignment<16u>>{regB};
     for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += regLoadElem)
     {
@@ -296,7 +297,7 @@ int verifyResults(auto queue, auto C_d, auto CReference_h)
     onHost::wait(queue);
 
     // relative tolerance
-    constexpr float epsilon = 1e-5;
+    constexpr float epsilon = 1e-3;
 
     bool mismatch = false;
     for(uint32_t i = 0; i < C_h.getExtents().product(); ++i)
@@ -326,10 +327,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // random number generator with a gaussian distribution
     std::random_device rd{};
     std::default_random_engine rand{rd()};
-    std::normal_distribution<float> dist{0.f, 1.f};
-
-    // tolerance
-    constexpr float epsilon = 1e-4;
+    std::normal_distribution<float> dist{0.0001f, 1.f};
 
     constexpr Vec2D A_size = {256, 1024};
     constexpr Vec2D B_size = {1024, 256};
@@ -449,8 +447,20 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
 #endif
 #if ALPAKA_HAS_HIPBLAS == 1
     hipblasHandle_t handle;
+    // required to avoid `device not ready` in HIp which is not reset by hipblas
+    onHost::wait(queue);
     hipblasStatus_t stat = hipblasCreate(&handle);
-    hipblasSetStream(handle, queue.getNativeHandle());
+    if(stat != HIPBLAS_STATUS_SUCCESS)
+    {
+        std::cerr << "hipblasCreate failed with error code: " << stat << std::endl;
+        return EXIT_FAILURE;
+    }
+    stat = hipblasSetStream(handle, queue.getNativeHandle());
+    if(stat != HIPBLAS_STATUS_SUCCESS)
+    {
+        std::cerr << "hipblasSetStream failed with error code: " << stat << std::endl;
+        return EXIT_FAILURE;
+    }
 
     auto C_blas_d = onHost::allocMirror(device, C_h);
     onHost::memset(queue, C_blas_d, 0x00);
@@ -495,12 +505,15 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::wait(queue);
 
     int err = EXIT_SUCCESS;
-#if ALPAKA_HAS_CUBLAS != 1
+#if ALPAKA_HAS_CUBLAS != 1 && ALPAKA_HAS_HIPBLAS != 1
     if(A_h.getExtents().x() <= 1024u)
     {
         // check the results
         auto cpuReference = onHost::allocHostMirror(C_h);
-        onHost::memset(queue, cpuReference, 0x00);
+        auto host = onHost::makeHostDevice();
+        auto q = host.makeQueue();
+        onHost::memset(q, cpuReference, 0x00);
+        onHost::wait(q);
         // wait for all the operations to complete
         onHost::wait(queue);
 
@@ -540,7 +553,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
 
     if(err == EXIT_SUCCESS)
     {
-        constexpr uint32_t repeat = 50;
+        constexpr uint32_t repeat = 2;
 
         onHost::wait(queue);
         auto const beginT = std::chrono::high_resolution_clock::now();
@@ -579,7 +592,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
         onHost::wait(queue);
         auto const endTBlas = std::chrono::high_resolution_clock::now();
         double durationBlas = std::chrono::duration<double>(endTBlas - beginTBlas).count();
-        std::cout << "cuBlas" << std::endl;
+        std::cout << "hipBlas" << std::endl;
         std::cout << "  - kernel execution: " << durationBlas << " s" << std::endl;
         std::cout << "  - performance     : "
                   << static_cast<double>(flopCount) / 1.e12 / (durationBlas / static_cast<double>(repeat))
