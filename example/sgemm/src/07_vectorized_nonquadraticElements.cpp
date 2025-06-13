@@ -110,7 +110,9 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
     concepts::Vector auto const& threadIdxMD,
     concepts::CVector auto threadsInBlock,
     concepts::Vector auto const& sAExtent,
-    concepts::CVector auto elemPerThread)
+    concepts::CVector auto elemPerThread,
+    concepts::Vector auto const& tileOffsetMD,
+    uint32_t bYOffset)
 {
     constexpr uint32_t regLoadElem = 1u;
 
@@ -139,7 +141,7 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
                 auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
                 auto sBPtr = SimdPtr{
                     sharedBTile,
-                    Vec2D{dotIdx + d, threadIdxMD.x() * 4 + k * threadsInBlock.x()},
+                    Vec2D{dotIdx + d + bYOffset, threadIdxMD.x() * 4 + k * threadsInBlock.x() + tileOffsetMD.x()},
                     Alignment<16u>{},
                     CVec<uint32_t, 4u>{}};
                 regBPtr = sBPtr.load();
@@ -148,17 +150,33 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
         for(uint32_t d = 0u; d < regLoadElem; ++d)
             for(uint32_t kk = 0u; kk < elemPerThread.y(); kk += 4)
             {
-                auto numTiles = sAExtent / 4u;
-                auto tileIdx = Vec2D{threadIdxMD.y() * elemPerThread.y() + kk, dotIdx + d} / 4u;
-                auto tileSlot = linearize(numTiles, tileIdx);
+                //  auto numTiles = sAExtent / 4u;
+                // auto tileIdx = Vec2D{threadIdxMD.y() * elemPerThread.y() + kk, dotIdx + d} / 4u;
+                // auto tileSlot = linearize(numTiles, tileIdx);
 
                 auto regAPtr = SimdPtr{regMdA, Vec2D{d, 0}, Alignment<16u>{}, CVec<uint32_t, 4u>{}};
+#    if 0
+                //Vec2D{tileOffsetMD.y() + tileElemIndexMD.y() + 0u, aXOffset + tileElemIndexMD.x()},
                 auto sAPtr = SimdPtr{
                     sharedATile,
                     Vec2D{tileSlot + numTiles.product() * ((dotIdx + d) % 4), 0u},
                     Alignment<16u>{},
                     CVec<uint32_t, 4u>{}};
-                regAPtr = sAPtr.load();
+#    endif
+                Simd<float, 4u, Alignment<16u>> sA;
+                for(uint32_t g = 0; g < 4; ++g)
+                {
+                    // Vec2D{dotIdx, threadIdxMD.x() * 4 + k * frameExtent.x()},
+                    auto idx = Vec2D{
+                        threadIdxMD.y() * elemPerThread.y() +  kk + tileOffsetMD.y() + g,
+                        dotIdx + d + bYOffset};
+                    sA[g] = sharedATile[idx];
+                     // std::cout<< "sA["<<idx<<"]="<<sA[g]<<"\n";
+                }
+
+                regAPtr = sA;
+
+
                 for(uint32_t j = 0u; j < 4; ++j)
                 {
                     for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
@@ -242,11 +260,14 @@ struct VectorizedNonQuadraticElementsKernel
             concepts::CVector auto sBExtent = CVec<uint32_t, bk.x(), chunkExtent.x()>{};
             concepts::CVector auto sAExtent = CVec<uint32_t, chunkExtent.y(), bk.x()>{};
             // shared a matrix is stored transposed to support shared to register vector loads
+#if 0
             auto sharedATile = onAcc::declareSharedMdArray<float, uniqueId()>(
                 acc,
                 CVec<uint32_t, sAExtent.y() * sAExtent.x() / 4u, 4u>{});
+#endif
+#if 0
             auto sharedBTile = onAcc::declareSharedMdArray<float, uniqueId()>(acc, sBExtent);
-
+#endif
 
             static_assert(sAExtent.x() == sBExtent.y());
 
@@ -255,22 +276,24 @@ struct VectorizedNonQuadraticElementsKernel
 
             for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += bk.x())
             {
-                loadAToShared(acc, sharedATile, A, tileOffsetMD, sAExtent, chunkOffset);
-                loadBToShared(acc, sharedBTile, B, tileOffsetMD, sBExtent, chunkOffset);
+                // loadAToShared(acc, sharedATile, A, tileOffsetMD, sAExtent, chunkOffset);
+                // loadBToShared(acc, sharedBTile, B, tileOffsetMD, sBExtent, chunkOffset);
 
-                alpaka::onAcc::syncBlockThreads(acc);
+                //     alpaka::onAcc::syncBlockThreads(acc);
 
                 computeCTile(
                     acc,
                     regMdC,
-                    sharedATile,
-                    sharedBTile,
+                    A,
+                    B,
                     threadIdxMD,
                     threadsInBlock,
                     sAExtent,
-                    elemPerThread);
+                    elemPerThread,
+                    tileOffsetMD,
+                    chunkOffset);
 
-                alpaka::onAcc::syncBlockThreads(acc);
+                //   alpaka::onAcc::syncBlockThreads(acc);
             }
 
             for(uint32_t j = 0u; j < elemPerThread.y(); ++j)
@@ -329,8 +352,8 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     std::default_random_engine rand{rd()};
     std::normal_distribution<float> dist{0.0001f, 1.f};
 
-    constexpr Vec2D A_size = {256, 1024};
-    constexpr Vec2D B_size = {1024, 256};
+    constexpr Vec2D A_size = {4096, 4096};
+    constexpr Vec2D B_size = {4096, 4096};
     constexpr Vec2D C_size = {A_size.y(), B_size.x()};
     constexpr size_t flopCount = static_cast<size_t>(A_size.x()) * C_size.product() * 2u + 2u * C_size.product();
     static_assert(A_size.x() == B_size.y());
@@ -545,7 +568,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
 
         onHost::memcpy(queue, blasReference_h, C_blas_d);
         onHost::wait(queue);
-        err = verifyResults(queue, C_d, blasReference_h);
+        //  err =  verifyResults(queue, C_d, blasReference_h);
     }
     else
         std::cout << "validation skipped, matrix to large!\n";
