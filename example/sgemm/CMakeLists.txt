@@ -67,7 +67,7 @@ foreach (gmmExampleFile ${sgemmSource})
 
     if(CUDAToolkit_FOUND)
         target_link_libraries(${gmmName} PRIVATE CUDA::cublas)
-        target_compile_definitions(${gmmName} PRIVATE ALPAKA_HAS_CUBLAS=0)
+        target_compile_definitions(${gmmName} PRIVATE ALPAKA_HAS_CUBLAS=1)
     endif()
     if(HIPBLAS_FOUND)
         target_link_libraries(${gmmName} PRIVATE roc::hipblas)
