@@ -25,7 +25,7 @@
 #endif
 
 using namespace alpaka;
-using DataType = size_t;
+using DataType = float;
 constexpr uint32_t alignment = uint32_t{sizeof(DataType) * 4u};
 
 ALPAKA_FN_INLINE constexpr void loadAToShared(
@@ -116,7 +116,7 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
 {
     constexpr uint32_t regLoadElem = 1u;
 
-#define DO_FULL 0
+#define DO_FULL 2
 
 #if DO_FULL == 0
     DataType regA[regLoadElem][4u];
@@ -344,11 +344,10 @@ int verifyResults(auto queue, auto C_d, auto CReference_h)
 int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
 {
     // random number generator with a gaussian distribution
-#if 0
     std::random_device rd{};
     std::default_random_engine rand{rd()};
     std::normal_distribution<DataType> dist{0.0001f, 1.f};
-#endif
+
     constexpr Vec2D A_size = {256, 1024};
     constexpr Vec2D B_size = {1024, 256};
     constexpr Vec2D C_size = {A_size.y(), B_size.x()};
@@ -367,10 +366,10 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // fill the input buffers with random data, and the output buffer with zeros
     for(uint32_t j = 0; j < A_size.y(); ++j)
         for(uint32_t i = 0; i < A_size.x(); ++i)
-            A_h[Vec2D{j, i}] = i + j * A_size.x(); // dist(rand);
+            A_h[Vec2D{j, i}] = dist(rand);
     for(uint32_t j = 0; j < B_size.y(); ++j)
         for(uint32_t i = 0; i < B_size.x(); ++i)
-            B_h[Vec2D{j, i}] = i + j * B_size.x(); // dist(rand);
+            B_h[Vec2D{j, i}] = dist(rand);
     for(uint32_t j = 0; j < C_size.y(); ++j)
         for(uint32_t i = 0; i < C_size.x(); ++i)
             C_h[Vec2D{j, i}] = 0.;
@@ -392,8 +391,8 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
 
     constexpr uint32_t repeat = 2;
     constexpr uint32_t bk = 16;
-    constexpr auto elemPerThread = CVec<uint32_t, 16u, 8u>{};
-    concepts::CVector auto frameExtent = CVec<uint32_t, 8, 16>{};
+    constexpr auto elemPerThread = CVec<uint32_t, 8u, 4u>{};
+    concepts::CVector auto frameExtent = CVec<uint32_t, 4, 32>{};
     concepts::CVector auto chunkExtent
         = CVec<uint32_t, frameExtent.y() * elemPerThread.y(), frameExtent.x() * elemPerThread.x()>{};
     concepts::Vector auto framecount = divExZero(C_size, chunkExtent);
