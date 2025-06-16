@@ -13,7 +13,7 @@ void naive_matrix_mult(auto A, auto B, auto C, T_DataType const alpha, T_DataTyp
     {
         for(uint32_t i = 0; i < C_dim.x(); ++i)
         {
-            float sum = 0.0;
+            T_DataType sum = 0.0;
             for(uint32_t k = 0; k < A_dim.x(); ++k)
             {
                 sum += A[Vec2D{j, k}] * B[Vec2D{k, i}];
