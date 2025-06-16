@@ -4,7 +4,8 @@
 
 #include <alpaka/alpaka.hpp>
 
-void naive_matrix_mult(auto A, auto B, auto C, float const alpha, float const beta)
+template<typename T_DataType>
+void naive_matrix_mult(auto A, auto B, auto C, T_DataType const alpha, T_DataType const beta)
 {
     auto A_dim = A.getExtents();
     auto C_dim = C.getExtents();
