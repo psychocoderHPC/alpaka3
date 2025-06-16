@@ -116,7 +116,7 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
 {
     constexpr uint32_t regLoadElem = 1u;
 
-#define DO_FULL 2
+#define DO_FULL 0
 
 #if DO_FULL == 0
     DataType regA[regLoadElem][4u];
@@ -193,7 +193,7 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
                 auto regBPtr = SimdPtr{regMdB, Vec2D{d, k}, Alignment<alignment>{}, CVec<uint32_t, 4u>{}};
                 auto sBPtr = SimdPtr{
                     sharedBTile,
-                    Vec2D{dotIdx + d, threadIdxMD.x() * 4 + k * threadsInBlock.x()},
+                    Vec2D{dotIdx + d, (threadIdxMD.x() * 4u + k / 4u * threadsInBlock.x() * 4u)},
                     Alignment<alignment>{},
                     CVec<uint32_t, 4u>{}};
                 regBPtr = sBPtr.load();
@@ -279,8 +279,8 @@ struct VectorizedNonQuadraticElementsKernel
             {
                 for(uint32_t k = 0u; k < elemPerThread.x(); k += 4)
                 {
-                    concepts::Vector auto cTileOffsetMD
-                        = tileOffsetMD + threadIdxMD * Vec2D{elemPerThread.y(), 4} + Vec2D{j, k * threadsInBlock.x()};
+                    concepts::Vector auto cTileOffsetMD = tileOffsetMD + threadIdxMD * Vec2D{elemPerThread.y(), 4}
+                                                          + Vec2D{j, k / 4u * threadsInBlock.x() * 4u};
                     auto cSimdPtr = SimdPtr{out, cTileOffsetMD, Alignment<alignment>{}, CVec<uint32_t, 4u>{}};
                     auto regCPtr = SimdPtr{regMdC, Vec2D{j, k}, Alignment<alignment>{}, CVec<uint32_t, 4u>{}};
                     cSimdPtr = alpha * regCPtr.load() + beta * cSimdPtr.load();
@@ -292,25 +292,28 @@ struct VectorizedNonQuadraticElementsKernel
 
 bool equal([[maybe_unused]] auto idx, auto a, auto b)
 {
+    bool isEqual = false;
+    double relativeError = 1.0;
     if constexpr(std::integral<ALPAKA_TYPEOF(a)> && std::integral<ALPAKA_TYPEOF(b)>)
     {
-        return a == b;
+        isEqual = (a == b);
     }
     else
     {
         // relative tolerance
-        constexpr double epsilon = 1e-3;
-        double relativeError = 1.0 - std::abs(static_cast<double>(a) / static_cast<double>(b));
-        auto isEuqal = relativeError < epsilon;
-        if(!isEuqal)
-        {
-            std::cout << std::scientific << std::setprecision(std::numeric_limits<DataType>::max_digits10)
-                      << "MISMATCH at " << idx << " kernel=" << a << " cpu=" << b << " error=" << relativeError
-                      << std::endl;
-        }
-        assert(isEuqal);
-        return isEuqal;
+        constexpr double epsilon = 1e-5;
+        relativeError = 1.0 - std::abs(static_cast<double>(a) / static_cast<double>(b));
+        isEqual = relativeError < epsilon;
     }
+    if(!isEqual)
+    {
+        std::cout << std::scientific << std::setprecision(std::numeric_limits<DataType>::max_digits10)
+                  << "MISMATCH at " << idx << " kernel=" << a << " cpu=" << b
+                  << (relativeError != 1.0 ? (std::string(" error=") + std::to_string(relativeError)) : "")
+                  << std::endl;
+    }
+    assert(isEqual);
+    return isEqual;
 }
 
 int verifyResults(auto queue, auto C_d, auto CReference_h)
