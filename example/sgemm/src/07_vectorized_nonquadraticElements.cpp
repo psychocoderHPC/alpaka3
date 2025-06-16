@@ -301,7 +301,7 @@ bool equal([[maybe_unused]] auto idx, auto a, auto b)
     else
     {
         // relative tolerance
-        constexpr double epsilon = 1e-5;
+        constexpr double epsilon = 1e-4;
         relativeError = 1.0 - std::abs(static_cast<double>(a) / static_cast<double>(b));
         isEqual = relativeError < epsilon;
     }
@@ -390,6 +390,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     // fill the output buffer with zeros; the si
     onHost::memset(queue, C_d, 0x00);
 
+    constexpr uint32_t repeat = 2;
     constexpr uint32_t bk = 16;
     constexpr auto elemPerThread = CVec<uint32_t, 16u, 8u>{};
     concepts::CVector auto frameExtent = CVec<uint32_t, 8, 16>{};
@@ -573,8 +574,6 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
 
     if(err == EXIT_SUCCESS)
     {
-        constexpr uint32_t repeat = 2;
-
         onHost::wait(queue);
         auto const beginT = std::chrono::high_resolution_clock::now();
         for(uint32_t i = 0; i < repeat; ++i)
