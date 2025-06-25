@@ -192,7 +192,7 @@ int runExample(
     return EXIT_SUCCESS;
 }
 
-
+#define ALPAKA_HAS_CUB 1
 #if ALPAKA_HAS_CUB
 // only do this when CUB is found
 

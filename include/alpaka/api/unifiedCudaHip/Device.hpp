@@ -182,7 +182,11 @@ namespace alpaka::onHost
                 auto deviceDependency = onHost::Device{device.getSharedPtr()};
 
                 auto deleter = [ptr, deviceDependency]()
-                { ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK_NOEXCEPT(ApiInterface, ApiInterface::free(ptr)); };
+                {
+                    ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK_NOEXCEPT(
+                        ApiInterface,
+                        ApiInterface::free((void*) const_cast<std::remove_volatile_t<ALPAKA_TYPEOF(ptr)>>(ptr)));
+                };
 
                 /** Each CUDA/HIP allocation is aligned to at least 128 byte but typically to 256byte
                  *
