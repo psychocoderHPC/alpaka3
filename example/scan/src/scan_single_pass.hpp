@@ -42,8 +42,8 @@ struct Aggregate
     using FlagType
         = std::conditional_t<std::is_same_v<TDeviceKind, deviceKind::Cpu>, std::atomic<Flag>, Flag volatile>;
 
-    Data aggregate;
-    Data inclusivePrefix;
+    Data volatile aggregate;
+    Data volatile inclusivePrefix;
     FlagType f;
 
     Aggregate() : f(Flag::Uninitialized)
@@ -169,7 +169,8 @@ public:
         auto const& acc,
         concepts::MdSpan<Data> auto const& inputVec,
         concepts::MdSpan<Data> auto outputVec,
-        concepts::MdSpan auto aggregates) const
+        concepts::MdSpan auto aggregates,
+        concepts::MdSpan<IdxType> auto frameCounter) const
     {
         using DeviceType = ALPAKA_TYPEOF(acc.getDeviceKind());
         concepts::Vector auto numFrames = acc[frame::count];
@@ -203,18 +204,38 @@ public:
          * All thread blocks will be used to iterate over the frames. Each thread block will handle one or more
          * frames.
          */
-        for(auto frameIdx :
+        for([[maybe_unused]] auto _frameIdx :
             onAcc::makeIdxMap(acc, onAcc::worker::blocksInGrid, IdxRange{Vec<IdxType, 1u>{0}, numFrames}))
         {
-            bool const lastFrameFull = validElementsInLastFrame == chunkExtent;
-            bool const isLastFrame = frameIdx == numFrames - 1_idx;
+            IdxType frameIdx = 0_idx;
+
+            auto threadIdx = acc[layer::thread].idx();
+
+            // shared memory of size 1 to share the frame idx to all threads in the frame
+            auto& frameIdxShared = onAcc::declareSharedVar<IdxType, uniqueId()>(acc);
 
             // -- INITIALIZE AGGREGATES --
-            for([[maybe_unused]] auto frameElem : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{1}))
+            if(threadIdx.x() == 0_idx)
             {
+                // make sure the scheduled and active frames have the lowest ids to prevent deadlocking
+                frameIdx = alpaka::onAcc::atomicAdd(acc, frameCounter.data(), 1_idx);
+                frameIdxShared = frameIdx;
+
                 aggregates[frameIdx].f = Flag::Uninitialized;
                 memoryFence<DeviceType>();
             }
+
+            onAcc::syncBlockThreads(acc);
+
+            for([[maybe_unused]] auto frameElem :
+                onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{numThreadsPerBlock}))
+            {
+                // all other threads (except the first) get their id from the shared mem
+                frameIdx = frameIdxShared;
+            }
+
+            bool const lastFrameFull = validElementsInLastFrame == chunkExtent;
+            bool const isLastFrame = frameIdx == numFrames.x() - 1_idx;
 
             // allocate "per-thread" register memory to store all mini blocks of a thread persistently
             LocalArray regMem;
@@ -285,50 +306,99 @@ public:
             onAcc::syncBlockThreads(acc);
 
             // -- WRITE AGGREGATE --
-            for([[maybe_unused]] auto frameElem : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{1}))
+            if(threadIdx.x() == 0_idx)
             {
-                Data const aggregate
+                Data const localAggregate
                     = tmp[conflictFreeAccess<DeviceType>(miniBlocksPerChunk - 1_idx)]; // this block's sum
-                Data exclusivePrefix = static_cast<Data>(0);
 
-                aggregates[frameIdx].aggregate = aggregate;
+                aggregates[frameIdx].aggregate = localAggregate;
                 memoryFence<DeviceType>();
                 aggregates[frameIdx].f = Flag::AggregateDone;
+            }
 
-                // -- GET EXCLUSIVE PREFIX --
-                bool done = frameIdx.x() == 0_idx;
-                for(IdxType i = frameIdx.x() - 1_idx; !done; --i)
+            Data exclusivePrefixStrided = static_cast<Data>(0);
+
+            // -- GET EXCLUSIVE PREFIX (MODULO N EACH THREAD) --
+            using SignedIdxType = std::make_signed_t<IdxType>;
+            for(SignedIdxType predecessorIdx = static_cast<SignedIdxType>(frameIdx) - 1 - threadIdx.x();
+                predecessorIdx >= 0;
+                predecessorIdx -= numThreadsPerBlock.x())
+            {
+                switch(aggregates[predecessorIdx].f)
+                {
+                case Flag::Uninitialized:
+                    // yield and try again
+                    predecessorIdx += numThreadsPerBlock.x();
+                    if constexpr(std::is_same_v<DeviceType, deviceKind::Cpu>)
+                        std::this_thread::yield();
+                    break;
+                case Flag::AggregateDone:
+                    exclusivePrefixStrided += aggregates[predecessorIdx].aggregate;
+                    break;
+                case Flag::PrefixDone:
+                    exclusivePrefixStrided += aggregates[predecessorIdx].inclusivePrefix;
+                    predecessorIdx = 0; // break out of for loop
+                    break;
+                }
+            }
+
+            onAcc::syncBlockThreads(acc);
+
+            auto prefixReduction = onAcc::declareSharedMdArray<Data, uniqueId()>(acc, numThreadsPerBlock);
+            prefixReduction[threadIdx] = exclusivePrefixStrided;
+
+            // -- BLOCK REDUCE --
+            for(auto offset = numThreadsPerBlock.x() / 2; offset > 0; offset /= 2)
+            {
+                alpaka::onAcc::syncBlockThreads(acc);
+                if(threadIdx < offset)
+                    prefixReduction[threadIdx] += prefixReduction[threadIdx + offset];
+            }
+
+            alpaka::onAcc::syncBlockThreads(acc);
+
+            if(threadIdx.x() == numThreadsPerBlock.x() - 1_idx)
+            {
+                auto blockSum = tmp[conflictFreeAccess<DeviceType>(miniBlocksPerChunk - 1_idx)];
+
+                aggregates[frameIdx].inclusivePrefix = exclusivePrefixStrided + blockSum;
+                memoryFence<DeviceType>();
+                aggregates[frameIdx].f = Flag::PrefixDone;
+
+                // -- SEED DOWN-SWEEP WITH EXCLUSIVE PREFIX --
+                tmp[conflictFreeAccess<DeviceType>(miniBlocksPerChunk - 1_idx)] = prefixReduction[0];
+            }
+
+            // syncBlockThreads is done first thing in the next loop
+
+#if 0
+            for([[maybe_unused]] auto frameElem:
+                onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{CVec<IdxType, 1>{}}))
+            {
+                bool done = frameIdx == 0_idx;
+                for(IdxType i = frameIdx - 1_idx; !done; --i)
                 {
                     switch(aggregates[i].f)
                     {
                     case Flag::Uninitialized:
                         // yield and try again
                         ++i;
-                        done = i == 0_idx;
                         if constexpr(std::is_same_v<DeviceType, deviceKind::Cpu>)
                             std::this_thread::yield();
                         break;
                     case Flag::AggregateDone:
-                        exclusivePrefix += aggregates[i].aggregate;
+                        exclusivePrefixStrided += aggregates[i].aggregate;
                         done = i == 0_idx;
                         break;
                     case Flag::PrefixDone:
-                        exclusivePrefix += aggregates[i].inclusivePrefix;
+                        exclusivePrefixStrided += aggregates[i].inclusivePrefix;
                         done = true;
                         break;
                     }
                 }
-
-                // -- WRITE INCLUSIVE PREFIX --
-                aggregates[frameIdx].inclusivePrefix = exclusivePrefix + aggregate;
-                memoryFence<DeviceType>();
-                aggregates[frameIdx].f = Flag::PrefixDone;
-
-                // -- SEED DOWN-SWEEP WITH EXCLUSIVE PREFIX --
-                tmp[conflictFreeAccess<DeviceType>(miniBlocksPerChunk - 1_idx)] = exclusivePrefix;
             }
+#endif
 
-            // syncBlockThreads is done first thing in the next loop
 
             // -- DOWN-SWEEP --
             for(IdxType d = 1, offset = miniBlocksPerChunk / 2_idx; d < miniBlocksPerChunk; d <<= 1, offset >>= 1)
@@ -433,8 +503,13 @@ void scan(auto& exec, auto& devAcc, auto& queue, auto const& inputVec, auto outp
     // allocate aggregates, one per block
     auto aggregates = onHost::alloc<Aggregate<DeviceType>>(devAcc, frameSpec.m_numFrames);
 
+    // allocate frame counter, single index type
+    auto frameCounter = onHost::alloc<IdxType>(devAcc, 1);
+    onHost::memset(queue, frameCounter, static_cast<uint8_t>(0));
+    onHost::wait(queue);
+
     // enqueue the kernel execution tasks
-    queue.enqueue(exec, frameSpec, KernelBundle{scanBlocks, inputVec, outputVec, aggregates});
+    queue.enqueue(exec, frameSpec, KernelBundle{scanBlocks, inputVec, outputVec, aggregates, frameCounter});
 
     // need to wait here until the previous call is done before we can destruct the buffers for
     // increments/blockSums when running out of scope
