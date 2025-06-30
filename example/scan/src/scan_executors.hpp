@@ -260,8 +260,6 @@ int runExample(
                 numElements,
                 queue.getNativeHandle()));
 
-            alpaka::onHost::wait(queue);
-
             // Allocate temporary storage
             CUDA_CHECK(cudaMalloc(&d_temp_storage, temp_storage_bytes));
 
@@ -283,8 +281,6 @@ int runExample(
                 numElements,
                 queue.getNativeHandle()));
 
-            alpaka::onHost::wait(queue);
-
             // Allocate temporary storage
             CUDA_CHECK(cudaMalloc(&d_temp_storage, temp_storage_bytes));
 
@@ -298,11 +294,11 @@ int runExample(
             break;
         }
         alpaka::onHost::wait(queue);
+        auto const endT = std::chrono::high_resolution_clock::now();
 
         if(d_temp_storage)
             cudaFree(d_temp_storage);
 
-        auto const endT = std::chrono::high_resolution_clock::now();
         double kernelRuntime = std::chrono::duration<double>(endT - beginT).count();
 
         printResults(kernelRuntime, numElements);
