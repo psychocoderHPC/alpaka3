@@ -3,23 +3,19 @@
  * SPDX-License-Identifier: ISC
  */
 
+#include "gpu_integrator.h"
+
 #include <alpaka/alpaka.hpp>
 #include <alpaka/example/executeForEach.hpp>
 #include <alpaka/example/executors.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <typeinfo>
-
-#define R123_NO_CUDA_DEVICE_RANDOM 1
-
-#include "gpu_integrator.h"
-
-#include <cmath>
-#include <iostream>
-#include <memory>
 
 using namespace alpaka;
 
@@ -134,18 +130,6 @@ struct Rhs
     }
 };
 
-// void rhs2(Eigen::Ref<const Eigen::VectorXd> x, double t, Eigen::Ref<Eigen::VectorXd> dxdt) {
-//     for (size_t i = 0; i < x.size(); i++) {
-//         // dxdt[i] = amplitude[i] * std::sin(t * t_scale[i] + t_offset[i]);
-
-//         dxdt[i] = 0;
-//         for (size_t j = 0; j < x.size(); j++) {
-//             dxdt[i] += amplitude_lincomb[i][j] * std::sin(t * t_scale[j] + t_offset[j]);
-//         }
-//     }
-// }
-
-
 namespace mio
 {
     void log_debug(std::string_view s)
@@ -168,26 +152,9 @@ auto example(auto const deviceSpec, auto const exec, int numElements) -> int
               << " on " << onHost::getName(devAcc) << std::endl;
 #endif
 
-    // using namespace mio;
-    // set_log_level(LogLevel::off);
-
     mio::log_debug("Enter the world of memilio");
 
     int const size = numElements, band_width = 2;
-
-    // // Guard the CUDA test with proper CUDA error handling
-    // // cudaError_t cudaStatus = cudaSetDevice(0);
-    // // if (cudaStatus != cudaSuccess) {
-    // //     std::cerr << "CUDA initialization failed: " << cudaGetErrorString(cudaStatus) << std::endl;
-    // //     std::cout << "CUDA test failed! Continuing without CUDA." << std::endl;
-    // // }
-    // // else {
-    // //     std::cout << "CUDA initialization succeeded." <<  std::endl;
-
-    // //     cudaDeviceReset();
-    // // }
-
-    // // TODO: nvidia-x-markers??
 
     auto t_offset = onHost::allocHost<double>(size);
     auto t_scale = onHost::allocHost<double>(size);
@@ -210,17 +177,7 @@ auto example(auto const deviceSpec, auto const exec, int numElements) -> int
 
     onHost::wait(queue);
 
-    // print(t_offset);
-    // print(t_scale);
-    // print(amplitude_lincomb);
-    // std::cout << "\n";
-
-    // // std::cout << amplitude_lincomb << "\n";
-
     double const abs_tol = 1e-3, rel_tol = 1e-8, min_dt = 1e-2, max_dt = 1e+2;
-    // // auto core = std::make_shared<mio::ControlledStepperWrapper<double,
-    // boost::numeric::odeint::runge_kutta_cash_karp54>>(abs_tol, rel_tol, min_dt, max_dt); auto core =
-    // std::make_shared<mio::RKIntegratorCore<double>>(abs_tol, rel_tol, min_dt, max_dt);
 
     auto m_kt_values = onHost::allocHost<double>(Vec{size_t{tableau().entries_low.dim()}, size});
     auto m_kt_values_dev = onHost::allocMirror(devAcc, m_kt_values);
@@ -261,27 +218,17 @@ auto example(auto const deviceSpec, auto const exec, int numElements) -> int
     while(t < 100 * M_PI)
     {
         stepper.step(Rhs{}, x, t, dt, x2, amplitude_lincomb_dev, t_offset_dev, t_scale_dev);
-        // print(x);
-        // print(x2);
         for(size_t i = 0; i < size; i++)
         {
             x[i] = x2[i];
             x2[i] = 0;
         }
-        // std::cin.ignore();
     }
     auto const endT = std::chrono::high_resolution_clock::now();
     std::cout << "Time for kernel execution: " << std::chrono::duration<double>(endT - beginT).count() << 's'
               << std::endl;
 
-    // integrator.advance(rhs, tmax, dt, results);
-
     mio::log_debug("Integration Finished");
-
-    // if (size < 5)
-    //     results.print_table();
-    // else
-    //     std::cout << "Num time steps: " << results.get_num_time_points() << "\n";
 
     double result = 0.0;
     for(size_t i = 0; i < x.size(); ++i)

@@ -108,12 +108,7 @@ struct Monstrosity
         bool converged = false; // carry for convergence criterion
         bool dt_is_invalid = false;
 
-        // if (m_yt_eval.size() != yt.size()) {
-        //     m_yt_eval.resize(yt.size());
-        //     m_kt_values.resize(yt.size(), tab.entries_low.size());
-        // }
-
-        for(size_t j = 1; j < yt.size(); j++)
+         for(size_t j = 1; j < yt.size(); j++)
         {
             m_yt_eval[j] = yt[j];
         }
@@ -176,10 +171,6 @@ struct Monstrosity
                 alpaka::onHost::wait(queue);
             }
 
-            // for (int i = 0; i < 6; i++) {
-            //     std::cout << "eval (" << i << "): ";
-            //     print(m_kt_values[i]);
-            // }
             // calculate low order estimate
 
             for(size_t i = 0; i < yt.size(); i++)
@@ -204,28 +195,8 @@ struct Monstrosity
                 m_error_estimate[i] = std::abs(m_error_estimate[i]);
             }
 
-            // std::cout << "tab diff: ";
-            // for (int j = 0; j < 6; j++) {
-            //     std::cout << tab.entries_high[j] - tab.entries_low[j] << " ";
-            // }
-            // std::cout << "\n";
-
-            // std::cout << "kt * tab: ";
-            // for (int i = 0; i < yt.size(); i++) {
-            //     double x = 0;
-            //     for (int j = 0; j < 6; j++) {
-            //         x += m_kt_values[j][i] * (tab.entries_high[j] - tab.entries_low[j]);
-            //     }
-            //     std::cout << x << " ";
-            // }
-            // std::cout << "\n";
-
-            // std::cout << "err: "; print(m_error_estimate);
-            // calculate mixed tolerance
-
             double min_coeff = std::numeric_limits<double>::infinity();
-            // std::cout << "con: ";
-            // #pragma acc parallel loop
+
             for(size_t i = 0; i < yt.size(); i++)
             {
                 double tmp = (abs_tol + std::abs(ytp1[i]) * rel_tol) / m_error_estimate[i];
@@ -233,14 +204,9 @@ struct Monstrosity
                 min_coeff = std::min(min_coeff, tmp);
             }
             converged = (min_coeff >= 1);
-            // std::cout << "\nmin con: " << min_coeff << "\n";
-            // converged = (min_coeff <= 1); // convergence criterion
-
 
             if(converged || dt_is_invalid)
             {
-                // if sufficiently exact, return ytp1, which currently contains the lower order approximation
-                // (higher order is not always higher accuracy)
                 t += dt; // this is the t where ytp1 belongs to
             }
             // else: repeat the calculation above (with updated dt)
