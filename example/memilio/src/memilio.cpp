@@ -29,8 +29,6 @@ constexpr uint64_t rand_modulus = (uint64_t(1) << 32);
 constexpr uint64_t rand_multiplier = 1'664'525;
 constexpr uint64_t rand_increment = 1'013'904'223;
 
-constexpr size_t problem_size = 100;
-
 uint64_t randc(uint64_t& seed)
 {
     seed = (rand_multiplier * seed + rand_increment) & (rand_modulus - 1);
@@ -156,7 +154,7 @@ namespace mio
     }
 } // namespace mio
 
-auto example(auto const deviceSpec, auto const exec) -> int
+auto example(auto const deviceSpec, auto const exec, int numElements) -> int
 {
     // Select a device
     auto devSelector = onHost::makeDeviceSelector(deviceSpec);
@@ -175,7 +173,7 @@ auto example(auto const deviceSpec, auto const exec) -> int
 
     mio::log_debug("Enter the world of memilio");
 
-    int const size = problem_size, band_width = 2;
+    int const size = numElements, band_width = 2;
 
     // // Guard the CUDA test with proper CUDA error handling
     // // cudaError_t cudaStatus = cudaSetDevice(0);
@@ -306,14 +304,50 @@ auto example(auto const deviceSpec, auto const exec) -> int
     }
 }
 
+void help(char* argv[])
+{
+    std::cerr << argv[0] << " [-n  numElements] [-h]" << std::endl;
+}
+
 auto main(int argc, char* argv[]) -> int
 {
+    size_t numElements = 100;
+
+    int opt;
+    while((opt = getopt(argc, argv, "hn:")) != -1)
+    {
+        switch(opt)
+        {
+        case 'n':
+            try
+            {
+                numElements = std::stoul(optarg, nullptr, 0);
+            }
+            catch(std::invalid_argument const& e)
+            {
+                std::cerr << "Error: invalid argument '" << optarg << "'.\n";
+                return EXIT_FAILURE;
+            }
+            catch(std::out_of_range const& e)
+            {
+                std::cerr << "Error: value '" << optarg << "' out of range for size_t.\n";
+                return EXIT_FAILURE;
+            }
+            break;
+        case 'h':
+            help(argv);
+            exit(EXIT_SUCCESS);
+        default:
+            help(argv);
+            exit(EXIT_FAILURE);
+        }
+    }
 #if USE_ALPAKA
     // Execute the example with all backends
     return executeForEachIfHasDevice(
-        [=](auto const& backend) { return example(backend[object::deviceSpec], backend[object::exec]); },
+        [=](auto const& backend) { return example(backend[object::deviceSpec], backend[object::exec], numElements); },
         onHost::allBackends(onHost::enabledApis));
 #else
-    example(onHost::DeviceSpec{api::host, deviceKind::cpu}, exec::cpuSerial);
+    example(onHost::DeviceSpec{api::host, deviceKind::cpu}, exec::cpuSerial, numElements);
 #endif
 }
