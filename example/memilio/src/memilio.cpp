@@ -82,11 +82,43 @@ struct Rhs
 #if USE_ALPAKA
         for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{x_size}))
         {
+#    if 1
+            // we need to select only one row of the amplitude, currently there is no shortcut for it
+            auto shiftedAmplitude = makeMdSpan(
+                &amplitude_lincomb[alpaka::Vec{i, 0}],
+                alpaka::Vec{1, x_size},
+                amplitude_lincomb.getPitches(),
+                amplitude_lincomb.getAlignment());
+            // single thread is doing the transform reduce
+            auto allThreads = onAcc::SimdAlgo{onAcc::WorkerGroup{Vec<int, 2>::all(0), Vec<int, 2>::all(1)}};
+            auto ret = allThreads.transformReduce(
+                acc,
+                alpaka::Vec{0, x_size},
+                double{0},
+                std::plus{},
+                [&](auto const&, auto&& amplitudePtr) constexpr
+                {
+                    auto packageOffset = amplitudePtr.getIdx();
+                    ALPAKA_TYPEOF(amplitudePtr.load())
+                    sinSimd(
+                        [&](auto const& w) constexpr
+                        {
+                            auto jIdx = packageOffset.x() + w;
+                            return math::sin(t * t_scale[jIdx] + t_offset[jIdx]);
+                        });
+
+                    return amplitudePtr.load() * sinSimd;
+                },
+                shiftedAmplitude);
+
+#    else
             double ret = 0.0;
             for(size_t j = 0; j < x_size; j++)
             {
                 ret += amplitude_lincomb[Vec{i, j}] * math::sin(t * t_scale[j] + t_offset[j]);
             }
+#    endif
+
             dxdt[Vec{y, i}] = ret;
         }
 #else
