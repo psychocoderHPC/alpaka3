@@ -129,6 +129,13 @@ namespace alpaka::example::heatEquation
         Queue dumpQueue = devAcc.makeQueue();
         Queue computeQueue = devAcc.makeQueue();
 
+    constexpr uint32_t numRounds = 1;
+    double elapsedTime = 0;
+    for(uint32_t rounds = 0; rounds < numRounds; ++rounds)
+    {
+        // Set buffer to initial conditions
+        initalizeBuffer(uBufHost.getMdSpan(), dx, dy);
+
         // Copy host -> device
         memcpy(computeQueue, uCurrBufAcc, uBufHost);
         wait(computeQueue);
@@ -203,8 +210,9 @@ namespace alpaka::example::heatEquation
         auto const endTime = std::chrono::high_resolution_clock::now();
         std::chrono::duration<double> elapsedTime = endTime - startTime;
 
-        std::cout << "Simulation took " << elapsedTime.count() << " seconds." << std::endl;
-        std::cout << "Time per time step: " << elapsedTime.count() / numTimeSteps * 1000 << " ms." << std::endl;
+        elapsedTime += foo.count();
+    }
+    std::cout << "Simulation took " << elapsedTime << " seconds." << std::endl;
 
 
         // Copy device -> host
