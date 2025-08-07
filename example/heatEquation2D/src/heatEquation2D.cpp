@@ -71,12 +71,13 @@ int example(auto const deviceSpec, auto const computeExec)
 
     // simulation defines
     // {Y, X}
-    constexpr IdxVec numNodes{64, 64};
+    constexpr int problemSize = 1024*8;
+    constexpr IdxVec numNodes{problemSize, problemSize};
     constexpr IdxVec haloSize{2, 2};
     constexpr IdxVec extent = numNodes + haloSize;
 
     constexpr uint32_t numTimeSteps = 4000;
-    constexpr double tMax = 0.1;
+    constexpr double tMax = 0.00001;
 
     // x, y in [0, 1], t in [0, tMax]
     constexpr double dx = 1.0 / static_cast<double>(extent[1] - 1);
@@ -100,78 +101,93 @@ int example(auto const deviceSpec, auto const computeExec)
     auto uCurrBufAcc = alpaka::onHost::allocLike(devAcc, uBufHost);
     auto uNextBufAcc = alpaka::onHost::allocLike(devAcc, uBufHost);
 
-    // Set buffer to initial conditions
-    initalizeBuffer(uBufHost.getMdSpan(), dx, dy);
-
     // Select queue
     Queue dumpQueue = devAcc.makeQueue();
     Queue computeQueue = devAcc.makeQueue();
 
-    // Copy host -> device
-    alpaka::onHost::memcpy(computeQueue, uCurrBufAcc, uBufHost);
-    alpaka::onHost::wait(computeQueue);
-
-    // Appropriate chunk size to split your problem for your Acc
-    constexpr Idx xSize = 16u;
-    constexpr Idx ySize = 16u;
-    constexpr Idx halo = 2u;
-    constexpr auto chunkSize = CVec<Idx, ySize, xSize>{};
-    constexpr auto numNodesWithHalo = numNodes + halo;
-
-    constexpr IdxVec numChunks{
-        alpaka::divCeil(numNodes[0], chunkSize[0]),
-        alpaka::divCeil(numNodes[1], chunkSize[1]),
-    };
-
-    assert(
-        numNodes[0] % chunkSize[0] == 0 && numNodes[1] % chunkSize[1] == 0
-        && "Domain must be divisible by chunk size");
-
-    auto sharedMemExtents = CVec<uint32_t, ySize + halo, xSize + halo>{};
-    StencilKernel stencilKernel;
-    BoundaryKernel boundaryKernel;
-
-    auto dataBlockingStencil = FrameSpec{numChunks, chunkSize};
-
-    constexpr auto longestSide = std::max(numNodesWithHalo.y(), numNodesWithHalo.x());
-    auto dataBlockingBorder = FrameSpec{Vec{longestSide / chunkSize.x()}, Vec{std::max(chunkSize.y(), chunkSize.x())}};
-
-    auto startTime = std::chrono::high_resolution_clock::now();
-
-    // Simulate
-    for(uint32_t step = 1; step <= numTimeSteps; ++step)
+    constexpr uint32_t numRounds = 1;
+    double elapsedTime = 0;
+    for(uint32_t rounds = 0; rounds < numRounds; ++rounds)
     {
-        // Compute next values
-        computeQueue.enqueue(
-            computeExec,
-            dataBlockingStencil,
-            KernelBundle{stencilKernel, uCurrBufAcc, uNextBufAcc, chunkSize, sharedMemExtents, numNodes, dx, dy, dt});
+        // Set buffer to initial conditions
+        initalizeBuffer(uBufHost.getMdSpan(), dx, dy);
 
-        // Apply boundaries
-        computeQueue.enqueue(
-            computeExec,
-            dataBlockingBorder,
-            KernelBundle{boundaryKernel, uNextBufAcc.getMdSpan(), chunkSize, numNodesWithHalo, step, dx, dy, dt});
+        // Copy host -> device
+        alpaka::onHost::memcpy(computeQueue, uCurrBufAcc, uBufHost);
+        alpaka::onHost::wait(computeQueue);
+
+        // Appropriate chunk size to split your problem for your Acc
+        constexpr Idx xSize = 16u;
+        constexpr Idx ySize = 16u;
+        constexpr Idx halo = 2u;
+        constexpr auto chunkSize = CVec<Idx, ySize, xSize>{};
+        constexpr auto numNodesWithHalo = numNodes + halo;
+
+        constexpr IdxVec numChunks{
+            alpaka::divCeil(numNodes[0], chunkSize[0]),
+            alpaka::divCeil(numNodes[1], chunkSize[1]),
+        };
+
+        assert(
+            numNodes[0] % chunkSize[0] == 0 && numNodes[1] % chunkSize[1] == 0
+            && "Domain must be divisible by chunk size");
+
+        auto sharedMemExtents = CVec<uint32_t, ySize + halo, xSize + halo>{};
+        StencilKernel stencilKernel;
+        BoundaryKernel boundaryKernel;
+
+        auto dataBlockingStencil = FrameSpec{numChunks, chunkSize};
+
+        constexpr auto longestSide = std::max(numNodesWithHalo.y(), numNodesWithHalo.x());
+        auto dataBlockingBorder
+            = FrameSpec{Vec{longestSide / chunkSize.x()}, Vec{std::max(chunkSize.y(), chunkSize.x())}};
+
+        auto startTime = std::chrono::high_resolution_clock::now();
+
+        // Simulate
+        for(uint32_t step = 1; step <= numTimeSteps; ++step)
+        {
+            // Compute next values
+            computeQueue.enqueue(
+                computeExec,
+                dataBlockingStencil,
+                KernelBundle{
+                    stencilKernel,
+                    uCurrBufAcc,
+                    uNextBufAcc,
+                    chunkSize,
+                    sharedMemExtents,
+                    numNodes,
+                    dx,
+                    dy,
+                    dt});
+
+            // Apply boundaries
+            computeQueue.enqueue(
+                computeExec,
+                dataBlockingBorder,
+                KernelBundle{boundaryKernel, uNextBufAcc.getMdSpan(), chunkSize, numNodesWithHalo, step, dx, dy, dt});
 
 #ifdef PNGWRITER_ENABLED
-        if((step - 1) % 100 == 0)
-        {
-            alpaka::onHost::wait(computeQueue);
-            alpaka::onHost::memcpy(dumpQueue, uBufHost, uCurrBufAcc);
-            alpaka::onHost::wait(dumpQueue);
-            writeImage(step - 1, uBufHost.getMdSpan());
-        }
+            if((step - 1) % 100 == 0)
+            {
+                alpaka::onHost::wait(computeQueue);
+                alpaka::onHost::memcpy(dumpQueue, uBufHost, uCurrBufAcc);
+                alpaka::onHost::wait(dumpQueue);
+                writeImage(step - 1, uBufHost.getMdSpan());
+            }
 #endif
 
-        // So we just swap next and curr (shallow copy)
-        std::swap(uNextBufAcc, uCurrBufAcc);
+            // So we just swap next and curr (shallow copy)
+            std::swap(uNextBufAcc, uCurrBufAcc);
+        }
+
+        alpaka::onHost::wait(computeQueue);
+        auto endTime = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> foo = (endTime - startTime);
+        elapsedTime += foo.count();
     }
-
-    alpaka::onHost::wait(computeQueue);
-    auto endTime = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsedTime = endTime - startTime;
-
-    std::cout << "Simulation took " << elapsedTime.count() << " seconds." << std::endl;
+    std::cout << "Simulation took " << elapsedTime << " seconds." << std::endl;
 
 
     // Copy device -> host

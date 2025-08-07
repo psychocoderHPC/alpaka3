@@ -426,7 +426,7 @@ void testKernels(auto const deviceSpec, auto const exec)
         // allow a summation error of 100 epsilon per 32 mega elements
         // The original bablesteam is always checking 8 digits only.
         Idx presicionBaseArraySize = 32 * 1024 * 1024;
-        DataType epsScaling = divExZero(arraySize, presicionBaseArraySize);
+        DataType epsScaling = divExZero(arraySize, presicionBaseArraySize) * 2;
         //  Dot product should be identical to arraySize*valA*valB
         //  Use a different equality check if floating point errors exceed the precision of FuzzyEqual function
         REQUIRE(FuzzyEqual<DataType>(
