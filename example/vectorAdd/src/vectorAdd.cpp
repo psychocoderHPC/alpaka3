@@ -113,42 +113,52 @@ auto example(auto const deviceSpec, auto const exec, size_t numElements) -> int
     uint32_t elementsPerWorker = getNumElemPerThread<Data>(queue);
     auto dataBlocking = onHost::FrameSpec{divCeil(extent, chunkSize * elementsPerWorker), chunkSize};
 
-    // Enqueue the kernel execution task
-    {
-        onHost::wait(queue);
-        auto const beginT = std::chrono::high_resolution_clock::now();
-        queue.enqueue(exec, dataBlocking, taskKernel);
-        // wait in case we are using an asynchronous queue to time actual kernel runtime
-        onHost::wait(queue);
-        auto const endT = std::chrono::high_resolution_clock::now();
-        std::cout << "Time for kernel execution: " << std::chrono::duration<double>(endT - beginT).count() << 's'
-                  << std::endl;
-    }
-
-    // Copy back the result
-    {
-        auto beginT = std::chrono::high_resolution_clock::now();
-        onHost::memcpy(queue, bufHostC, bufAccC);
-        onHost::wait(queue);
-        auto const endT = std::chrono::high_resolution_clock::now();
-        std::cout << "Time for HtoD copy: " << std::chrono::duration<double>(endT - beginT).count() << 's'
-                  << std::endl;
-    }
-
-    int falseResults = 0;
     static constexpr int MAX_PRINT_FALSE_RESULTS = 20;
-    for(auto i(0u); i < extent; ++i)
+    int falseResults = 0;
+
+    constexpr uint32_t numRounds = 10;
+    double elapsedTime = 0;
+    for(uint32_t rounds = 0; rounds < numRounds; ++rounds)
     {
-        Data const& val(bufHostC[i]);
-        Data const correctResult(bufHostA[i] + bufHostB[i]);
-        if(val != correctResult)
+        // Enqueue the kernel execution task
         {
-            if(falseResults < MAX_PRINT_FALSE_RESULTS)
-                std::cerr << "C[" << i << "] == " << val << " != " << correctResult << std::endl;
-            ++falseResults;
+            onHost::wait(queue);
+            auto const beginT = std::chrono::high_resolution_clock::now();
+            queue.enqueue(exec, dataBlocking, taskKernel);
+            // wait in case we are using an asynchronous queue to time actual kernel runtime
+            onHost::wait(queue);
+            auto const endT = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> foo = (endT - beginT);
+            elapsedTime += foo.count();
+        }
+
+        if(rounds == 0)
+        {
+            // Copy back the result
+            {
+                auto beginT = std::chrono::high_resolution_clock::now();
+                onHost::memcpy(queue, bufHostC, bufAccC);
+                onHost::wait(queue);
+                auto const endT = std::chrono::high_resolution_clock::now();
+                std::cout << "Time for HtoD copy: " << std::chrono::duration<double>(endT - beginT).count() << 's'
+                          << std::endl;
+            }
+
+            for(auto i(0u); i < extent; ++i)
+            {
+                Data const& val(bufHostC[i]);
+                Data const correctResult(bufHostA[i] + bufHostB[i]);
+                if(val != correctResult)
+                {
+                    if(falseResults < MAX_PRINT_FALSE_RESULTS)
+                        std::cerr << "C[" << i << "] == " << val << " != " << correctResult << std::endl;
+                    ++falseResults;
+                }
+            }
         }
     }
-
+    std::cout << "runtime " << elapsedTime << " seconds." << std::endl;
+    std::cout << "benchmark:" << numElements << "," << elapsedTime << std::endl;
     if(falseResults == 0)
     {
         std::cout << "Execution results correct!" << std::endl;
