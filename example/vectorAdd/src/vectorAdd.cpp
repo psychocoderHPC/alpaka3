@@ -75,7 +75,7 @@ auto example(auto const deviceSpec, auto const exec, size_t numElements) -> int
     onHost::Device devAcc = devSelector.makeDevice(0);
 
     // Create a queue on the device
-    onHost::Queue queue = devAcc.makeQueue();
+    onHost::Queue queue = devAcc.makeQueue(queueKind::blocking);
 
     // Allocate 3 host memory buffers
     auto bufHostA = onHost::allocHost<Data>(extent);
