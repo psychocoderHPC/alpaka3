@@ -129,90 +129,89 @@ namespace alpaka::example::heatEquation
         Queue dumpQueue = devAcc.makeQueue();
         Queue computeQueue = devAcc.makeQueue();
 
-    constexpr uint32_t numRounds = 1;
-    double elapsedTime = 0;
-    for(uint32_t rounds = 0; rounds < numRounds; ++rounds)
-    {
-        // Set buffer to initial conditions
-        initalizeBuffer(uBufHost.getMdSpan(), dx, dy);
-
-        // Copy host -> device
-        memcpy(computeQueue, uCurrBufAcc, uBufHost);
-        wait(computeQueue);
-
-        // Appropriate chunk size to split your problem for your Acc
-        constexpr IdxType xSize = 16u;
-        constexpr IdxType ySize = 16u;
-        constexpr IdxType halo = 2u;
-        constexpr auto chunkSize = CVec<IdxType, ySize, xSize>{};
-        auto const numNodesWithHalo = numNodes + halo;
-
-        IdxTypeVec const numChunks{
-            divCeil(numNodes[0], chunkSize[0]),
-            divCeil(numNodes[1], chunkSize[1]),
-        };
-
-        assert(
-            numNodes[0] % chunkSize[0] == 0 && numNodes[1] % chunkSize[1] == 0
-            && "Domain must be divisible by chunk size");
-
-        auto sharedMemExtents = CVec<uint32_t, ySize + halo, xSize + halo>{};
-
-        StencilKernel stencilKernel;
-        BoundaryKernel boundaryKernel;
-
-        auto const dataBlockingStencil = FrameSpec{numChunks, chunkSize};
-
-        auto const longestSide = std::max(numNodesWithHalo.y(), numNodesWithHalo.x());
-        auto const dataBlockingBorder
-            = FrameSpec{Vec{longestSide / chunkSize.x()}, Vec{std::max(chunkSize.y(), chunkSize.x())}};
-
-        auto const startTime = std::chrono::high_resolution_clock::now();
-
-        // Simulate
-        for(uint32_t step = 1; step <= numTimeSteps; ++step)
+        constexpr uint32_t numRounds = 1;
+        double elapsedTime = 0;
+        for(uint32_t rounds = 0; rounds < numRounds; ++rounds)
         {
-            // Compute next values
-            computeQueue.enqueue(
-                computeExec,
-                dataBlockingStencil,
-                KernelBundle{
-                    stencilKernel,
-                    uCurrBufAcc,
-                    uNextBufAcc,
-                    chunkSize,
-                    sharedMemExtents,
-                    numNodes,
-                    dx,
-                    dy,
-                    dt});
+            // Set buffer to initial conditions
+            initalizeBuffer(uBufHost.getMdSpan(), dx, dy);
 
-            computeQueue.enqueue(
-                computeExec,
-                dataBlockingBorder,
-                KernelBundle{boundaryKernel, uNextBufAcc.getMdSpan(), numNodesWithHalo, step, dx, dy, dt});
+            // Copy host -> device
+            memcpy(computeQueue, uCurrBufAcc, uBufHost);
+            wait(computeQueue);
+
+            // Appropriate chunk size to split your problem for your Acc
+            constexpr IdxType xSize = 16u;
+            constexpr IdxType ySize = 16u;
+            constexpr IdxType halo = 2u;
+            constexpr auto chunkSize = CVec<IdxType, ySize, xSize>{};
+            auto const numNodesWithHalo = numNodes + halo;
+
+            IdxTypeVec const numChunks{
+                divCeil(numNodes[0], chunkSize[0]),
+                divCeil(numNodes[1], chunkSize[1]),
+            };
+
+            assert(
+                numNodes[0] % chunkSize[0] == 0 && numNodes[1] % chunkSize[1] == 0
+                && "Domain must be divisible by chunk size");
+
+            auto sharedMemExtents = CVec<uint32_t, ySize + halo, xSize + halo>{};
+
+            StencilKernel stencilKernel;
+            BoundaryKernel boundaryKernel;
+
+            auto const dataBlockingStencil = FrameSpec{numChunks, chunkSize};
+
+            auto const longestSide = std::max(numNodesWithHalo.y(), numNodesWithHalo.x());
+            auto const dataBlockingBorder
+                = FrameSpec{Vec{longestSide / chunkSize.x()}, Vec{std::max(chunkSize.y(), chunkSize.x())}};
+
+            auto const startTime = std::chrono::high_resolution_clock::now();
+
+            // Simulate
+            for(uint32_t step = 1; step <= numTimeSteps; ++step)
+            {
+                // Compute next values
+                computeQueue.enqueue(
+                    computeExec,
+                    dataBlockingStencil,
+                    KernelBundle{
+                        stencilKernel,
+                        uCurrBufAcc,
+                        uNextBufAcc,
+                        chunkSize,
+                        sharedMemExtents,
+                        numNodes,
+                        dx,
+                        dy,
+                        dt});
+
+                computeQueue.enqueue(
+                    computeExec,
+                    dataBlockingBorder,
+                    KernelBundle{boundaryKernel, uNextBufAcc.getMdSpan(), numNodesWithHalo, step, dx, dy, dt});
 
 #ifdef PNGWRITER_ENABLED
-            if((step - 1) % 100 == 0)
-            {
-                wait(computeQueue);
-                memcpy(dumpQueue, uBufHost, uCurrBufAcc);
-                wait(dumpQueue);
-                writeImage(step - 1, uBufHost.getMdSpan());
-            }
+                if((step - 1) % 100 == 0)
+                {
+                    wait(computeQueue);
+                    memcpy(dumpQueue, uBufHost, uCurrBufAcc);
+                    wait(dumpQueue);
+                    writeImage(step - 1, uBufHost.getMdSpan());
+                }
 #endif
 
-            // So we just swap next and curr (shallow copy)
-            std::swap(uNextBufAcc, uCurrBufAcc);
+                // So we just swap next and curr (shallow copy)
+                std::swap(uNextBufAcc, uCurrBufAcc);
+            }
+
+            wait(computeQueue);
+            auto const endTime = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> foo = (endTime - startTime);
+            elapsedTime += foo.count();
         }
-
-        wait(computeQueue);
-        auto const endTime = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<double> elapsedTime = endTime - startTime;
-
-        elapsedTime += foo.count();
-    }
-    std::cout << "Simulation took " << elapsedTime << " seconds." << std::endl;
+        std::cout << "Simulation took " << elapsedTime / numRounds << " seconds." << std::endl;
 
 
         // Copy device -> host
