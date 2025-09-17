@@ -57,12 +57,36 @@ namespace alpaka::onHost
                     ApiInterface::streamCreateWithFlags(&m_UniformCudaHipQueue, ApiInterface::streamNonBlocking));
             }
 
+            Queue(
+                internal::concepts::DeviceHandle auto device,
+                uint32_t const idx,
+                bool isBlocking,
+                typename ApiInterface::Stream_t stream,
+                bool syncBeforeDestroy)
+                : m_device(std::move(device))
+                , m_idx(idx)
+                , m_isBlocking(isBlocking)
+                , m_UniformCudaHipQueue(stream)
+                , m_manageQueue(false)
+                , m_syncBeforeDestroy(syncBeforeDestroy)
+            {
+                ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(
+                    ApiInterface,
+                    ApiInterface::setDevice(onHost::getNativeHandle(m_device)));
+            }
+
             ~Queue()
             {
-                onHost::internal::wait(*this);
-                ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK_NOEXCEPT(
-                    ApiInterface,
-                    ApiInterface::streamDestroy(getNativeHandle()));
+                if(m_syncBeforeDestroy)
+                {
+                    ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK_NOEXCEPT(ApiInterface, ApiInterface::streamSynchronize(getNativeHandle()));
+                }
+                if(m_manageQueue)
+                {
+                    ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK_NOEXCEPT(
+                        ApiInterface,
+                        ApiInterface::streamDestroy(getNativeHandle()));
+                }
             }
 
             Queue(Queue const&) = delete;
@@ -93,6 +117,11 @@ namespace alpaka::onHost
             core::CallbackThread m_callBackThread;
             bool m_isBlocking{false};
 
+            // if true the queue is managed by alpaka, else false
+            bool m_manageQueue = true;
+            // If true the queue is syncronized before the last handle is destroyed.
+            bool m_syncBeforeDestroy = true;
+
             /** Waits until all operations are finished depending wather the queue is blocking or non-blocking.
              *
              * If the queue is a blocking queue the control flow will be blocked and the method is not returning until
@@ -115,7 +144,7 @@ namespace alpaka::onHost
 
             friend struct onHost::internal::GetNativeHandle;
 
-            [[nodiscard]] auto getNativeHandle() const noexcept
+            [[nodiscard]] typename ApiInterface::Stream_t getNativeHandle() const noexcept
             {
                 return m_UniformCudaHipQueue;
             }
@@ -164,6 +193,7 @@ namespace alpaka::onHost
             friend struct onHost::internal::Memset;
             friend struct onHost::internal::AllocAsync;
             friend struct CallKernel;
+            friend struct onHost::internal::MakeQueue;
         };
 
         template<
