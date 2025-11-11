@@ -26,6 +26,19 @@ namespace alpaka::onAcc
                 __syncthreads();
             }
         };
+
+        namespace internal
+        {
+            /** This trait is only for uniform CUDA and HIP warp size abstraction
+             *
+             * Use onAcc::internal::GetWarpSize to query the warp size independent of the API.
+             */
+            struct WarpSize
+            {
+                template<alpaka::concepts::DeviceKind T_DeviceKind>
+                struct Get;
+            };
+        } // namespace internal
     } // namespace unifiedCudaHip
 } // namespace alpaka::onAcc
 

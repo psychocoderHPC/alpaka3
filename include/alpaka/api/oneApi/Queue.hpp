@@ -272,48 +272,53 @@ namespace alpaka::onHost::internal
                 st_shared_mem_bytes + blockDynSharedMemBytes
                 <= queue.m_device->getNativeHandle().first.template get_info<sycl::info::device::local_mem_size>());
 
-            [[maybe_unused]] sycl::event ev = queue.m_queue.submit(
-                [threadBlocking, kernelBundle, blockDynSharedMemBytes](sycl::handler& cgh)
+            [[maybe_unused]] sycl::event ev = queue.dispatchWarpSize(
+                [&](alpaka::concepts::CVector<uint32_t> auto warpSize)
                 {
-                    using ApiType = decltype(getApi(queue));
-                    using DeviceKindType = ALPAKA_TYPEOF(getDeviceKind(queue));
-
-                    auto st_shared_accessor
-                        = sycl::local_accessor<std::byte>{sycl::range<1>{st_shared_mem_bytes}, cgh};
-
-                    auto dyn_shared_accessor
-                        = sycl::local_accessor<std::byte>{sycl::range<1>{blockDynSharedMemBytes}, cgh};
-
-                    auto workerDesc = detail::getWorkerDescription(threadBlocking);
-                    auto optimizedThreadSpec = workerDesc.second;
-                    constexpr uint32_t syclDim = workerDesc.first.dimensions;
-
-                    cgh.parallel_for(
-                        workerDesc.first,
-                        [optimizedThreadSpec, st_shared_accessor, dyn_shared_accessor, kernelBundle](
-                            sycl::nd_item<syclDim> work_item)
+                    return queue.m_queue.submit(
+                        [warpSize, threadBlocking, kernelBundle, blockDynSharedMemBytes](sycl::handler& cgh)
                         {
-                            onAcc::oneApi::StaticSharedMemory ssm(st_shared_accessor);
-                            onAcc::syclGeneric::DynamicSharedMemory dsm(dyn_shared_accessor);
+                            using ApiType = decltype(getApi(queue));
+                            using DeviceKindType = ALPAKA_TYPEOF(getDeviceKind(queue));
 
-                            static_assert(syclDim > 0);
-                            static_assert(syclDim <= 3, "more the 3 dimensions are not supported");
-                            auto acc = onAcc::Acc{Dict{
-                                DictEntry(
-                                    layer::block,
-                                    onAcc::syclGeneric::BlockLayer{work_item, optimizedThreadSpec}),
-                                DictEntry(
-                                    layer::thread,
-                                    onAcc::syclGeneric::ThreadLayer{work_item, optimizedThreadSpec}),
-                                DictEntry(layer::shared, std::ref(ssm)),
-                                DictEntry(layer::dynShared, std::ref(dsm)),
-                                DictEntry(object::dynSharedMemBytes, dsm.byte_size()),
-                                DictEntry(action::threadBlockSync, onAcc::syclGeneric::Sync{work_item}),
-                                DictEntry(object::api, ApiType{}),
-                                DictEntry(object::deviceKind, DeviceKindType{}),
-                                DictEntry(object::exec, T_Executor{})}};
+                            auto st_shared_accessor
+                                = sycl::local_accessor<std::byte>{sycl::range<1>{st_shared_mem_bytes}, cgh};
 
-                            kernelBundle(acc);
+                            auto dyn_shared_accessor
+                                = sycl::local_accessor<std::byte>{sycl::range<1>{blockDynSharedMemBytes}, cgh};
+
+                            auto workerDesc = detail::getWorkerDescription(threadBlocking);
+                            auto optimizedThreadSpec = workerDesc.second;
+                            constexpr uint32_t syclDim = workerDesc.first.dimensions;
+
+                            cgh.parallel_for(
+                                workerDesc.first,
+                                [warpSize, optimizedThreadSpec, st_shared_accessor, dyn_shared_accessor, kernelBundle](
+                                    sycl::nd_item<syclDim> work_item)
+                                {
+                                    onAcc::oneApi::StaticSharedMemory ssm(st_shared_accessor);
+                                    onAcc::syclGeneric::DynamicSharedMemory dsm(dyn_shared_accessor);
+
+                                    static_assert(syclDim > 0);
+                                    static_assert(syclDim <= 3, "more the 3 dimensions are not supported");
+                                    auto acc = onAcc::Acc{Dict{
+                                        DictEntry(
+                                            layer::block,
+                                            onAcc::syclGeneric::BlockLayer{work_item, optimizedThreadSpec}),
+                                        DictEntry(
+                                            layer::thread,
+                                            onAcc::syclGeneric::ThreadLayer{work_item, optimizedThreadSpec}),
+                                        DictEntry(layer::shared, std::ref(ssm)),
+                                        DictEntry(layer::dynShared, std::ref(dsm)),
+                                        DictEntry(object::dynSharedMemBytes, dsm.byte_size()),
+                                        DictEntry(action::threadBlockSync, onAcc::syclGeneric::Sync{work_item}),
+                                        DictEntry(object::api, ApiType{}),
+                                        DictEntry(object::deviceKind, DeviceKindType{}),
+                                        DictEntry(object::exec, T_Executor{}),
+                                        DictEntry(object::warpSize, warpSize)}};
+
+                                    kernelBundle(acc);
+                                });
                         });
                 });
 
@@ -349,48 +354,57 @@ namespace alpaka::onHost::internal
                 st_shared_mem_bytes + blockDynSharedMemBytes
                 <= queue.m_device->getNativeHandle().first.template get_info<sycl::info::device::local_mem_size>());
 
-            [[maybe_unused]] sycl::event ev = queue.m_queue.submit(
-                [threadBlocking, frameSpec, kernelBundle, blockDynSharedMemBytes](sycl::handler& cgh)
+            sycl::event ev = queue.dispatchWarpSize(
+                [&](alpaka::concepts::CVector<uint32_t> auto warpSize)
                 {
-                    using ApiType = decltype(getApi(queue));
-                    using DeviceKindType = ALPAKA_TYPEOF(getDeviceKind(queue));
-                    auto st_shared_accessor
-                        = sycl::local_accessor<std::byte>{sycl::range<1>{st_shared_mem_bytes}, cgh};
-                    auto dyn_shared_accessor
-                        = sycl::local_accessor<std::byte>{sycl::range<1>{blockDynSharedMemBytes}, cgh};
-
-                    auto workerDesc = detail::getWorkerDescription(threadBlocking);
-                    auto optimizedThreadSpec = workerDesc.second;
-                    constexpr uint32_t syclDim = workerDesc.first.dimensions;
-
-                    cgh.parallel_for(
-                        workerDesc.first,
-                        [optimizedThreadSpec, frameSpec, st_shared_accessor, dyn_shared_accessor, kernelBundle](
-                            sycl::nd_item<syclDim> work_item)
+                    return queue.m_queue.submit(
+                        [warpSize, threadBlocking, frameSpec, kernelBundle, blockDynSharedMemBytes](sycl::handler& cgh)
                         {
-                            onAcc::oneApi::StaticSharedMemory ssm(st_shared_accessor);
-                            onAcc::syclGeneric::DynamicSharedMemory dsm(dyn_shared_accessor);
+                            using ApiType = decltype(getApi(queue));
+                            using DeviceKindType = ALPAKA_TYPEOF(getDeviceKind(queue));
+                            auto st_shared_accessor
+                                = sycl::local_accessor<std::byte>{sycl::range<1>{st_shared_mem_bytes}, cgh};
+                            auto dyn_shared_accessor
+                                = sycl::local_accessor<std::byte>{sycl::range<1>{blockDynSharedMemBytes}, cgh};
 
-                            static_assert(syclDim > 0);
-                            static_assert(syclDim <= 3, "more the 3 dimensions are not supported");
-                            auto acc = onAcc::Acc{Dict{
-                                DictEntry(
-                                    layer::block,
-                                    onAcc::syclGeneric::BlockLayer{work_item, optimizedThreadSpec}),
-                                DictEntry(
-                                    layer::thread,
-                                    onAcc::syclGeneric::ThreadLayer{work_item, optimizedThreadSpec}),
-                                DictEntry(layer::shared, std::ref(ssm)),
-                                DictEntry(layer::dynShared, std::ref(dsm)),
-                                DictEntry(object::dynSharedMemBytes, dsm.byte_size()),
-                                DictEntry(action::threadBlockSync, onAcc::syclGeneric::Sync{work_item}),
-                                DictEntry(object::api, ApiType{}),
-                                DictEntry(object::deviceKind, DeviceKindType{}),
-                                DictEntry(object::exec, T_Executor{}),
-                                DictEntry(frame::count, frameSpec.m_numFrames),
-                                DictEntry(frame::extent, frameSpec.m_frameExtent)}};
+                            auto workerDesc = detail::getWorkerDescription(threadBlocking);
+                            auto optimizedThreadSpec = workerDesc.second;
+                            constexpr uint32_t syclDim = workerDesc.first.dimensions;
 
-                            kernelBundle(acc);
+                            cgh.parallel_for(
+                                workerDesc.first,
+                                [warpSize,
+                                 optimizedThreadSpec,
+                                 frameSpec,
+                                 st_shared_accessor,
+                                 dyn_shared_accessor,
+                                 kernelBundle](sycl::nd_item<syclDim> work_item)
+                                {
+                                    onAcc::oneApi::StaticSharedMemory ssm(st_shared_accessor);
+                                    onAcc::syclGeneric::DynamicSharedMemory dsm(dyn_shared_accessor);
+
+                                    static_assert(syclDim > 0);
+                                    static_assert(syclDim <= 3, "more the 3 dimensions are not supported");
+                                    auto acc = onAcc::Acc{Dict{
+                                        DictEntry(
+                                            layer::block,
+                                            onAcc::syclGeneric::BlockLayer{work_item, optimizedThreadSpec}),
+                                        DictEntry(
+                                            layer::thread,
+                                            onAcc::syclGeneric::ThreadLayer{work_item, optimizedThreadSpec}),
+                                        DictEntry(layer::shared, std::ref(ssm)),
+                                        DictEntry(layer::dynShared, std::ref(dsm)),
+                                        DictEntry(object::dynSharedMemBytes, dsm.byte_size()),
+                                        DictEntry(action::threadBlockSync, onAcc::syclGeneric::Sync{work_item}),
+                                        DictEntry(object::api, ApiType{}),
+                                        DictEntry(object::deviceKind, DeviceKindType{}),
+                                        DictEntry(object::exec, T_Executor{}),
+                                        DictEntry(frame::count, frameSpec.m_numFrames),
+                                        DictEntry(frame::extent, frameSpec.m_frameExtent),
+                                        DictEntry(object::warpSize, warpSize)}};
+
+                                    kernelBundle(acc);
+                                });
                         });
                 });
             if(queue.isBlocking())

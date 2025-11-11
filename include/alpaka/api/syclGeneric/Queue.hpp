@@ -44,6 +44,32 @@ namespace alpaka::onHost
                 { return sycl::range<dim>(vec[I]...); }(std::make_index_sequence<dim>{});
             };
 
+            inline constexpr auto dispatchWarpSize(auto&& fn) const
+            {
+                auto warpSize
+                    = internal::GetDeviceProperties::Op<ALPAKA_TYPEOF(*m_device.get())>{}(*m_device.get()).m_warpSize;
+                switch(warpSize)
+                {
+                case 1u:
+                    return fn(CVec<uint32_t, 1u>{});
+                case 4u:
+                    return fn(CVec<uint32_t, 4u>{});
+                case 8u:
+                    return fn(CVec<uint32_t, 8u>{});
+                case 16u:
+                    return fn(CVec<uint32_t, 16u>{});
+                case 32u:
+                    return fn(CVec<uint32_t, 32u>{});
+                case 64u:
+                    return fn(CVec<uint32_t, 64u>{});
+                default:
+                    throw std::runtime_error(
+                        std::string("Sycl warp size runtime dispatch, unsupported warpSize: ")
+                        + std::to_string(warpSize));
+                    return fn(CVec<uint32_t, 1u>{});
+                };
+            }
+
         public:
             Queue(internal::concepts::DeviceHandle auto device, uint32_t const idx, bool isBlocking)
                 : m_device(std::move(device))

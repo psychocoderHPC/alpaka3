@@ -85,8 +85,15 @@ namespace alpaka::onHost
                                     dict,
                                     Dict{blockDynSharedMemEntry, blockDynSharedMemBytesEntry});
 
+                                auto const warpSizeEntry = DictEntry{object::warpSize, CVec<uint32_t, 1u>{}};
+
                                 auto acc = onAcc::Acc(joinDict(
-                                    Dict{blockLayerEntry, threadLayerEntry, blockSharedMemEntry, blockSyncEntry},
+                                    Dict{
+                                        blockLayerEntry,
+                                        threadLayerEntry,
+                                        blockSharedMemEntry,
+                                        blockSyncEntry,
+                                        warpSizeEntry},
                                     additionalDict));
 
                                 kernelBundle(acc);
