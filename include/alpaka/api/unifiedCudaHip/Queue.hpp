@@ -5,10 +5,10 @@
 
 #include "alpaka/api/concepts/api.hpp"
 #include "alpaka/api/cuda/IdxLayer.hpp"
-#    include "alpaka/api/cuda/computeApi.hpp"
+#include "alpaka/api/cuda/computeApi.hpp"
 #include "alpaka/api/generic.hpp"
 #include "alpaka/api/hip/IdxLayer.hpp"
-#    include "alpaka/api/hip/computeApi.hpp"
+#include "alpaka/api/hip/computeApi.hpp"
 #include "alpaka/api/unifiedCudaHip/ComputeApi.hpp"
 #include "alpaka/api/unifiedCudaHip/Event.hpp"
 #include "alpaka/api/unifiedCudaHip/MemcpyKind.hpp"

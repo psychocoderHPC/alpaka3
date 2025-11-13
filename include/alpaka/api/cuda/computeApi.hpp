@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "alpaka/Vec.hpp"
+#include "alpaka/CVec.hpp"
 #include "alpaka/api/unifiedCudaHip/ComputeApi.hpp"
 #include "alpaka/core/config.hpp"
 
@@ -20,6 +20,6 @@ namespace alpaka::onAcc::unifiedCudaHip::internal
             return CVec<uint32_t, 32u>{};
         }
     };
-} // namespace alpaka::onAcc::internalCompute
+} // namespace alpaka::onAcc::unifiedCudaHip::internal
 
 #endif
