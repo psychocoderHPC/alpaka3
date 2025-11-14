@@ -14,6 +14,7 @@
 
 #include <memory>
 #include <sstream>
+#include <vector>
 
 namespace alpaka::onHost
 {

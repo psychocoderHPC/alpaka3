@@ -1,4 +1,4 @@
-/* Copyright 2024 René Widera, Simeon Ehrig
+/* Copyright 2024 René Widera, Simeon Ehrig, Mehmet Yusufoglu
  * SPDX-License-Identifier: MPL-2.0
  */
 
