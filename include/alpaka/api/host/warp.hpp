@@ -35,9 +35,27 @@ namespace alpaka::onAcc::warp::internal
     template<alpaka::onAcc::concepts::Acc T_Acc>
     struct All::Op<T_Acc, api::Host>
     {
-        constexpr auto operator()(T_Acc const& acc, api::Host, [[maybe_unused]] int32_t predicate) const
+        constexpr bool operator()(T_Acc const& acc, api::Host, int32_t predicate) const
         {
             return predicate != 0;
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct Any::Op<T_Acc, api::Host>
+    {
+        constexpr bool operator()(T_Acc const& acc, api::Host, int32_t predicate) const
+        {
+            return predicate != 0;
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct Ballot::Op<T_Acc, api::Host>
+    {
+        constexpr auto operator()(T_Acc const& acc, api::Host, int32_t predicate) const
+        {
+            return predicate != 0 ? 1u : 0u;
         }
     };
 

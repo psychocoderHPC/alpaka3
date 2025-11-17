@@ -19,36 +19,22 @@ using namespace alpaka;
 using alpaka::test::warp::warpCheck;
 using alpaka::test::warp::WarpTestBackends;
 
-#if 0
 namespace
 {
-    struct AnySingleThreadKernel
-    {
-        template<typename TAcc>
-        ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success) const
-        {
-            // Single-lane warp should mirror scalar any-vote behaviour.
-            warpCheck(success, onAcc::warp::getSize(acc) == 1u);
-            // assumes non-zero values evaluate as true
-            // active mask cannot be empty because at least one lane is active always
-            warpCheck(success, onAcc::warp::any(acc, 42));
-            // assumes zero evaluates as false
-            warpCheck(success, !onAcc::warp::any(acc, 0));
-        }
-    };
-
     struct AnyMultiThreadKernel
     {
         template<typename TAcc>
         ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success, std::uint32_t idx) const
         {
-            auto const warpExtent = static_cast<std::int32_t>(onAcc::warp::getSize(acc));
-            // for all participating lanes ensure warp size > 1
-            warpCheck(success, warpExtent > 1);
+            // test if the warp size can be constexpr
+            constexpr uint32_t warpExtent = onAcc::warp::getSize<ALPAKA_TYPEOF(acc)>();
+            /* We can not use a static_assert for testing because the compiler will evaluate the warp size during the
+             * host parsing to what will result in false negatives */
+            warpCheck(success, warpExtent >= 1u);
 
             auto const threadsPerBlock = static_cast<std::int32_t>(acc[alpaka::layer::thread].count().product());
-            // for all participating lanes ensure threads per block equals warp size
-            warpCheck(success, threadsPerBlock == warpExtent);
+            // number of threads should be a multiple of the warp size
+            warpCheck(success, threadsPerBlock % warpExtent == 0);
 
             auto const lane = static_cast<std::int32_t>(onAcc::warp::getLaneIdx(acc));
             if(lane % 2 != 0)
@@ -63,9 +49,13 @@ namespace
             warpCheck(success, onAcc::warp::any(acc, 42));
 
             auto const castIdx = static_cast<std::int32_t>(idx);
-            // Only the non-targeted even lanes vote true here; the chosen lane contributes false, so the collective
-            // stays true. Example: active lanes {0,2,4,6}; choosing idx=2 yields predicates {1,0,1,1}.
-            warpCheck(success, onAcc::warp::any(acc, lane == castIdx ? 0 : 1));
+
+            if constexpr(warpExtent >= 2)
+            {
+                // Only the non-targeted even lanes vote true here; the chosen lane contributes false, so the
+                // collective stays true. Example: active lanes {0,2,4,6}; choosing idx=2 yields predicates {1,0,1,1}.
+                warpCheck(success, onAcc::warp::any(acc, lane == castIdx ? 0 : 1));
+            }
 
             auto const expected = (idx % 2u == 0u);
             // The inverse predicate now gives the selected lane the only true vote; the result is true only if that
@@ -90,7 +80,7 @@ TEMPLATE_LIST_TEST_CASE("warp any vote observes active lanes", "[warp][any]", Wa
     }
 
     auto deviceProperties = selector.getDeviceProperties(0);
-    auto const warpExtent = deviceProperties.getPreferredWarpSize();
+    auto const warpExtent = deviceProperties.m_warpSize;
 
     auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
@@ -98,21 +88,8 @@ TEMPLATE_LIST_TEST_CASE("warp any vote observes active lanes", "[warp][any]", Wa
     auto successHost = onHost::allocHost<bool>(1u);
     auto successDev = onHost::allocLike(device, successHost);
 
-    if(warpExtent == 1u)
-    {
-        onHost::memset(queue, successDev, static_cast<std::uint8_t>(true));
-        queue.enqueue(
-            exec,
-            onHost::FrameSpec{Vec<std::uint32_t, 1u>{1u}, Vec<std::uint32_t, 1u>{1u}},
-            KernelBundle{AnySingleThreadKernel{}, successDev});
-        onHost::memcpy(queue, successHost, successDev);
-        onHost::wait(queue);
-        CHECK(successHost[0]);
-        return;
-    }
-
-    auto const blocks = Vec<std::uint32_t, 1u>{1u};
-    auto const threads = Vec<std::uint32_t, 1u>{warpExtent};
+    auto const blocks = Vec<std::uint32_t, 1u>{5u};
+    auto const threads = Vec<std::uint32_t, 1u>{4 * warpExtent};
     auto const frame = onHost::FrameSpec{blocks, threads};
 
     for(std::uint32_t idx = 0u; idx < warpExtent; ++idx)
@@ -126,5 +103,3 @@ TEMPLATE_LIST_TEST_CASE("warp any vote observes active lanes", "[warp][any]", Wa
         CHECK(successHost[0]);
     }
 }
-
-#endif

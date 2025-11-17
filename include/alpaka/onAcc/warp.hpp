@@ -59,12 +59,37 @@ namespace alpaka::onAcc::warp
      * @param predicate The predicate value for current thread.
      * @return true if and only is non zero, else false
      */
-
     constexpr bool all(alpaka::onAcc::concepts::Acc auto const& acc, int32_t predicate)
     {
         using Acc = ALPAKA_TYPEOF(acc);
         using Api = ALPAKA_TYPEOF(acc[object::api]);
         return internal::All::Op<Acc, Api>{}(acc, Api{}, predicate);
+    }
+
+    /** Evaluates predicate for all active threads of the warp.
+     *
+     * It follows the logic of __any_sync(predicate) in CUDA but returns a boolean.
+     *
+     * Note:
+     * * The programmer must ensure that all threads calling this function are executing
+     *   the same line of code. In particular it is not portable to write
+     *   if(a) {any} else {any}.
+     *
+     * @param predicate The predicate value for current thread.
+     * @return true if at least one threads predicate is non zero, else false
+     */
+    constexpr bool any(alpaka::onAcc::concepts::Acc auto const& acc, int32_t predicate)
+    {
+        using Acc = ALPAKA_TYPEOF(acc);
+        using Api = ALPAKA_TYPEOF(acc[object::api]);
+        return internal::Any::Op<Acc, Api>{}(acc, Api{}, predicate);
+    }
+
+    constexpr auto ballot(alpaka::onAcc::concepts::Acc auto const& acc, int32_t predicate)
+    {
+        using Acc = ALPAKA_TYPEOF(acc);
+        using Api = ALPAKA_TYPEOF(acc[object::api]);
+        return internal::Ballot::Op<Acc, Api>{}(acc, Api{}, predicate);
     }
 
     /** Return the warp size.
@@ -76,7 +101,7 @@ namespace alpaka::onAcc::warp
     template<concepts::Acc T_Acc>
     constexpr uint32_t getSize()
     {
-        return T_Acc::getWarpSize();
+        return internal::getSize<T_Acc>();
     }
 
     template<concepts::Acc T_Acc>

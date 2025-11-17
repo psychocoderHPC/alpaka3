@@ -19,7 +19,7 @@ namespace alpaka::onAcc::warp::internal
     template<alpaka::onAcc::concepts::Acc T_Acc>
     struct Activemask::Op<T_Acc, api::Hip>
     {
-        constexpr auto operator()(T_Acc const& acc, api::Hip) const
+        constexpr __device__ auto operator()(T_Acc const& acc, api::Hip) const
         {
             return __ballot(1u);
         }
@@ -28,18 +28,42 @@ namespace alpaka::onAcc::warp::internal
     template<alpaka::onAcc::concepts::Acc T_Acc>
     struct GetLanIdx::Op<T_Acc, api::Hip>
     {
-        constexpr auto operator()(T_Acc const& acc, api::Hip) const
+        constexpr __device__ auto operator()(T_Acc const& acc, api::Hip) const
         {
+#    if defined(__HIP_DEVICE_COMPILE__)
+            constexpr uint32_t warpExtent = onAcc::warp::internal::getSize<ALPAKA_TYPEOF(acc)>();
+            return __lane_id() % warpExtent;
+#    else
+            // only for the host side deduction path, result is wrong but this is fine
             return __lane_id();
+#    endif
         }
     };
 
     template<alpaka::onAcc::concepts::Acc T_Acc>
     struct All::Op<T_Acc, api::Hip>
     {
-        constexpr auto operator()(T_Acc const& acc, api::Hip, int32_t predicate) const
+        constexpr __device__ bool operator()(T_Acc const& acc, api::Hip, int32_t predicate) const
         {
-            return __all(predicate);
+            return __all(static_cast<int>(predicate)) != 0u;
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct Any::Op<T_Acc, api::Hip>
+    {
+        constexpr __device__ bool operator()(T_Acc const& acc, api::Hip, int32_t predicate) const
+        {
+            return __any(static_cast<int>(predicate)) != 0;
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct Ballot::Op<T_Acc, api::Hip>
+    {
+        constexpr __device__ auto operator()(T_Acc const& acc, api::Hip, int32_t predicate) const
+        {
+            return __ballot(static_cast<int>(predicate));
         }
     };
 } // namespace alpaka::onAcc::warp::internal

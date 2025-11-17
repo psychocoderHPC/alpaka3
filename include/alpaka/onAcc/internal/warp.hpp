@@ -22,6 +22,11 @@
 
 namespace alpaka::onAcc::warp::internal
 {
+    template<concepts::Acc T_Acc>
+    constexpr uint32_t getSize()
+    {
+        return T_Acc::getWarpSize();
+    }
 
     /** Retrieve a bit-mask describing which warp lanes are active. */
     struct Activemask
@@ -59,6 +64,32 @@ namespace alpaka::onAcc::warp::internal
             {
                 static_assert(sizeof(T_Acc) && false, "Missing warp All implementation for the accelerator.");
                 return false;
+            }
+        };
+    };
+
+    struct Any
+    {
+        template<alpaka::onAcc::concepts::Acc T_Acc, alpaka::concepts::Api T_Api>
+        struct Op
+        {
+            constexpr bool operator()(T_Acc const&, T_Api api, int32_t predicate) const
+            {
+                static_assert(sizeof(T_Acc) && false, "Missing warp Any implementation for the accelerator.");
+                return false;
+            }
+        };
+    };
+
+    struct Ballot
+    {
+        template<alpaka::onAcc::concepts::Acc T_Acc, alpaka::concepts::Api T_Api>
+        struct Op
+        {
+            constexpr auto operator()(T_Acc const&, T_Api api, int32_t predicate) const
+            {
+                static_assert(sizeof(T_Acc) && false, "Missing warp Ballot implementation for the accelerator.");
+                return 0;
             }
         };
     };

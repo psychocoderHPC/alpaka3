@@ -30,18 +30,37 @@ namespace alpaka::onAcc::warp::internal
     {
         constexpr __device__ auto operator()(T_Acc const& acc, api::Cuda) const
         {
-            unsigned ret;
-            asm volatile("mov.u32 %0, %laneid;" : "=r"(ret));
-            return ret;
+            constexpr uint32_t warpExtent = onAcc::warp::internal::getSize<ALPAKA_TYPEOF(acc)>();
+            unsigned lIdx;
+            asm volatile("mov.u32 %0, %laneid;" : "=r"(lIdx));
+            return lIdx % warpExtent;
         }
     };
 
     template<alpaka::onAcc::concepts::Acc T_Acc>
     struct All::Op<T_Acc, api::Cuda>
     {
+        constexpr __device__ bool operator()(T_Acc const& acc, api::Cuda, int32_t predicate) const
+        {
+            return __all_sync(__activemask(), static_cast<int>(predicate)) != 0;
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct Any::Op<T_Acc, api::Cuda>
+    {
+        constexpr __device__ bool operator()(T_Acc const& acc, api::Cuda, int32_t predicate) const
+        {
+            return __any_sync(__activemask(), static_cast<int>(predicate)) != 0;
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct Ballot::Op<T_Acc, api::Cuda>
+    {
         constexpr __device__ auto operator()(T_Acc const& acc, api::Cuda, int32_t predicate) const
         {
-            return __all_sync(__activemask(), predicate);
+            return __ballot_sync(__activemask(), static_cast<int>(predicate));
         }
     };
 } // namespace alpaka::onAcc::warp::internal

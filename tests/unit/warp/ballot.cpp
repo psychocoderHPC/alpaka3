@@ -21,36 +21,22 @@ using namespace alpaka;
 using alpaka::test::warp::warpCheck;
 using alpaka::test::warp::WarpTestBackends;
 
-#if 0
 namespace
 {
-    struct BallotSingleThreadKernel
-    {
-        template<typename TAcc>
-        ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success) const
-        {
-            // Single-lane warp still needs a self-consistent ballot mask.
-            // Guard that the single-lane warp metadata is wired up correctly.
-            warpCheck(success, onAcc::warp::getSize(acc) == 1u);
-            // Voting true should set the only bit in the ballot mask.
-            warpCheck(success, onAcc::warp::ballot(acc, 42) == 1u);
-            // Voting false clears the ballot mask entirely.
-            warpCheck(success, onAcc::warp::ballot(acc, 0) == 0u);
-        }
-    };
-
     struct BallotMultiThreadKernel
     {
         template<typename TAcc>
         ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success) const
         {
-            auto const warpExtent = static_cast<std::uint32_t>(onAcc::warp::getSize(acc));
-            // Multi-lane path only runs when the backend exposes wider warps.
-            warpCheck(success, warpExtent > 1);
+            // use runtime warp size to avoid compiler warning later
+            uint32_t warpExtent = onAcc::warp::getSize<ALPAKA_TYPEOF(acc)>();
+            /* We can not use a static_assert for testing because the compiler will evaluate the warp size during the
+             * host parsing to what will result in false negatives */
+            warpCheck(success, warpExtent >= 1u);
 
             auto const threadsPerBlock = static_cast<std::uint32_t>(acc[alpaka::layer::thread].count().product());
-            // Launch configuration should match the warp width to simplify expectations.
-            warpCheck(success, threadsPerBlock == warpExtent);
+            // number of threads should be a multiple of the warp size
+            warpCheck(success, threadsPerBlock % warpExtent == 0);
 
             using ResultType = decltype(onAcc::warp::ballot(acc, 42));
             // Limit the comparison mask to the bits the backend can physically store.
@@ -104,7 +90,7 @@ TEMPLATE_LIST_TEST_CASE("warp ballot captures predicate lanes", "[warp][ballot]"
     }
 
     auto deviceProperties = selector.getDeviceProperties(0);
-    auto const warpExtent = deviceProperties.getPreferredWarpSize();
+    auto const warpExtent = deviceProperties.m_warpSize;
 
     auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
@@ -112,21 +98,8 @@ TEMPLATE_LIST_TEST_CASE("warp ballot captures predicate lanes", "[warp][ballot]"
     auto successHost = onHost::allocHost<bool>(1u);
     auto successDev = onHost::allocLike(device, successHost);
 
-    if(warpExtent == 1u)
-    {
-        onHost::memset(queue, successDev, static_cast<std::uint8_t>(true));
-        queue.enqueue(
-            exec,
-            onHost::FrameSpec{Vec<std::uint32_t, 1u>{1u}, Vec<std::uint32_t, 1u>{1u}},
-            KernelBundle{BallotSingleThreadKernel{}, successDev});
-        onHost::memcpy(queue, successHost, successDev);
-        onHost::wait(queue);
-        CHECK(successHost[0]);
-        return;
-    }
-
-    auto const blocks = Vec<std::uint32_t, 1u>{1u};
-    auto const threads = Vec<std::uint32_t, 1u>{warpExtent};
+    auto const blocks = Vec<std::uint32_t, 1u>{5u};
+    auto const threads = Vec<std::uint32_t, 1u>{4 * warpExtent};
 
     onHost::memset(queue, successDev, static_cast<std::uint8_t>(true));
     queue.enqueue(exec, onHost::FrameSpec{blocks, threads}, KernelBundle{BallotMultiThreadKernel{}, successDev});
@@ -135,5 +108,3 @@ TEMPLATE_LIST_TEST_CASE("warp ballot captures predicate lanes", "[warp][ballot]"
     INFO("backend=" << deviceSpec.getName());
     CHECK(successHost[0]);
 }
-
-#endif

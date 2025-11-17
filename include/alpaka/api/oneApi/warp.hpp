@@ -41,19 +41,20 @@ namespace alpaka::onAcc::warp::internal
         auto operator()(T_Acc const& acc, api::OneApi) const
         {
             sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
-            return sg.get_local_id()[0]; // lane id within the warp
+            // lane id within the warp subgroup
+            return sg.get_local_id()[0];
         }
     };
 
     template<alpaka::onAcc::concepts::Acc T_Acc>
     struct All::Op<T_Acc, api::OneApi>
     {
-        auto operator()(T_Acc const& acc, api::OneApi, int32_t predicate) const
+        bool operator()(T_Acc const& acc, api::OneApi, int32_t predicate) const
         {
             using DeviceKind = ALPAKA_TYPEOF(acc[object::deviceKind]);
             if constexpr(DeviceKind{} == alpaka::deviceKind::amdGpu)
             {
-                /* Workaround for AMD GPUs: Sycl is taking the results of the thread which already left into account
+                /* Workaround for AMD GPUs: Sycl is taking the results of the non active threads into account
                  * and therefore even if all participating threads have a true predicate the result will be false.
                  * We vote with ballot and mask the result with the active thread mask.
                  */
@@ -72,6 +73,52 @@ namespace alpaka::onAcc::warp::internal
                 sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
                 return sycl::all_of_group(sg, predicate != 0);
             }
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct Any::Op<T_Acc, api::OneApi>
+    {
+        bool operator()(T_Acc const& acc, api::OneApi, int32_t predicate) const
+        {
+            using DeviceKind = ALPAKA_TYPEOF(acc[object::deviceKind]);
+            if constexpr(DeviceKind{} == alpaka::deviceKind::amdGpu)
+            {
+                /* Workaround for AMD GPUs: Sycl is taking the results of non active threads into account
+                 * and therefore even if all participating threads have a false predicate the result will be true.
+                 * We vote with ballot and mask the result with the active thread mask.
+                 */
+                sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
+                auto activeMask = Activemask::Op<T_Acc, api::OneApi>{}(acc, api::OneApi{});
+                auto sgMask = sycl::ext::oneapi::group_ballot(sg, predicate != 0);
+
+                constexpr auto const warpSize = T_Acc::getWarpSize();
+                using ReturnType = std::conditional_t<warpSize <= 32, uint32_t, uint64_t>;
+                ReturnType predicateMask;
+                sgMask.extract_bits(predicateMask, 0u);
+                return activeMask & predicateMask;
+            }
+            else
+            {
+                sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
+                return sycl::any_of_group(sg, predicate != 0);
+            }
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct Ballot::Op<T_Acc, api::OneApi>
+    {
+        auto operator()(T_Acc const& acc, api::OneApi, int32_t predicate) const
+        {
+            sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
+            auto sgMask = sycl::ext::oneapi::group_ballot(sg, predicate != 0);
+
+            constexpr auto const warpSize = T_Acc::getWarpSize();
+            using ReturnType = std::conditional_t<warpSize <= 32, uint32_t, uint64_t>;
+            ReturnType mask;
+            sgMask.extract_bits(mask, 0u);
+            return mask;
         }
     };
 } // namespace alpaka::onAcc::warp::internal

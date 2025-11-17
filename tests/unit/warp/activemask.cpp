@@ -38,7 +38,8 @@ namespace
              * applying for it.
              */
             auto const threadsPerBlock = static_cast<std::uint32_t>(acc[alpaka::layer::thread].count().product());
-            warpCheck(success, threadsPerBlock >= warpExtent);
+            // number of threads should be a multiple of the warp size
+            warpCheck(success, threadsPerBlock % warpExtent == 0);
 
             auto const lane = onAcc::warp::getLaneIdx(acc);
 
