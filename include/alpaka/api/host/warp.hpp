@@ -32,6 +32,15 @@ namespace alpaka::onAcc::warp::internal
         }
     };
 
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct All::Op<T_Acc, api::Host>
+    {
+        constexpr auto operator()(T_Acc const& acc, api::Host, [[maybe_unused]] int32_t predicate) const
+        {
+            return predicate != 0;
+        }
+    };
+
 #if 0
     /** Warp emulation used for scalar host execution. */
     struct SingleThread

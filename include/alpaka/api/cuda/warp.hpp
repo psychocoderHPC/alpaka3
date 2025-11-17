@@ -28,11 +28,20 @@ namespace alpaka::onAcc::warp::internal
     template<alpaka::onAcc::concepts::Acc T_Acc>
     struct GetLanIdx::Op<T_Acc, api::Cuda>
     {
-        constexpr auto operator()(T_Acc const& acc, api::Cuda) const
+        constexpr __device__ auto operator()(T_Acc const& acc, api::Cuda) const
         {
             unsigned ret;
             asm volatile("mov.u32 %0, %laneid;" : "=r"(ret));
             return ret;
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct All::Op<T_Acc, api::Cuda>
+    {
+        constexpr __device__ auto operator()(T_Acc const& acc, api::Cuda, int32_t predicate) const
+        {
+            return __all_sync(__activemask(), predicate);
         }
     };
 } // namespace alpaka::onAcc::warp::internal

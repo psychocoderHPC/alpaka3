@@ -33,6 +33,15 @@ namespace alpaka::onAcc::warp::internal
             return __lane_id();
         }
     };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    struct All::Op<T_Acc, api::Hip>
+    {
+        constexpr auto operator()(T_Acc const& acc, api::Hip, int32_t predicate) const
+        {
+            return __all(predicate);
+        }
+    };
 } // namespace alpaka::onAcc::warp::internal
 #endif
 #if 0

@@ -44,6 +44,29 @@ namespace alpaka::onAcc::warp
         return internal::GetLanIdx::Op<Acc, Api>{}(acc, Api{});
     }
 
+    /** Vote function returning true if all active lanes satisfy the predicate. */
+
+
+    /** Evaluates predicate for all active threads of the warp
+     *
+     * It follows the logic of __all_sync() in CUDA but returns a boolean.
+     *
+     * Note:
+     * * The programmer must ensure that all threads calling this function are executing
+     *   the same line of code. In particular it is not portable to write
+     *   if(a) {all} else {all}.
+     *
+     * @param predicate The predicate value for current thread.
+     * @return true if and only is non zero, else false
+     */
+
+    constexpr bool all(alpaka::onAcc::concepts::Acc auto const& acc, int32_t predicate)
+    {
+        using Acc = ALPAKA_TYPEOF(acc);
+        using Api = ALPAKA_TYPEOF(acc[object::api]);
+        return internal::All::Op<Acc, Api>{}(acc, Api{}, predicate);
+    }
+
     /** Return the warp size.
      *
      * A warp is a collection of threads which work in lock step (executing the same command).
