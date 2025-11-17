@@ -19,7 +19,6 @@ using namespace alpaka;
 using alpaka::test::warp::warpCheck;
 using alpaka::test::warp::WarpTestBackends;
 
-#if 0
 namespace
 {
     struct GetSizeKernel
@@ -34,6 +33,10 @@ namespace
             auto const runtimeSize = onAcc::warp::getSize(acc);
             warpCheck(success, runtimeSize != 0u);
             warpCheck(success, runtimeSize == expectedWarpSize);
+
+            // test if the warp size can be constexpr
+            constexpr uint32_t warpExtent = onAcc::warp::getSize<ALPAKA_TYPEOF(acc)>();
+            warpCheck(success, warpExtent == expectedWarpSize);
         }
     };
 } // namespace
@@ -52,15 +55,15 @@ TEMPLATE_LIST_TEST_CASE("warp size trait matches runtime size", "[warp][getSize]
     }
 
     auto deviceProperties = selector.getDeviceProperties(0);
-    auto const warpExtent = deviceProperties.getPreferredWarpSize();
+    auto const warpExtent = deviceProperties.m_warpSize;
 
     auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     auto successHost = onHost::allocHost<bool>(1u);
     auto successDev = onHost::allocLike(device, successHost);
-    auto const blocks = Vec<std::uint32_t, 1u>{1u};
-    auto const threads = Vec<std::uint32_t, 1u>{warpExtent == 0u ? 1u : warpExtent};
+    auto const blocks = Vec<std::uint32_t, 1u>{5u};
+    auto const threads = Vec<std::uint32_t, 1u>{4 * warpExtent};
 
     onHost::memset(queue, successDev, static_cast<std::uint8_t>(true));
     queue.enqueue(
@@ -73,5 +76,3 @@ TEMPLATE_LIST_TEST_CASE("warp size trait matches runtime size", "[warp][getSize]
     INFO("backend=" << deviceSpec.getName());
     CHECK(successHost[0]);
 }
-
-#endif

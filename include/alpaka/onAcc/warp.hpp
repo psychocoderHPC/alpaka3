@@ -26,10 +26,11 @@ namespace alpaka::onAcc::warp
 {
     /** Return the bit-mask of active lanes for the warp associated with the accelerator.
      *
-     * @return bit mask where each bit is set to 1 if the corresponding thread is active. The return type can be 64bit
-     * or 32bit depending on the API.
+     * @return bit mask where the Nth bit is set to 1 if the corresponding thread is participating the call. The return
+     * type can be 64bit or 32bit depending on the API.
      */
-    constexpr auto activemask(alpaka::onAcc::concepts::Acc auto const& acc)
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    constexpr auto activemask(T_Acc const& acc) -> std::conditional_t<T_Acc::getWarpSize() <= 32u, uint32_t, uint64_t>
     {
         using Acc = ALPAKA_TYPEOF(acc);
         using Api = ALPAKA_TYPEOF(acc[object::api]);
@@ -49,15 +50,15 @@ namespace alpaka::onAcc::warp
 
     /** Evaluates predicate for all active threads of the warp
      *
-     * It follows the logic of __all_sync() in CUDA but returns a boolean.
+     * It follows the logic of __all_sync(__activemask(), predicate) in CUDA but returns a boolean.
      *
      * Note:
      * * The programmer must ensure that all threads calling this function are executing
-     *   the same line of code. In particular it is not portable to write
+     *   the same line of code. In particular, it is not portable to write
      *   if(a) {all} else {all}.
      *
      * @param predicate The predicate value for current thread.
-     * @return true if and only is non zero, else false
+     * @return true if all threads predicate non zero, else false
      */
     constexpr bool all(alpaka::onAcc::concepts::Acc auto const& acc, int32_t predicate)
     {
@@ -68,11 +69,11 @@ namespace alpaka::onAcc::warp
 
     /** Evaluates predicate for all active threads of the warp.
      *
-     * It follows the logic of __any_sync(predicate) in CUDA but returns a boolean.
+     * It follows the logic of __any_sync(__activemask(), predicate) in CUDA but returns a boolean.
      *
      * Note:
      * * The programmer must ensure that all threads calling this function are executing
-     *   the same line of code. In particular it is not portable to write
+     *   the same line of code. In particular, it is not portable to write
      *   if(a) {any} else {any}.
      *
      * @param predicate The predicate value for current thread.
@@ -85,7 +86,25 @@ namespace alpaka::onAcc::warp
         return internal::Any::Op<Acc, Api>{}(acc, Api{}, predicate);
     }
 
-    constexpr auto ballot(alpaka::onAcc::concepts::Acc auto const& acc, int32_t predicate)
+    /** Evaluates predicate for all non-exited threads in a warp and returns
+     * a 32- or 64-bit unsigned integer (depending on the accelerator)
+     * whose Nth bit is set if and only if predicate evaluates to non-zero
+     * for the Nth thread of the warp and the Nth thread is active.
+     *
+     * It follows the logic of __ballot_sync(__activemask(), predicate) in CUDA.
+     *
+     * Note:
+     * * The programmer must ensure that all threads calling this function are executing
+     *   the same line of code. In particular, it is not portable to write
+     *   if(a) {ballot} else {ballot}.
+     *
+     * @param predicate The predicate value for current thread.
+     * @return bit mask where the Nth bit is set to 1 if the corresponding threads predicate was non zero. The return
+     * type can be 64bit or 32bit depending on the API.
+     */
+    template<alpaka::onAcc::concepts::Acc T_Acc>
+    constexpr auto ballot(T_Acc const& acc, int32_t predicate)
+        -> std::conditional_t<T_Acc::getWarpSize() <= 32u, uint32_t, uint64_t>
     {
         using Acc = ALPAKA_TYPEOF(acc);
         using Api = ALPAKA_TYPEOF(acc[object::api]);
