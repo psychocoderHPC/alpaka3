@@ -26,11 +26,7 @@ namespace
         template<typename TAcc>
         ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success, std::uint32_t idx) const
         {
-            // test if the warp size can be constexpr
             constexpr uint32_t warpExtent = onAcc::warp::getSize<ALPAKA_TYPEOF(acc)>();
-            /* We can not use a static_assert for testing because the compiler will evaluate the warp size during the
-             * host parsing to what will result in false negatives */
-            warpCheck(success, warpExtent >= 1u);
 
             auto const threadsPerBlock = static_cast<std::int32_t>(acc[alpaka::layer::thread].count().product());
             // number of threads should be a multiple of the warp size
@@ -39,7 +35,6 @@ namespace
             auto const lane = static_cast<std::int32_t>(onAcc::warp::getLaneIdx(acc));
             if(lane % 3 != 0)
             {
-                //  warpCheck(success, onAcc::warp::all(acc, 1));
                 // Only every third lane participates in the collective vote.
                 // Other lanes exit silently below.
                 return;

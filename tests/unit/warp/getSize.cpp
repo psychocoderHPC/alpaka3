@@ -37,6 +37,9 @@ namespace
             // test if the warp size can be constexpr
             constexpr uint32_t warpExtent = onAcc::warp::getSize<ALPAKA_TYPEOF(acc)>();
             warpCheck(success, warpExtent == expectedWarpSize);
+            // laneIdx should be in range [0;warpSize)
+            auto const laneIdx = static_cast<std::int32_t>(onAcc::warp::getLaneIdx(acc));
+            warpCheck(success, laneIdx < warpExtent);
         }
     };
 } // namespace

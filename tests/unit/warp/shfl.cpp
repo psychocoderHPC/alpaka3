@@ -21,89 +21,73 @@ using namespace alpaka;
 using alpaka::test::warp::warpCheck;
 using alpaka::test::warp::WarpTestBackends;
 
-#if 0
 namespace
 {
-    struct ShflSingleThreadKernel
-    {
-        template<typename TAcc>
-        ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success) const
-        {
-            // Scalar case: shuffle should simply echo the source value.
-            warpCheck(success, onAcc::warp::getSize(acc) == 1u);
-            // Shuffle pulls the value from lane 0, so every lane should see the literal 42.
-            warpCheck(success, onAcc::warp::shfl(acc, 42, 0u) == 42);
-            // Shuffle pulls the value from lane 0, so every lane should see the literal 12.
-            warpCheck(success, onAcc::warp::shfl(acc, 12, 0u) == 12);
-            // Float variant verifies the template handles other trivially copyable types.
-            float const result = onAcc::warp::shfl(acc, 3.3f, 0u);
-            warpCheck(success, result == 3.3f);
-        }
-    };
-
     struct ShflMultiThreadKernel
     {
         template<typename TAcc>
         ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success) const
         {
-            auto const warpExtent = static_cast<std::int32_t>(onAcc::warp::getSize(acc));
-            warpCheck(success, warpExtent > 1);
+            constexpr uint32_t warpExtent = onAcc::warp::getSize<ALPAKA_TYPEOF(acc)>();
 
-            auto const threadsPerBlock = static_cast<std::int32_t>(acc[alpaka::layer::thread].count().product());
-            warpCheck(success, threadsPerBlock == warpExtent);
+            // number of threads should be a multiple of the warp size
+            warpCheck(success, warpExtent >= 1u);
 
             // Lane ID drives the expected source values for each shuffle check.
-            auto const lane = static_cast<std::int32_t>(onAcc::warp::getLaneIdx(acc));
+            uint32_t const lane = onAcc::warp::getLaneIdx(acc);
 
             // Exercise trivial zero-offset and max-offset cases.
             // Broadcasting from literal lane 0 must work regardless of the caller lane.
             warpCheck(success, onAcc::warp::shfl(acc, 42, 0u) == 42);
             // Using the current lane as the payload and requesting src=0 should always give back 0.
             warpCheck(success, onAcc::warp::shfl(acc, lane, 0u) == 0);
-            // Requesting src=1 broadcasts lane 1's value to every participant.
-            warpCheck(success, onAcc::warp::shfl(acc, lane, 1u) == 1);
+            if constexpr(warpExtent >= 2)
+            {
+                // Requesting src=1 broadcasts lane 1's value to every participant.
+                // test requires at least two threads in a warp
+                warpCheck(success, onAcc::warp::shfl(acc, lane, 1u) == 1);
+            }
+
             // Large src index is clamped to the logical width; value must remain unchanged.
-            warpCheck(success, onAcc::warp::shfl(acc, 5, std::numeric_limits<std::uint32_t>::max()) == 5);
+            warpCheck(success, onAcc::warp::shfl(acc, 5, std::numeric_limits<uint32_t>::max()) == 5);
 
             auto const epsilon = std::numeric_limits<float>::epsilon();
-            for(int width = 1; width < warpExtent; width *= 2)
+            for(uint32_t width = 1; width < warpExtent; width *= 2)
             {
                 // Check every logical partition width supported by the backend.
-                for(int idx = 0; idx < width; ++idx)
+                for(uint32_t idx = 0; idx < width; ++idx)
                 {
                     auto const section = width * (lane / width);
                     // Integer payloads should resolve to the subgroup-relative source index.
-                    auto const shuffle = onAcc::warp::shfl(
-                        acc,
-                        lane,
-                        static_cast<std::uint32_t>(idx),
-                        static_cast<std::uint32_t>(width));
+                    auto const shuffle = onAcc::warp::shfl(acc, lane, idx, width);
                     warpCheck(success, shuffle == idx + section);
 
                     // Floating payloads exercise non-integral types under the same subgroup restriction.
-                    auto const ans = onAcc::warp::shfl(
-                        acc,
-                        4.0f - static_cast<float>(lane),
-                        static_cast<std::uint32_t>(idx),
-                        static_cast<std::uint32_t>(width));
+                    auto const ans = onAcc::warp::shfl(acc, 4.0f - static_cast<float>(lane), idx, width);
                     auto const expect = 4.0f - static_cast<float>(idx + section);
                     warpCheck(success, alpaka::math::abs(ans - expect) < epsilon);
                 }
             }
 
-            if(lane >= warpExtent / 2)
+            if(static_cast<int>(lane) >= static_cast<int>(warpExtent / 2u))
             {
+                warpCheck(success, onAcc::warp::shfl(acc, 42, warpExtent - 1u) == 42);
                 // Upper half should be fully masked from the final checks.
                 return;
             }
-
-            for(int idx = 0; idx < warpExtent / 2; ++idx)
+            else
             {
+                // check that shfl can be called within branches of the same level
+                warpCheck(success, onAcc::warp::shfl(acc, 11, 0u) == 11);
+            }
+            // int is used to silence cast warning because warpExtent can be zero during the host path evaluation
+            for(int idxTmp = 0u; idxTmp < static_cast<int>(warpExtent) / 2; ++idxTmp)
+            {
+                uint32_t idx = static_cast<uint32_t>(idxTmp);
                 // Active sub-group must always read the value produced by the chosen lane.
                 // Within the lower half, shuffling with src=idx must reproduce the selected lane.
-                warpCheck(success, onAcc::warp::shfl(acc, lane, static_cast<std::uint32_t>(idx)) == idx);
-                auto const ans
-                    = onAcc::warp::shfl(acc, 4.0f - static_cast<float>(lane), static_cast<std::uint32_t>(idx));
+                warpCheck(success, onAcc::warp::shfl(acc, lane, idx) == idx);
+                auto const ans = onAcc::warp::shfl(acc, 4.0f - static_cast<float>(lane), idx);
                 // Float payload confirms the same behaviour holds across types for the masked subgroup.
                 auto const expect = 4.0f - static_cast<float>(idx);
                 warpCheck(success, alpaka::math::abs(ans - expect) < epsilon);
@@ -126,26 +110,13 @@ TEMPLATE_LIST_TEST_CASE("warp shfl moves values between lanes", "[warp][shfl]", 
     }
 
     auto deviceProperties = selector.getDeviceProperties(0);
-    auto const warpExtent = deviceProperties.getPreferredWarpSize();
+    auto const warpExtent = deviceProperties.m_warpSize;
 
     auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     auto successHost = onHost::allocHost<bool>(1u);
     auto successDev = onHost::allocLike(device, successHost);
-
-    if(warpExtent == 1u)
-    {
-        onHost::memset(queue, successDev, static_cast<std::uint8_t>(true));
-        queue.enqueue(
-            exec,
-            onHost::FrameSpec{Vec<std::uint32_t, 1u>{1u}, Vec<std::uint32_t, 1u>{1u}},
-            KernelBundle{ShflSingleThreadKernel{}, successDev});
-        onHost::memcpy(queue, successHost, successDev);
-        onHost::wait(queue);
-        CHECK(successHost[0]);
-        return;
-    }
 
     auto const blocks = Vec<std::uint32_t, 1u>{1u};
     auto const threads = Vec<std::uint32_t, 1u>{warpExtent};
@@ -157,5 +128,3 @@ TEMPLATE_LIST_TEST_CASE("warp shfl moves values between lanes", "[warp][shfl]", 
     INFO("backend=" << deviceSpec.getName());
     CHECK(successHost[0]);
 }
-
-#endif

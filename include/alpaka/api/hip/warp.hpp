@@ -66,6 +66,16 @@ namespace alpaka::onAcc::warp::internal
             return __ballot(static_cast<int>(predicate));
         }
     };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc, typename T>
+    struct Shfl::Op<T_Acc, api::Hip, T>
+    {
+        constexpr __device__ T
+        operator()(T_Acc const& acc, api::Hip, T const& value, uint32_t srcLane, uint32_t width) const
+        {
+            return __shfl(value, static_cast<int>(srcLane), static_cast<int>(width));
+        }
+    };
 } // namespace alpaka::onAcc::warp::internal
 #endif
 #if 0

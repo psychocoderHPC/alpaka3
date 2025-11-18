@@ -131,6 +131,14 @@ namespace alpaka::onAcc::warp
 
     /** @} */
 
+    template<typename T, alpaka::onAcc::concepts::Acc T_Acc>
+    constexpr T shfl(T_Acc const& acc, T const& value, uint32_t srcLane, uint32_t width = 0u)
+    {
+        using Acc = ALPAKA_TYPEOF(acc);
+        using Api = ALPAKA_TYPEOF(acc[object::api]);
+        return internal::Shfl::Op<Acc, Api, T>{}(acc, Api{}, value, srcLane, width != 0u ? width : getSize<T_Acc>());
+    }
+
 #if 0
 
     namespace detail

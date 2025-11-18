@@ -25,20 +25,26 @@ namespace alpaka::onAcc::warp::internal
         auto operator()(T_Acc const& acc, api::OneApi) const
         {
             sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
-            auto sgMask = sycl::ext::oneapi::group_ballot(sg, true);
+
+            return getMask(sg);
+        }
+
+        static auto getMask(auto const subGroup)
+        {
+            auto sgMask = sycl::ext::oneapi::group_ballot(subGroup, true);
 
             constexpr auto const warpSize = T_Acc::getWarpSize();
             using ReturnType = std::conditional_t<warpSize <= 32, uint32_t, uint64_t>;
             ReturnType mask;
             sgMask.extract_bits(mask, 0u);
             return mask;
-        }
+        };
     };
 
     template<alpaka::onAcc::concepts::Acc T_Acc>
     struct GetLanIdx::Op<T_Acc, api::OneApi>
     {
-        auto operator()(T_Acc const& acc, api::OneApi) const
+        constexpr auto operator()(T_Acc const& acc, api::OneApi) const
         {
             sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
             // lane id within the warp subgroup
@@ -59,7 +65,7 @@ namespace alpaka::onAcc::warp::internal
                  * We vote with ballot and mask the result with the active thread mask.
                  */
                 sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
-                auto activeMask = Activemask::Op<T_Acc, api::OneApi>{}(acc, api::OneApi{});
+                auto activeMask = Activemask::Op<T_Acc, api::OneApi>::getMask(sg);
                 auto sgMask = sycl::ext::oneapi::group_ballot(sg, predicate != 0);
 
                 constexpr auto const warpSize = T_Acc::getWarpSize();
@@ -89,7 +95,7 @@ namespace alpaka::onAcc::warp::internal
                  * We vote with ballot and mask the result with the active thread mask.
                  */
                 sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
-                auto activeMask = Activemask::Op<T_Acc, api::OneApi>{}(acc, api::OneApi{});
+                auto activeMask = Activemask::Op<T_Acc, api::OneApi>::getMask(sg);
                 auto sgMask = sycl::ext::oneapi::group_ballot(sg, predicate != 0);
 
                 constexpr auto const warpSize = T_Acc::getWarpSize();
@@ -119,6 +125,20 @@ namespace alpaka::onAcc::warp::internal
             ReturnType mask;
             sgMask.extract_bits(mask, 0u);
             return mask;
+        }
+    };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc, typename T>
+    struct Shfl::Op<T_Acc, api::OneApi, T>
+    {
+        constexpr T operator()(T_Acc const& acc, api::OneApi, T const& value, uint32_t srcLane, uint32_t width) const
+        {
+            sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
+            uint32_t laneIdxInWarp = sg.get_local_id()[0];
+            uint32_t partitionOffset = (laneIdxInWarp / width) * width;
+            uint32_t srcInPartitionLaneIdx = partitionOffset + (srcLane % width);
+
+            return sycl::select_from_group(sg, value, srcInPartitionLaneIdx);
         }
     };
 } // namespace alpaka::onAcc::warp::internal
