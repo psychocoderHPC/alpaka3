@@ -12,11 +12,12 @@ include(FetchContent)
 
 # Declare where to fetch alpaka3 from
 # This will download the library at configure time
-FetchContent_Declare(alpaka3 GIT_REPOSITORY https://github.com/alpaka-group/alpaka3.git GIT_TAG dev)
+FetchContent_Declare(alpaka3 GIT_REPOSITORY https://github.com/psychocoderHPC/alpaka3.git GIT_TAG test-fetchContent)
 
 # Make alpaka3 available for use in this project
 # This downloads, configures, and makes the library targets available
 FetchContent_MakeAvailable(alpaka3)
+alpaka_FetchContent_Finalize()
 
 # Define the device specification for your application
 # Format: "api:deviceKind" where:
