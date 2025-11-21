@@ -141,6 +141,23 @@ namespace alpaka::onAcc::warp::internal
             return sycl::select_from_group(sg, value, srcInPartitionLaneIdx);
         }
     };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc, typename T>
+    struct ShflDown::Op<T_Acc, api::OneApi, T>
+    {
+        constexpr T operator()(T_Acc const& acc, api::OneApi, T const& value, uint32_t delta, uint32_t width) const
+        {
+            sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
+
+            uint32_t laneIdxInWarp = sg.get_local_id()[0];
+            uint32_t groupEndIdx = (laneIdxInWarp / width + 1) * width;
+
+            T result = sycl::shift_group_left(sg, value, delta);
+            if(laneIdxInWarp + delta >= groupEndIdx)
+                result = value;
+            return result;
+        }
+    };
 } // namespace alpaka::onAcc::warp::internal
 #endif
 

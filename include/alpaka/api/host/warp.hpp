@@ -68,6 +68,15 @@ namespace alpaka::onAcc::warp::internal
         }
     };
 
+    template<alpaka::onAcc::concepts::Acc T_Acc, typename T>
+    struct ShflDown::Op<T_Acc, api::Host, T>
+    {
+        constexpr T operator()(T_Acc const& acc, api::Host, T const& value, uint32_t delta, uint32_t width) const
+        {
+            return value;
+        }
+    };
+
 #if 0
     /** Warp emulation used for scalar host execution. */
     struct SingleThread

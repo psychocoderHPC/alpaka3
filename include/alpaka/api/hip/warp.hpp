@@ -76,6 +76,16 @@ namespace alpaka::onAcc::warp::internal
             return __shfl(value, static_cast<int>(srcLane), static_cast<int>(width));
         }
     };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc, typename T>
+    struct ShflDown::Op<T_Acc, api::Hip, T>
+    {
+        constexpr __device__ T
+        operator()(T_Acc const& acc, api::Hip, T const& value, uint32_t delta, uint32_t width) const
+        {
+            return __shfl_down(value, static_cast<int>(delta), static_cast<int>(width));
+        }
+    };
 } // namespace alpaka::onAcc::warp::internal
 #endif
 #if 0

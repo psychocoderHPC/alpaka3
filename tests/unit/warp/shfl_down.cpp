@@ -20,33 +20,18 @@ using namespace alpaka;
 using alpaka::test::warp::warpCheck;
 using alpaka::test::warp::WarpTestBackends;
 
-#if 0
 namespace
 {
-    struct ShflDownSingleThreadKernel
-    {
-        template<typename TAcc>
-        ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success) const
-        {
-            // With one lane the shuffle-down must simply return the input value.
-            // No lanes exist below to pull from. 42 is assumed to be returned as-is.
-            warpCheck(success, onAcc::warp::shflDown(acc, 42, 0u) == 42);
-            warpCheck(success, onAcc::warp::shflDown(acc, 12, 0u) == 12);
-            float const ans = onAcc::warp::shflDown(acc, 3.3f, 0u);
-            warpCheck(success, ans == 3.3f);
-        }
-    };
-
     struct ShflDownMultiThreadKernel
     {
         template<typename TAcc>
         ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success) const
         {
             auto const warpExtent = static_cast<std::int32_t>(onAcc::warp::getSize(acc));
-            warpCheck(success, warpExtent > 1);
+            warpCheck(success, warpExtent >= 1u);
 
             auto const threadsPerBlock = static_cast<std::int32_t>(acc[alpaka::layer::thread].count().product());
-            warpCheck(success, threadsPerBlock == warpExtent);
+            warpCheck(success, threadsPerBlock % warpExtent == 0);
 
             auto const lane = static_cast<std::int32_t>(onAcc::warp::getLaneIdx(acc));
 
@@ -91,8 +76,13 @@ namespace
 
             if(lane >= warpExtent / 2)
             {
+                warpCheck(success, onAcc::warp::shflDown(acc, 42, 1u) == 42);
                 // Mask out the upper sub-group for the final spot checks.
                 return;
+            }
+            else
+            {
+                // warpCheck(success, onAcc::warp::shflDown(acc, 43, 1u) == 43);
             }
 
             for(int idx = 0; idx < warpExtent / 2; ++idx)
@@ -130,26 +120,13 @@ TEMPLATE_LIST_TEST_CASE("warp shflDown shifts toward higher lanes", "[warp][shfl
     }
 
     auto deviceProperties = selector.getDeviceProperties(0);
-    auto const warpExtent = deviceProperties.getPreferredWarpSize();
+    auto const warpExtent = deviceProperties.m_warpSize;
 
     auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     auto successHost = onHost::allocHost<bool>(1u);
     auto successDev = onHost::allocLike(device, successHost);
-
-    if(warpExtent == 1u)
-    {
-        onHost::memset(queue, successDev, static_cast<std::uint8_t>(true));
-        queue.enqueue(
-            exec,
-            onHost::FrameSpec{Vec<std::uint32_t, 1u>{1u}, Vec<std::uint32_t, 1u>{1u}},
-            KernelBundle{ShflDownSingleThreadKernel{}, successDev});
-        onHost::memcpy(queue, successHost, successDev);
-        onHost::wait(queue);
-        CHECK(successHost[0]);
-        return;
-    }
 
     auto const blocks = Vec<std::uint32_t, 1u>{1u};
     auto const threads = Vec<std::uint32_t, 1u>{warpExtent};
@@ -161,5 +138,3 @@ TEMPLATE_LIST_TEST_CASE("warp shflDown shifts toward higher lanes", "[warp][shfl
     INFO("backend=" << deviceSpec.getName());
     CHECK(successHost[0]);
 }
-
-#endif

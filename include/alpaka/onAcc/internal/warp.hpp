@@ -101,7 +101,20 @@ namespace alpaka::onAcc::warp::internal
         {
             constexpr T operator()(T_Acc const&, T_Api api, T const& value, uint32_t srcLane, uint32_t width) const
             {
-                static_assert(sizeof(T_Acc) && false, "Missing warp Ballot implementation for the accelerator.");
+                static_assert(sizeof(T_Acc) && false, "Missing warp Shfl implementation for the accelerator.");
+                return T{};
+            }
+        };
+    };
+
+    struct ShflDown
+    {
+        template<alpaka::onAcc::concepts::Acc T_Acc, alpaka::concepts::Api T_Api, typename T>
+        struct Op
+        {
+            constexpr T operator()(T_Acc const&, T_Api api, T const& value, uint32_t delta, uint32_t width) const
+            {
+                static_assert(sizeof(T_Acc) && false, "Missing warp ShflDown implementation for the accelerator.");
                 return T{};
             }
         };

@@ -131,12 +131,70 @@ namespace alpaka::onAcc::warp
 
     /** @} */
 
+    /** Exchange data between threads within a warp.
+     *
+     * Effectively executes:
+     *
+     *     __shared__ int32_t values[warpsize];
+     *     values[threadIdx.x] = value;
+     *     __syncthreads();
+     *     return values[width*(threadIdx.x/width) + srcLane%width];
+     *
+     * However, it does not use shared memory.
+     *
+     *  Commonly used with width = warpsize (the default), (returns values[srcLane])
+     *
+     * This method supports to be called in diverging control flow branches if you only query values from threads
+     * within the same branch path.
+     *
+     * @param  value   value to broadcast, only used if other thread is addressing the lane of this thread.
+     * @param  srcLane source lane index within the group range [0; width).
+     * @param  width   number of threads receiving a single value, must be a power of 2.
+     * @return val from the thread index srcLane.
+     */
     template<typename T, alpaka::onAcc::concepts::Acc T_Acc>
-    constexpr T shfl(T_Acc const& acc, T const& value, uint32_t srcLane, uint32_t width = 0u)
+    constexpr T shfl(T_Acc const& acc, T const& value, uint32_t srcLane, uint32_t width = getSize<T_Acc>())
     {
         using Acc = ALPAKA_TYPEOF(acc);
         using Api = ALPAKA_TYPEOF(acc[object::api]);
         return internal::Shfl::Op<Acc, Api, T>{}(acc, Api{}, value, srcLane, width != 0u ? width : getSize<T_Acc>());
+    }
+
+    /** Exchange data between threads within a warp.
+     *
+     * It copies from a lane with higher ID relative to caller.
+     * The lane ID is calculated by adding delta to the caller’s lane ID.
+     *
+     * Effectively executes:
+     *
+     *     __shared__ int32_t values[warpsize];
+     *     values[threadIdx.x] = value;
+     *     __syncthreads();
+     *     return (threadIdx.x % width + delta < width) ? values[threadIdx.x + delta] : values[threadIdx.x];
+     *
+     * However, it does not use shared memory.
+     *
+     * Notes:
+     * * The programmer must ensure that all threads calling this
+     *   function (and the srcLane) are executing the same line of code.
+     *   In particular it is not portable to write if(a) {shfl} else {shfl}.
+     *
+     * * Commonly used with width = warpsize (the default), (returns values[threadIdx.x+delta] if threadIdx.x+delta <
+     * warpsize)
+     *
+     * * Width must be a power of 2.
+     *
+     * @param  value   value to broadcast
+     * @param  delta  corresponds to the delta used to compute the lane ID
+     * @param  width   size of the group participating in the shuffle operation
+     * @return the value from the thread index lane ID + delta within the group build by width, else value.
+     */
+    template<typename T, alpaka::onAcc::concepts::Acc T_Acc>
+    constexpr T shflDown(T_Acc const& acc, T const& value, uint32_t delta, uint32_t width = getSize<T_Acc>())
+    {
+        using Acc = ALPAKA_TYPEOF(acc);
+        using Api = ALPAKA_TYPEOF(acc[object::api]);
+        return internal::ShflDown::Op<Acc, Api, T>{}(acc, Api{}, value, delta, width != 0u ? width : getSize<T_Acc>());
     }
 
 #if 0
