@@ -20,32 +20,18 @@ using namespace alpaka;
 using alpaka::test::warp::warpCheck;
 using alpaka::test::warp::WarpTestBackends;
 
-#if 0
 namespace
 {
-    struct ShflXorSingleThreadKernel
-    {
-        template<typename TAcc>
-        ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success) const
-        {
-            // One-lane warp should leave values untouched even for xor shuffles.
-            warpCheck(success, onAcc::warp::shflXor(acc, 42, 0u) == 42);
-            warpCheck(success, onAcc::warp::shflXor(acc, 12, 0u) == 12);
-            float const ans = onAcc::warp::shflXor(acc, 3.3f, 0u);
-            warpCheck(success, ans == 3.3f);
-        }
-    };
-
     struct ShflXorMultiThreadKernel
     {
         template<typename TAcc>
         ALPAKA_FN_ACC void operator()(TAcc const& acc, concepts::MdSpan<bool> auto success) const
         {
             auto const warpExtent = static_cast<std::int32_t>(onAcc::warp::getSize(acc));
-            warpCheck(success, warpExtent > 1);
+            warpCheck(success, warpExtent >= 1);
 
             auto const threadsPerBlock = static_cast<std::int32_t>(acc[alpaka::layer::thread].count().product());
-            warpCheck(success, threadsPerBlock == warpExtent);
+            warpCheck(success, threadsPerBlock % warpExtent == 0);
 
             auto const lane = static_cast<std::int32_t>(onAcc::warp::getLaneIdx(acc));
             // Exercise trivial zero-offset and max-offset cases.
@@ -53,10 +39,15 @@ namespace
             warpCheck(success, onAcc::warp::shflXor(acc, 42, 0u) == 42);
             // For zero offset, each lane should see its own value.
             warpCheck(success, onAcc::warp::shflXor(acc, lane, 0u) == lane);
+
             // For offset one, each lane should xor with 1 to find its partner.
             // For example, lane 0 with offset 1 should see lane 1's value, lane 1 should see lane 0's value, and so
             // on.
-            warpCheck(success, onAcc::warp::shflXor(acc, lane, 1u) == (lane ^ 1));
+            auto shuffleOneMaskResult = onAcc::warp::shflXor(acc, lane, 1u);
+            warpCheck(
+                success,
+                shuffleOneMaskResult == (lane ^ 1) || (warpExtent == 1 && shuffleOneMaskResult == lane));
+
             // Max offset should behave like zero offset since no lanes exist beyond the warp size.
             // For example, lane 2 with max offset should see lane 2's own value.
             warpCheck(success, onAcc::warp::shflXor(acc, 5, std::numeric_limits<std::uint32_t>::max()) == 5);
@@ -117,26 +108,13 @@ TEMPLATE_LIST_TEST_CASE("warp shflXor exchanges partner lanes", "[warp][shfl_xor
     }
 
     auto deviceProperties = selector.getDeviceProperties(0);
-    auto const warpExtent = deviceProperties.getPreferredWarpSize();
+    auto const warpExtent = deviceProperties.m_warpSize;
 
     auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     auto successHost = onHost::allocHost<bool>(1u);
     auto successDev = onHost::allocLike(device, successHost);
-    // single lane warps
-    if(warpExtent == 1u)
-    {
-        onHost::memset(queue, successDev, static_cast<std::uint8_t>(true));
-        queue.enqueue(
-            exec,
-            onHost::FrameSpec{Vec<std::uint32_t, 1u>{1u}, Vec<std::uint32_t, 1u>{1u}},
-            KernelBundle{ShflXorSingleThreadKernel{}, successDev});
-        onHost::memcpy(queue, successHost, successDev);
-        onHost::wait(queue);
-        CHECK(successHost[0]);
-        return;
-    }
 
     auto const blocks = Vec<std::uint32_t, 1u>{1u};
     auto const threads = Vec<std::uint32_t, 1u>{warpExtent};
@@ -148,4 +126,3 @@ TEMPLATE_LIST_TEST_CASE("warp shflXor exchanges partner lanes", "[warp][shfl_xor
     INFO("backend=" << deviceSpec.getName());
     CHECK(successHost[0]);
 }
-#endif

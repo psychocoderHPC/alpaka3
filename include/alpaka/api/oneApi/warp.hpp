@@ -174,6 +174,20 @@ namespace alpaka::onAcc::warp::internal
             return result;
         }
     };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc, typename T>
+    struct ShflXor::Op<T_Acc, api::OneApi, T>
+    {
+        constexpr T operator()(T_Acc const& acc, api::OneApi, T const& value, uint32_t laneMask, uint32_t width) const
+        {
+            sycl::sub_group sg = sycl::ext::oneapi::this_work_item::get_sub_group();
+            uint32_t laneIdxInWarp = sg.get_local_id()[0];
+            uint32_t groupStartIdx = (laneIdxInWarp / width) * width;
+            uint32_t const relativeIdx = laneIdxInWarp - groupStartIdx;
+            uint32_t const sourceLane = (relativeIdx % width) ^ laneMask;
+            return sycl::select_from_group(sg, value, sourceLane < width ? groupStartIdx + sourceLane : laneIdxInWarp);
+        }
+    };
 } // namespace alpaka::onAcc::warp::internal
 #endif
 

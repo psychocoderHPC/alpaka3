@@ -93,6 +93,16 @@ namespace alpaka::onAcc::warp::internal
             return __shfl_up_sync(__activemask(), value, static_cast<int>(delta), static_cast<int>(width));
         }
     };
+
+    template<alpaka::onAcc::concepts::Acc T_Acc, typename T>
+    struct ShflXor::Op<T_Acc, api::Cuda, T>
+    {
+        constexpr __device__ T
+        operator()(T_Acc const& acc, api::Cuda, T const& value, uint32_t laneMask, uint32_t width) const
+        {
+            return __shfl_xor_sync(__activemask(), value, static_cast<int>(laneMask), static_cast<int>(width));
+        }
+    };
 } // namespace alpaka::onAcc::warp::internal
 #endif
 

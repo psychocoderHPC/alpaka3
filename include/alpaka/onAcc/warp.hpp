@@ -147,9 +147,9 @@ namespace alpaka::onAcc::warp
      * This method supports to be called in diverging control flow branches if you only query values from threads
      * within the same branch path.
      *
-     * @param  value   value to broadcast, only used if other thread is addressing the lane of this thread.
-     * @param  srcLane source lane index within the group range [0; width).
-     * @param  width   number of threads receiving a single value, must be a power of 2.
+     * @param value value to broadcast, only used if other thread is addressing the lane of this thread.
+     * @param srcLane source lane index within the group range [0; width).
+     * @param width number of threads receiving a single value, must be a power of 2.
      * @return val from the thread index srcLane.
      */
     template<typename T, alpaka::onAcc::concepts::Acc T_Acc>
@@ -182,9 +182,9 @@ namespace alpaka::onAcc::warp
      * * Commonly used with width = warpsize (the default), (returns values[threadIdx.x+delta] if threadIdx.x+delta <
      * warpsize)
      *
-     * @param  value   value to broadcast
-     * @param  delta  corresponds to the delta used to compute the lane ID
-     * @param  width   size of the group participating in the shuffle operation, must be a power of 2.
+     * @param value value to broadcast
+     * @param delta corresponds to the delta used to compute the lane ID
+     * @param width size of the group participating in the shuffle operation, must be a power of 2.
      * @return the value from the thread index lane ID + delta within the group build by width, else value.
      */
     template<typename T, alpaka::onAcc::concepts::Acc T_Acc>
@@ -216,9 +216,9 @@ namespace alpaka::onAcc::warp
      *
      * Commonly used with width = warpsize (the default), (returns values[threadIdx.x - delta] if threadIdx.x >= delta)
      *
-     * @param  value   value to broadcast
-     * @param  delta  corresponds to the delta used to compute the lane ID
-     * @param  width   size of the group participating in the shuffle operation, must be a power of 2.
+     * @param value value to broadcast
+     * @param delta corresponds to the delta used to compute the lane ID
+     * @param width size of the group participating in the shuffle operation, must be a power of 2.
      * @return the value from the thread index lane ID + delta within the group build by width, else value.
      */
     template<typename T, alpaka::onAcc::concepts::Acc T_Acc>
@@ -227,6 +227,47 @@ namespace alpaka::onAcc::warp
         using Acc = ALPAKA_TYPEOF(acc);
         using Api = ALPAKA_TYPEOF(acc[object::api]);
         return internal::ShflUp::Op<Acc, Api, T>{}(acc, Api{}, value, delta, width != 0u ? width : getSize<T_Acc>());
+    }
+
+    /** Exchange data between threads within a warp.
+     *
+     * It copies from a lane based on bitwise XOR of own lane ID.
+     * The lane ID is calculated by performing a bitwise XOR of the caller’s lane ID with laneMask
+     *
+     * Effectively executes:
+     *
+     *     __shared__ int32_t values[warpsize];
+     *     values[threadIdx.x] = value;
+     *     __syncthreads();
+     *     int lane = threadIdx.x ^ laneMask;
+     *     return values[lane / width > threadIdx.x / width ? threadIdx.x : lane];
+     *
+     * However, it does not use shared memory.
+     *
+     * Notes:
+     * * The programmer must ensure that all threads calling this
+     *   function (and the srcLane) are executing the same line of code.
+     *   In particular it is not portable to write if(a) {shfl} else {shfl}.
+     *
+     * * Commonly used with width = warpsize (the default), (returns values[threadIdx.x^laneMask])
+     *
+     * * Width must be a power of 2.
+     * @param value value to broadcast
+     * @param laneMask mask applied to the thread lane index within the subgroup created by width.
+     * @param width size of the group participating in the shuffle operation, must be a power of 2.
+     * @return the value from the thread index lane ID
+     */
+    template<typename T, alpaka::onAcc::concepts::Acc T_Acc>
+    constexpr T shflXor(T_Acc const& acc, T const& value, uint32_t laneMask, uint32_t width = getSize<T_Acc>())
+    {
+        using Acc = ALPAKA_TYPEOF(acc);
+        using Api = ALPAKA_TYPEOF(acc[object::api]);
+        return internal::ShflXor::Op<Acc, Api, T>{}(
+            acc,
+            Api{},
+            value,
+            laneMask,
+            width != 0u ? width : getSize<T_Acc>());
     }
 
 #if 0
