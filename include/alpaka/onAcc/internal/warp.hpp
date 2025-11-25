@@ -16,6 +16,7 @@
 #include "alpaka/api/concepts/api.hpp"
 #include "alpaka/api/trait.hpp"
 #include "alpaka/core/common.hpp"
+#include "alpaka/onAcc/Acc.hpp"
 #include "alpaka/tag.hpp"
 
 #include <cstdint>

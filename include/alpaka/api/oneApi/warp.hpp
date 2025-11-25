@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "alpaka/api/host/warp.hpp"
 #include "alpaka/api/oneApi/Api.hpp"
 #include "alpaka/concepts.hpp"
 #include "alpaka/core/common.hpp"
