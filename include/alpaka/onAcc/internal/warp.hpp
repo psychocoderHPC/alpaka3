@@ -121,6 +121,19 @@ namespace alpaka::onAcc::warp::internal
         };
     };
 
+    struct ShflUp
+    {
+        template<alpaka::onAcc::concepts::Acc T_Acc, alpaka::concepts::Api T_Api, typename T>
+        struct Op
+        {
+            constexpr T operator()(T_Acc const&, T_Api api, T const& value, uint32_t delta, uint32_t width) const
+            {
+                static_assert(sizeof(T_Acc) && false, "Missing warp ShflUp implementation for the accelerator.");
+                return T{};
+            }
+        };
+    };
+
 #if 0
 
     /** Vote function returning true if all active lanes satisfy the predicate. */
