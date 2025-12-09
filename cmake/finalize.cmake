@@ -125,7 +125,7 @@ endfunction()
 ## Calling this method twice for the same target will result in an undefined behaviour.
 ## Linking non alpaka targets after calling this method is allowed.
 ## If new source files are added to the target after calling this method they will not be handled by alpaka.
-function(alpaka_finalize target)
+function(alpaka_finalize_do target)
     # Decide backend based on linked alpaka target
     list(REMOVE_DUPLICATES alpaka_target_list)
     alpaka_get_targets(${target} alpaka_target_list)
@@ -279,3 +279,12 @@ function(alpaka_finalize target)
         endif()
     endif()
 endfunction()
+
+macro(alpaka_finalize target)
+    if(NOT _alpaka_ROOT_DIR)
+        message(STATUS "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn")
+       # include("${alpaka_SOURCE_DIR}/cmake/alpakaFetchContentFinalize.cmake")
+    endif()
+    alpaka_finalize_do(${target})
+endmacro()
+

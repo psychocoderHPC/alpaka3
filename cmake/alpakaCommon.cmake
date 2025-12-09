@@ -86,6 +86,11 @@ checkcompilercxxsupport(CXX ${alpaka_CXX_STANDARD})
 # check for CUDA/HIP language support
 include(CheckLanguage)
 
+# it is an internal marker that languages are loaded by alpaka, if this variable is not set we need to load
+# alpakaPrepareForAddSubdirectoryUsage.cmake in alpaka_finalize()
+# The problem is
+set(_alpaka_LANGUAGES_PRECESSED 1)
+
 option(alpaka_DEP_CUDA "Enable the CUDA as dependency, allows the usage of api::Cuda and exec::gpuCuda." OFF)
 option(alpaka_DEP_HIP "Enable the HIP as dependency, allows the usage of api::Hip and exec::gpuHip" OFF)
 option(alpaka_DEP_OMP "Enable the OpenMP as dependency, allows the usage of exec::cpuOmpBlocks" ON)
