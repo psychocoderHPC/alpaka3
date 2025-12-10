@@ -60,6 +60,24 @@ namespace alpaka::onHost
                     return platform.makeDevice(idx);
                 }
             };
+
+            template<typename T_Platform>
+            struct Link
+            {
+                auto operator()(auto& platform, auto&& nativeHandle, bool syncBeforeDestroy) const
+                {
+                    return platform.linkDevice(ALPAKA_FORWARD(nativeHandle), syncBeforeDestroy);
+                }
+            };
+
+            template<typename T_Platform>
+            struct Unlink
+            {
+                void operator()(auto& platform, auto&& nativeHandle) const
+                {
+                    platform.unlinkDevice(ALPAKA_FORWARD(nativeHandle));
+                }
+            };
         };
 
         struct GetDevice
@@ -101,9 +119,31 @@ namespace alpaka::onHost
             template<typename T_Device, alpaka::concepts::QueueKind T_QueueKind>
             struct Op
             {
-                auto operator()(T_Device& device, T_QueueKind) const
+                auto operator()(T_Device& device, T_QueueKind queueKind) const
                 {
-                    return device.makeQueue(T_QueueKind{});
+                    return device.makeQueue(queueKind);
+                }
+            };
+
+            template<typename T_Device, alpaka::concepts::QueueKind T_QueueKind>
+            struct Link
+            {
+                auto operator()(
+                    T_Device& device,
+                    T_QueueKind queueKind,
+                    auto&& nativeQueueHandle,
+                    bool syncBeforeDestroy) const
+                {
+                    return device.linkQueue(queueKind, ALPAKA_FORWARD(nativeQueueHandle), syncBeforeDestroy);
+                }
+            };
+
+            template<typename T_Device>
+            struct Unlink
+            {
+                void operator()(T_Device& device, auto&& nativeHandle) const
+                {
+                    device.unlinkQueue(ALPAKA_FORWARD(nativeHandle));
                 }
             };
         };

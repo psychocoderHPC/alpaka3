@@ -38,6 +38,28 @@ namespace alpaka::onHost
                 ALPAKA_LOG_FUNCTION(onHost::logger::device);
             }
 
+            Device(
+                internal::concepts::PlatformHandle auto platform,
+                sycl::device const& dev,
+                uint32_t const idx,
+                bool syncBeforeDestroy)
+                : m_platform(std::move(platform))
+                , m_idx(idx)
+                , m_sycl_dev(dev)
+                , m_manageDevice(false)
+                , m_syncBeforeDestroy(syncBeforeDestroy)
+                , m_properties{internal::getDeviceProperties(*m_platform.get(), m_idx)}
+            {
+            }
+
+            ~Device()
+            {
+                if(m_syncBeforeDestroy)
+                {
+                    wait();
+                }
+            }
+
             Device(Device const&) = delete;
             Device& operator=(Device const&) = delete;
 
@@ -66,6 +88,34 @@ namespace alpaka::onHost
                 constexpr bool isBlocking = kind == queueKind::blocking;
                 auto newQueue
                     = std::make_shared<syclGeneric::Queue<Device>>(std::move(thisHandle), queues.size(), isBlocking);
+
+                queues.emplace_back(newQueue);
+                return newQueue;
+            }
+
+            [[nodiscard]] Handle<syclGeneric::Queue<Device>> linkQueue(
+                alpaka::concepts::QueueKind auto kind,
+                sycl::queue const& queue,
+                bool syncBeforeDestroy)
+            {
+                if(!queue.has_property<sycl::property::queue::in_order>())
+                {
+                    throw std::runtime_error(
+                        std::string("Only queues with property 'sycl::property::queue::in_order' are supported"));
+                }
+                static_assert(
+                    kind == queueKind::blocking || kind == queueKind::nonBlocking,
+                    "Unsupported queue kind.");
+                auto thisHandle = this->getSharedPtr();
+                std::lock_guard<std::mutex> lk{m_writeGuard};
+
+                constexpr bool isBlocking = kind == queueKind::blocking;
+                auto newQueue = std::make_shared<syclGeneric::Queue<Device>>(
+                    std::move(thisHandle),
+                    queues.size(),
+                    isBlocking,
+                    queue,
+                    syncBeforeDestroy);
 
                 queues.emplace_back(newQueue);
                 return newQueue;
@@ -128,6 +178,11 @@ namespace alpaka::onHost
             std::vector<std::weak_ptr<syclGeneric::Event<Device>>> events;
             std::mutex m_writeGuard;
 
+            // if true the device is managed by alpaka, else false
+            bool m_manageDevice = true;
+            // If true the device is syncronized before the last handle is destroyed.
+            bool m_syncBeforeDestroy = true;
+
             DeviceProperties m_properties;
 
             friend struct alpaka::internal::GetApi;
@@ -137,11 +192,34 @@ namespace alpaka::onHost
             friend struct onHost::internal::AllocUnified;
             friend struct onHost::internal::AllocMapped;
             friend struct onHost::internal::IsDataAccessible;
+            friend struct onHost::internal::MakeDevice;
+            friend struct onHost::internal::MakeQueue;
         };
     } // namespace syclGeneric
 
     namespace internal
     {
+        template<typename T_Platform>
+        struct MakeQueue::Unlink<syclGeneric::Device<T_Platform>>
+        {
+            void operator()(syclGeneric::Device<T_Platform>& device, sycl::queue const& queue) const
+            {
+                std::lock_guard<std::mutex> lk{device.m_writeGuard};
+
+                auto result = std::find_if(
+                    device.queues.begin(),
+                    device.queues.end(),
+                    [=](auto const& devQueue)
+                    {
+                        auto sharedPtr = devQueue.lock();
+                        return sharedPtr && sharedPtr->m_queue == queue;
+                    });
+                if(result == device.queues.end())
+                    throw std::runtime_error(std::string("Native queue not found."));
+                else
+                    device.queues.erase(result);
+            }
+        };
 
         template<typename T_Type, typename T_Platform, alpaka::concepts::Vector T_Extents>
         struct Alloc::Op<T_Type, syclGeneric::Device<T_Platform>, T_Extents>

@@ -186,6 +186,21 @@ namespace alpaka::onHost
                 ALPAKA_LOG_FUNCTION(onHost::logger::queue);
             }
 
+            Queue(
+                internal::concepts::DeviceHandle auto device,
+                uint32_t const idx,
+                bool isBlocking,
+                sycl::queue const& queue,
+                bool syncBeforeDestroy)
+                : m_device(std::move(device))
+                , m_idx(idx)
+                , m_queue(queue)
+                , m_isBlocking(isBlocking)
+                , m_manageQueue(false)
+                , m_syncBeforeDestroy(syncBeforeDestroy)
+            {
+            }
+
             [[nodiscard]] bool isBlocking() const noexcept
             {
                 return m_isBlocking;
@@ -202,7 +217,8 @@ namespace alpaka::onHost
                 ALPAKA_LOG_FUNCTION(onHost::logger::queue);
                 try
                 {
-                    m_queue.wait_and_throw();
+                    if(m_syncBeforeDestroy)
+                        m_queue.wait_and_throw();
                 }
                 catch(sycl::exception const& err)
                 {
@@ -243,6 +259,7 @@ namespace alpaka::onHost
             friend struct alpaka::internal::GetDeviceType;
             friend struct alpaka::onHost::internal::Enqueue;
             friend struct onHost::internal::AllocDeferred;
+            friend struct onHost::internal::MakeQueue;
 
             auto getDeviceKind() const
             {
@@ -273,6 +290,11 @@ namespace alpaka::onHost
             sycl::queue m_queue;
             core::CallbackThread m_callBackThread;
             bool m_isBlocking{false};
+
+            // if true the queue is managed by alpaka, else false
+            bool m_manageQueue = true;
+            // If true the queue is syncronized before the last handle is destroyed.
+            bool m_syncBeforeDestroy = true;
         };
 
     } // namespace syclGeneric

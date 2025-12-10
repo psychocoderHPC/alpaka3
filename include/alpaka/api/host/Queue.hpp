@@ -125,13 +125,6 @@ namespace alpaka::onHost
                 return std::string("host::Queue id=") + std::to_string(m_idx);
             }
 
-            friend struct internal::GetNativeHandle;
-
-            [[nodiscard]] auto getNativeHandle() const noexcept
-            {
-                return m_idx;
-            }
-
             friend struct internal::Enqueue;
 
             template<alpaka::concepts::Vector T_NumBlocks, alpaka::concepts::Vector T_NumThreads>

@@ -5,6 +5,7 @@
 #pragma once
 
 #include "Handle.hpp"
+#include "alpaka/api/api.hpp"
 #include "alpaka/interface.hpp"
 #include "alpaka/onHost/Event.hpp"
 #include "alpaka/onHost/Queue.hpp"
@@ -65,7 +66,7 @@ namespace alpaka::onHost
             return alpaka::internal::GetName::Op<std::decay_t<decltype(*m_device.get())>>{}(*m_device.get());
         }
 
-        [[nodiscard]] auto getNativeHandle() const
+        [[nodiscard]] auto getNativeHandle() const requires(!std::same_as<T_Api, alpaka::api::Host>)
         {
             return internal::getNativeHandle(*m_device.get());
         }
@@ -105,9 +106,35 @@ namespace alpaka::onHost
                 kind};
         }
 
+        /** Create a non-blocking queue for this device. */
         auto makeQueue()
         {
             return makeQueue(queueKind::nonBlocking);
+        }
+
+        auto linkQueue(alpaka::concepts::QueueKind auto kind, auto&& nativeQueueHandle, bool syncBeforeDestroy = true)
+            requires(!std::same_as<T_Api, alpaka::api::Host>)
+        {
+            return Queue{
+                internal::MakeQueue::Link<ALPAKA_TYPEOF(*m_device.get()), ALPAKA_TYPEOF(kind)>{}(
+                    *m_device.get(),
+                    kind,
+                    ALPAKA_FORWARD(nativeQueueHandle),
+                    syncBeforeDestroy),
+                kind};
+        }
+
+        auto linkQueue(auto&& nativeQueueHandle, bool syncBeforeDestroy = true)
+            requires(!std::same_as<T_Api, alpaka::api::Host>)
+        {
+            return linkQueue(queueKind::nonBlocking, ALPAKA_FORWARD(nativeQueueHandle), syncBeforeDestroy);
+        }
+
+        auto unlinkQueue(auto&& nativeQueueHandle) requires(!std::same_as<T_Api, alpaka::api::Host>)
+        {
+            return internal::MakeQueue::Unlink<ALPAKA_TYPEOF(*m_device.get())>{}(
+                *m_device.get(),
+                ALPAKA_FORWARD(nativeQueueHandle));
         }
 
         auto makeEvent()

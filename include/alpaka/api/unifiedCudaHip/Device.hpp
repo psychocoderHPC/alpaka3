@@ -37,15 +37,35 @@ namespace alpaka::onHost
             {
                 ALPAKA_LOG_FUNCTION(onHost::logger::device);
                 m_properties.m_name += " id=" + std::to_string(m_idx);
-                ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::setDevice(idx));
+                ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::setDevice(m_idx));
+            }
+
+            Device(
+                internal::concepts::PlatformHandle auto platform,
+                uint32_t const nativeHandle,
+                bool syncBeforeDestroy)
+                : m_platform(std::move(platform))
+                , m_idx(nativeHandle)
+                , m_properties{internal::getDeviceProperties(*m_platform.get(), m_idx)}
+                , m_manageDevice(false)
+                , m_syncBeforeDestroy(syncBeforeDestroy)
+            {
+                m_properties.m_name += " id=" + std::to_string(m_idx);
+                ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::setDevice(m_idx));
             }
 
             ~Device()
             {
                 ALPAKA_LOG_FUNCTION(onHost::logger::device);
-                ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::setDevice(getNativeHandle()));
-                ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::deviceSynchronize());
-                ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::deviceReset());
+                if(m_syncBeforeDestroy)
+                {
+                    ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::setDevice(getNativeHandle()));
+                    ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::deviceSynchronize());
+                }
+                if(m_manageDevice)
+                {
+                    ALPAKA_UNIFORM_CUDA_HIP_RT_CHECK(ApiInterface, ApiInterface::deviceReset());
+                }
             }
 
             Device(Device const&) = delete;
@@ -85,6 +105,11 @@ namespace alpaka::onHost
             std::vector<std::weak_ptr<unifiedCudaHip::Queue<Device>>> queues;
             std::vector<std::weak_ptr<unifiedCudaHip::Event<Device>>> events;
             std::mutex m_writeGuard;
+
+            // if true the device is managed by alpaka, else false
+            bool m_manageDevice = true;
+            // If true the device is syncronized before the last handle is destroyed.
+            bool m_syncBeforeDestroy = true;
 
             std::shared_ptr<Device> getSharedPtr()
             {
@@ -126,6 +151,29 @@ namespace alpaka::onHost
                 return newQueue;
             }
 
+            Handle<unifiedCudaHip::Queue<Device>> linkQueue(
+                alpaka::concepts::QueueKind auto kind,
+                typename ApiInterface::Stream_t stream,
+                bool syncBeforeDestroy)
+            {
+                static_assert(
+                    kind == queueKind::blocking || kind == queueKind::nonBlocking,
+                    "Unsupported queue kind.");
+                auto thisHandle = this->getSharedPtr();
+                std::lock_guard<std::mutex> lk{m_writeGuard};
+
+                constexpr bool isBlocking = kind == queueKind::blocking;
+                auto newQueue = std::make_shared<unifiedCudaHip::Queue<Device>>(
+                    std::move(thisHandle),
+                    queues.size(),
+                    isBlocking,
+                    stream,
+                    syncBeforeDestroy);
+
+                queues.emplace_back(newQueue);
+                return newQueue;
+            }
+
             friend struct onHost::internal::MakeEvent;
 
             Handle<unifiedCudaHip::Event<Device>> makeEvent()
@@ -154,6 +202,7 @@ namespace alpaka::onHost
             friend struct internal::GetDeviceProperties;
             friend struct internal::AdjustThreadSpec;
             friend struct onHost::internal::IsDataAccessible;
+            friend struct onHost::internal::MakeDevice;
         };
     } // namespace unifiedCudaHip
 } // namespace alpaka::onHost
@@ -174,6 +223,30 @@ namespace alpaka::onHost
 {
     namespace internal
     {
+        template<typename T_Platform>
+        struct MakeQueue::Unlink<unifiedCudaHip::Device<T_Platform>>
+        {
+            void operator()(
+                unifiedCudaHip::Device<T_Platform>& device,
+                typename unifiedCudaHip::Device<T_Platform>::ApiInterface::Stream_t stream) const
+            {
+                std::lock_guard<std::mutex> lk{device.m_writeGuard};
+
+                auto result = std::find_if(
+                    device.queues.begin(),
+                    device.queues.end(),
+                    [=](auto const& queue)
+                    {
+                        auto sharedPtr = queue.lock();
+                        return sharedPtr && sharedPtr->m_UniformCudaHipQueue == stream;
+                    });
+                if(result == device.queues.end())
+                    throw std::runtime_error(std::string("Native stream not found."));
+                else
+                    device.queues.erase(result);
+            }
+        };
+
         template<typename T_Type, typename T_Platform, alpaka::concepts::Vector T_Extents>
         struct Alloc::Op<T_Type, unifiedCudaHip::Device<T_Platform>, T_Extents>
         {

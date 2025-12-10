@@ -104,13 +104,6 @@ namespace alpaka::onHost
                 return m_properties.m_name;
             }
 
-            friend struct internal::GetNativeHandle;
-
-            [[nodiscard]] uint32_t getNativeHandle() const noexcept
-            {
-                return m_idx;
-            }
-
             friend struct internal::MakeQueue;
 
             Handle<cpu::Queue<Device>> makeQueue(alpaka::concepts::QueueKind auto kind)

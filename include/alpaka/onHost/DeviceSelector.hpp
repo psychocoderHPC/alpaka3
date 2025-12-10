@@ -107,6 +107,22 @@ namespace alpaka::onHost
             return Device{internal::MakeDevice::Op<ALPAKA_TYPEOF(*m_platform.get())>{}(*m_platform.get(), idx)};
         }
 
+        auto linkDevice(auto&& nativeHandle, bool syncBeforeDestroy = true)
+            requires(!std::same_as<T_Api, alpaka::api::Host>)
+        {
+            return Device{internal::MakeDevice::Link<ALPAKA_TYPEOF(*m_platform.get())>{}(
+                *m_platform.get(),
+                ALPAKA_FORWARD(nativeHandle),
+                syncBeforeDestroy)};
+        }
+
+        void unLinkDevice(auto&& nativeHandle) requires(!std::same_as<T_Api, alpaka::api::Host>)
+        {
+            internal::MakeDevice::Unlink<ALPAKA_TYPEOF(*m_platform.get())>{}(
+                *m_platform.get(),
+                ALPAKA_FORWARD(nativeHandle));
+        }
+
     private:
         ALPAKA_TYPEOF(internal::makePlatform(T_Api{}, T_DeviceKind{})) m_platform;
         DeviceSpec<T_Api, T_DeviceKind> m_deviceSpec;
