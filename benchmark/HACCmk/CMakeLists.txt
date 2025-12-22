@@ -23,15 +23,22 @@ if(TARGET OpenMP::OpenMP_CXX)
     target_link_libraries(HACCmk_orig PRIVATE OpenMP::OpenMP_CXX)
     target_link_libraries(HACCmk_orig PRIVATE Catch2::Catch2WithMain)
 
+    add_executable(HACCmk_sa "src/main_sa.cpp")
+    target_include_directories(HACCmk_sa PRIVATE "src")
+    target_link_libraries(HACCmk_sa PRIVATE OpenMP::OpenMP_CXX)
+    target_link_libraries(HACCmk_sa PRIVATE Catch2::Catch2WithMain)
+
     #Run as a ctest
     if(alpaka_CI)
         # Only run for release builds since this is a benchmark
         if(CMAKE_BUILD_TYPE STREQUAL "Release")
             add_test(NAME HACCmk_orig COMMAND "HACCmk_orig")
+            add_test(NAME HACCmk_sa COMMAND "HACCmk_sa")
         endif()
     else()
         # For a normal benchmark test, number of samples should be equal to the default value.
         add_test(NAME HACCmk_orig COMMAND "HACCmk_orig")
+        add_test(NAME HACCmk_sa COMMAND "HACCmk_sa")
     endif()
 else()
     message(STATUS "No OpenMP found, HACCmk_orig is not build.")
