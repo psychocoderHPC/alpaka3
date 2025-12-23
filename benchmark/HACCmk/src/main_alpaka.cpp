@@ -3,8 +3,12 @@
 
 #include <omp.h>
 
+#include <bit>
 #include <chrono>
+#include <experimental/simd>
 #include <iostream>
+
+namespace stdx = std::experimental;
 
 extern void Step10_orig(
     int count1,
@@ -71,8 +75,8 @@ struct Kernel
 #define FAST_POW 1
 #if FAST_POW == 1
 
-                auto p = SimdType([&](uint32_t const idx) constexpr
-                                  { return float{1.0} / (tmp[idx] * math::sqrt(tmp[idx])); });
+                auto bar = SimdType([&](uint32_t const idx) constexpr { return math::sqrt(tmp[idx]); });
+                auto p = float{1.0} / (tmp * bar);
 #else
                 auto p = SimdType([&](uint32_t const idx) constexpr { return math::pow(tmp[idx], float{-1.5}); });
 #endif

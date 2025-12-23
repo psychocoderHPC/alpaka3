@@ -48,10 +48,12 @@ namespace sa
     {
         float const ma0 = 0.269327, ma1 = -0.0750978, ma2 = 0.0114808, ma3 = -0.00109313, ma4 = 0.0000605491,
                     ma5 = -0.00000147177;
-        float xi = 0.;
-        float yi = 0.;
-        float zi = 0.;
+
         using SimdModel = stdx::native_simd<float>;
+        SimdModel xi = 0.f;
+        SimdModel yi = 0.f;
+        SimdModel zi = 0.f;
+
         simd_access::loop<SimdModel>(
             0,
             count1,
@@ -80,13 +82,22 @@ namespace sa
                 var_type fac(.0f);
                 stdx::where(r2 > 0.0f, fac) = m * f;
 
-                xi += sa::reduce(fac * dxc, std::plus{});
-                yi += sa::reduce(fac * dyc, std::plus{});
-                zi += sa::reduce(fac * dzc, std::plus{});
+                if constexpr(std::same_as<float, decltype(xi)>)
+                {
+                    xi[0] += fac * dxc;
+                    yi[0] += fac * dyc;
+                    zi[0] += fac * dzc;
+                }
+                else
+                {
+                    xi += fac * dxc;
+                    yi += fac * dyc;
+                    zi += fac * dzc;
+                }
             });
-        *dxi = xi;
-        *dyi = yi;
-        *dzi = zi;
+        *dxi = sa::reduce(xi, std::plus{});
+        *dyi = sa::reduce(yi, std::plus{});
+        *dzi = sa::reduce(zi, std::plus{});
     }
 } // namespace sa
 

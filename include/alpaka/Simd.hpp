@@ -109,7 +109,8 @@ namespace alpaka
         concept Simd = isSimd_v<T>;
 
         template<typename T>
-        concept SimdMask = Simd<T> && std::same_as<bool, typename T::type>;
+        concept SimdMask
+            = Simd<T> && (std::same_as<uint32_t, typename T::type> || std::same_as<uint64_t, typename T::type>);
 
         template<typename T>
         concept SimdOrScalar = (isSimd_v<T> || std::integral<T> || std::floating_point<T>);
@@ -648,12 +649,17 @@ namespace alpaka
         constexpr auto& update(concepts::SimdMask auto const& mask, auto const& t)
             requires concepts::LosslesslyConvertible<ALPAKA_TYPEOF(t), T_Type> && requires { t.valueMask(mask); }
         {
+#if 0
             auto vm = t.valueMask(mask);
             using ValueBitMaskType = typename ALPAKA_TYPEOF(vm)::type;
             for(uint32_t i = 0u; i < T_width; ++i)
                 (*this)[i] = std::bit_cast<T_Type>(
                     (vm[i] & std::bit_cast<ValueBitMaskType>(static_cast<T_Type>(t)))
                     | (~vm[i] & std::bit_cast<ValueBitMaskType>((*this)[i])));
+#else
+            using ValueBitMaskType = ALPAKA_TYPEOF(mask);
+            (*this) = (mask & std::bit_cast<ValueBitMaskType>(t)) | (~mask & std::bit_cast<ValueBitMaskType>(t));
+#endif
             return *this;
         }
 
@@ -797,10 +803,6 @@ namespace alpaka
     ALPAKA_VECTOR_BINARY_OP(typename, T_Type, -)
     ALPAKA_VECTOR_BINARY_OP(typename, T_Type, *)
     ALPAKA_VECTOR_BINARY_OP(typename, T_Type, /)
-    ALPAKA_VECTOR_BINARY_OP(typename, bool, >=)
-    ALPAKA_VECTOR_BINARY_OP(typename, bool, >)
-    ALPAKA_VECTOR_BINARY_OP(typename, bool, <=)
-    ALPAKA_VECTOR_BINARY_OP(typename, bool, <)
     ALPAKA_VECTOR_BINARY_OP(typename, bool, &&)
     ALPAKA_VECTOR_BINARY_OP(typename, bool, ||)
     ALPAKA_VECTOR_BINARY_OP(std::integral, T_Type, %)
@@ -811,6 +813,70 @@ namespace alpaka
     ALPAKA_VECTOR_BINARY_OP(std::integral, T_Type, ^)
 
 #undef ALPAKA_VECTOR_BINARY_OP
+
+#define ALPAKA_VECTOR_BINARY_CMP_OP(typenameOrConcept, op)                                                            \
+    template<                                                                                                         \
+        typenameOrConcept T_Type,                                                                                     \
+        uint32_t T_width,                                                                                             \
+        concepts::Alignment T_Alignment,                                                                              \
+        typename T_Storage,                                                                                           \
+        concepts::Alignment T_OtherAlignment,                                                                         \
+        typename T_OtherStorage>                                                                                      \
+    constexpr auto operator op(                                                                                       \
+        const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs,                                                     \
+        const Simd<T_Type, T_width, T_OtherAlignment, T_OtherStorage>& rhs)                                           \
+    {                                                                                                                 \
+        /* to avoid allocation side effects the result is always a vector                                             \
+         * with default policies                                                                                      \
+         */                                                                                                           \
+        using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                           \
+        Simd<ValueMaskType, T_width> result{};                                                                        \
+        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
+            result[i] = lhs[i] op rhs[i] ? std::numeric_limits<ValueMaskType>::max() : ValueMaskType{0u};             \
+        return result;                                                                                                \
+    }                                                                                                                 \
+                                                                                                                      \
+    template<                                                                                                         \
+        typenameOrConcept T_Type,                                                                                     \
+        concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                          \
+        uint32_t T_width,                                                                                             \
+        concepts::Alignment T_Alignment,                                                                              \
+        typename T_Storage>                                                                                           \
+    constexpr auto operator op(const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs, T_ValueType rhs)             \
+    {                                                                                                                 \
+        /* to avoid allocation side effects the result is always a vector                                             \
+         * with default policies                                                                                      \
+         */                                                                                                           \
+        using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                           \
+        Simd<ValueMaskType, T_width> result{};                                                                        \
+        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
+            result[i] = lhs[i] op rhs ? std::numeric_limits<ValueMaskType>::max() : ValueMaskType{0u};                \
+        return result;                                                                                                \
+    }                                                                                                                 \
+    template<                                                                                                         \
+        typenameOrConcept T_Type,                                                                                     \
+        concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                          \
+        uint32_t T_width,                                                                                             \
+        concepts::Alignment T_Alignment,                                                                              \
+        typename T_Storage>                                                                                           \
+    constexpr auto operator op(T_ValueType lhs, const Simd<T_Type, T_width, T_Alignment, T_Storage>& rhs)             \
+    {                                                                                                                 \
+        /* to avoid allocation side effects the result is always a vector                                             \
+         * with default policies                                                                                      \
+         */                                                                                                           \
+        using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                           \
+        Simd<ValueMaskType, T_width> result{};                                                                        \
+        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
+            result[i] = lhs op rhs[i] ? std::numeric_limits<ValueMaskType>::max() : ValueMaskType{0u};                \
+        return result;                                                                                                \
+    }
+
+    ALPAKA_VECTOR_BINARY_CMP_OP(typename, >=)
+    ALPAKA_VECTOR_BINARY_CMP_OP(typename, >)
+    ALPAKA_VECTOR_BINARY_CMP_OP(typename, <=)
+    ALPAKA_VECTOR_BINARY_CMP_OP(typename, <)
+
+#undef ALPAKA_VECTOR_BINARY_CMP_OP
 
     /** @} */
 
