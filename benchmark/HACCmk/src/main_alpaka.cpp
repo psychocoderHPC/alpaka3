@@ -10,21 +10,6 @@
 
 namespace stdx = std::experimental;
 
-extern void Step10_orig(
-    int count1,
-    float xxi,
-    float yyi,
-    float zzi,
-    float fsrrmax2,
-    float mp_rsm2,
-    float* xx1,
-    float* yy1,
-    float* zz1,
-    float* mass1,
-    float* dxi,
-    float* dyi,
-    float* dzi);
-
 #define NC 16'777'216
 #define N 15000 /* Vector length, must be divisible by 4  15000 */
 #define ETOL 1.e-4 /* Tolerance for correctness */
@@ -75,8 +60,13 @@ struct Kernel
 #define FAST_POW 1
 #if FAST_POW == 1
 
+#    if 1
                 auto bar = SimdType([&](uint32_t const idx) constexpr { return math::sqrt(tmp[idx]); });
-                auto p = float{1.0} / (tmp * bar);
+#    else
+                using std::sqrt;
+                auto bar = sqrt(*reinterpret_cast<stdx::fixed_size_simd<float, SimdType::width()>*>(&tmp));
+#    endif
+                auto p = float{1.0} / (tmp * *reinterpret_cast<SimdType*>(&bar));
 #else
                 auto p = SimdType([&](uint32_t const idx) constexpr { return math::pow(tmp[idx], float{-1.5}); });
 #endif

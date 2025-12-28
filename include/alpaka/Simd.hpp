@@ -830,9 +830,9 @@ namespace alpaka
          * with default policies                                                                                      \
          */                                                                                                           \
         using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                           \
-        Simd<ValueMaskType, T_width> result{};                                                                        \
+        Simd<ValueMaskType, T_width> result{0u};                                                                      \
         for(uint32_t i = 0u; i < T_width; i++)                                                                        \
-            result[i] = lhs[i] op rhs[i] ? std::numeric_limits<ValueMaskType>::max() : ValueMaskType{0u};             \
+            result[i] = static_cast<ValueMaskType>(-(lhs[i] op rhs[i]));                                              \
         return result;                                                                                                \
     }                                                                                                                 \
                                                                                                                       \
@@ -848,9 +848,9 @@ namespace alpaka
          * with default policies                                                                                      \
          */                                                                                                           \
         using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                           \
-        Simd<ValueMaskType, T_width> result{};                                                                        \
+        Simd<ValueMaskType, T_width> result{0u};                                                                      \
         for(uint32_t i = 0u; i < T_width; i++)                                                                        \
-            result[i] = lhs[i] op rhs ? std::numeric_limits<ValueMaskType>::max() : ValueMaskType{0u};                \
+            result[i] = static_cast<ValueMaskType>(-(lhs[i] op rhs));                                                 \
         return result;                                                                                                \
     }                                                                                                                 \
     template<                                                                                                         \
@@ -865,9 +865,9 @@ namespace alpaka
          * with default policies                                                                                      \
          */                                                                                                           \
         using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                           \
-        Simd<ValueMaskType, T_width> result{};                                                                        \
+        Simd<ValueMaskType, T_width> result{0u};                                                                      \
         for(uint32_t i = 0u; i < T_width; i++)                                                                        \
-            result[i] = lhs op rhs[i] ? std::numeric_limits<ValueMaskType>::max() : ValueMaskType{0u};                \
+            result[i] = static_cast<ValueMaskType>(-(lhs op rhs[i]));                                                 \
         return result;                                                                                                \
     }
 
