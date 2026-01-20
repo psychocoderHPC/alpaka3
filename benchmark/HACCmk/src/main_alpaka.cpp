@@ -55,26 +55,38 @@ struct Kernel
                 using SimdType = ALPAKA_TYPEOF(simd_mass1.load());
                 auto m = SimdType::fill(0.);
                 where(r2 < fsrrmax2, m) = simd_mass1.load();
-
+                //stdx::where(r2 < fsrrmax2, m.asBaseType()) = simd_mass1.load().asBaseType();
                 auto tmp = r2 + mp_rsm2;
 #define FAST_POW 1
-#if FAST_POW == 1
+#define SQRT_IMPL 3
 
-#    if 1
+#if FAST_POW == 1
+#    if SQRT_IMPL == 1
                 auto bar = SimdType([&](uint32_t const idx) constexpr { return math::sqrt(tmp[idx]); });
-#    else
+                auto p = float{1.0} / (tmp * bar);
+#    elif SQRT_IMPL == 2
                 using std::sqrt;
                 auto bar = sqrt(*reinterpret_cast<stdx::fixed_size_simd<float, SimdType::width()>*>(&tmp));
-#    endif
                 auto p = float{1.0} / (tmp * *reinterpret_cast<SimdType*>(&bar));
+#    elif SQRT_IMPL == 3
+                using std::sqrt;
+                auto bar = sqrt(tmp.asBaseType());
+                auto p = float{1.0} / (tmp * *reinterpret_cast<SimdType*>(&bar));
+#    endif
+
 #else
                 auto p = SimdType([&](uint32_t const idx) constexpr { return math::pow(tmp[idx], float{-1.5}); });
 #endif
 
                 auto f = p - (ma0 + r2 * (ma1 + r2 * (ma2 + r2 * (ma3 + r2 * (ma4 + r2 * ma5)))));
-
+#if 0
                 auto fac = SimdType::fill(0.);
+#else
+                SimdType fac = 0.f;
+#endif
                 where(r2 > 0.0f, fac) = m * f;
+                //stdx::where(r2 > 0.0f, fac.asBaseType()) = ( m * f).asBaseType();
+
                 if constexpr(SimdType::width() == 1)
                 {
                     force.x()[0] += (fac * dxc)[0];

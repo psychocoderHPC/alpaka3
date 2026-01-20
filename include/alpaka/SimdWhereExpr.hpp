@@ -38,22 +38,30 @@ namespace alpaka
 
         constexpr void operator=(concepts::Simd auto const& rhs)
         {
+#if 0
             value.update(mask, rhs);
+#else
+            stdx::where(mask, value.asBaseType()) = rhs.asBaseType();
+#endif
         }
 
         constexpr void operator=(concepts::LosslesslyConvertible<value_type> auto const& rhs)
         {
+#if 0
             value.update(mask, rhs);
+#else
+            stdx::where(mask, value.asBaseType()) = T_Simd(rhs).asBaseType();
+#endif
         }
 
 #define ALPAKA_SIMD_EXPR_ASSIGN_OP(op_name, op)                                                                       \
     constexpr void operator op_name(concepts::Simd auto const& rhs)                                                   \
     {                                                                                                                 \
-        value.update(mask, value op rhs);                                                                             \
+        stdx::where(mask, value.asBaseType()) op_name T_Simd(rhs).asBaseType();                                            \
     }                                                                                                                 \
     constexpr void operator op_name(concepts::LosslesslyConvertible<value_type> auto const& rhs)                      \
     {                                                                                                                 \
-        value.update(mask, value op rhs);                                                                             \
+        stdx::where(mask, value.asBaseType()) op_name T_Simd(rhs).asBaseType();                                            \
     }
 
         ALPAKA_SIMD_EXPR_ASSIGN_OP(+=, +)

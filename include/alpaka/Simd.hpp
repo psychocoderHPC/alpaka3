@@ -25,11 +25,14 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
+#include <experimental/simd>
 #include <functional>
 #include <iostream>
 #include <ranges>
 #include <sstream>
 #include <type_traits>
+
+namespace stdx = std::experimental;
 
 namespace alpaka
 {
@@ -61,7 +64,6 @@ namespace alpaka
             using type = T_Type;
             using BaseType = std::array<T_Type, T_width>;
             using BaseType::operator[];
-            using AlignmentType = Alignment<optimalAlignment<T_Type, T_width, T_Alignment>()>;
 
             // constructor is required because exposing the array constructors does not work
             template<typename... T_Args>
@@ -72,10 +74,31 @@ namespace alpaka
             constexpr SimdArrayStorage(std::array<T_Type, T_width> const& data) : BaseType{data}
             {
             }
+        };
 
-            static constexpr AlignmentType getAlignment()
+        template<typename T_Type, uint32_t T_width>
+        struct StdSimd : public stdx::fixed_size_simd<T_Type, T_width>
+        {
+            using type = T_Type;
+            using BaseType = stdx::fixed_size_simd<T_Type, T_width>;
+            using BaseType::operator[];
+
+            // constructor is required because exposing the array constructors does not work
+            template<typename... T_Args>
+            constexpr StdSimd(T_Args&&... args)
             {
-                return AlignmentType{};
+                assign(std::index_sequence_for<T_Args...>{}, std::forward<T_Args>(args)...);
+            }
+
+            constexpr StdSimd(BaseType const& data) : BaseType{data}
+            {
+            }
+
+        private:
+            template<std::size_t... I, typename... T_Args>
+            constexpr void assign(std::index_sequence<I...>, T_Args&&... args)
+            {
+                (((*this)[I] = std::forward<T_Args>(args)), ...);
             }
         };
     } // namespace detail
@@ -84,7 +107,7 @@ namespace alpaka
         typename T_Type,
         uint32_t T_width,
         concepts::Alignment T_Alignment = Alignment<sizeof(T_Type) * T_width>,
-        typename T_Storage = detail::SimdArrayStorage<T_Type, T_width, T_Alignment>>
+        typename T_Storage = detail::StdSimd<T_Type, T_width>>
     struct Simd;
 
     namespace trait
@@ -108,9 +131,14 @@ namespace alpaka
         template<typename T>
         concept Simd = isSimd_v<T>;
 
+#if 0
         template<typename T>
         concept SimdMask
             = Simd<T> && (std::same_as<uint32_t, typename T::type> || std::same_as<uint64_t, typename T::type>);
+#else
+        template<typename T>
+        concept SimdMask = isSpecializationOf_v<T, std::experimental::simd_mask>;
+#endif
 
         template<typename T>
         concept SimdOrScalar = (isSimd_v<T> || std::integral<T> || std::floating_point<T>);
@@ -127,7 +155,7 @@ namespace alpaka
     struct SimdWhereExpr;
 
     template<typename T_Type, uint32_t T_width, concepts::Alignment T_Alignment, typename T_Storage>
-    struct Simd : private T_Storage
+    struct Simd : public T_Storage
     {
         using Storage = T_Storage;
         using type = T_Type;
@@ -193,6 +221,10 @@ namespace alpaka
         {
         }
 
+        constexpr Simd(typename T_Storage::BaseType const& base) : T_Storage{base}
+        {
+        }
+
         /** constructor allows changing the storage policy
          */
         template<concepts::Alignment T_OtherAlignment, typename T_OtherStorage>
@@ -212,6 +244,16 @@ namespace alpaka
         static consteval uint32_t width()
         {
             return T_width;
+        }
+
+        auto& asBaseType()
+        {
+            return static_cast<typename Storage::BaseType&>(*this);
+        }
+
+        auto const& asBaseType() const
+        {
+            return static_cast<typename Storage::BaseType const&>(*this);
         }
 
         constexpr void copyFrom(T_Type const* data, concepts::Alignment auto alignment)
@@ -246,7 +288,11 @@ namespace alpaka
          */
         static constexpr auto fill(concepts::Convertible<T_Type> auto const& value)
         {
+#if 0
             Simd result([=](uint32_t const) { return static_cast<T_Type>(value); });
+#else
+            Simd result = value;
+#endif
             return result;
         }
 
@@ -272,42 +318,58 @@ namespace alpaka
             return Simd([this](uint32_t const i) constexpr { return -(*this)[i]; });
         }
 
+#if 0
 /** assign operator
  * @{
  */
-#define ALPAKA_VECTOR_ASSIGN_OP(op)                                                                                   \
-    template<typename T_OtherStorage>                                                                                 \
-    constexpr Simd& operator op(Simd<T_Type, T_width, T_OtherStorage> const& rhs)                                     \
-    {                                                                                                                 \
-        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
+#    define ALPAKA_VECTOR_ASSIGN_OP(op)                                                                               \
+        template<typename T_OtherStorage>                                                                             \
+        constexpr Simd& operator op(Simd<T_Type, T_width, T_OtherStorage> const& rhs)                                 \
         {                                                                                                             \
-            if constexpr(requires { unWrapp((*this)[i]) op rhs[i]; })                                                 \
+            for(uint32_t i = 0u; i < T_width; i++)                                                                    \
             {                                                                                                         \
-                unWrapp((*this)[i]) op rhs[i];                                                                        \
+                if constexpr(requires { unWrapp((*this)[i]) op rhs[i]; })                                             \
+                {                                                                                                     \
+                    unWrapp((*this)[i]) op rhs[i];                                                                    \
+                }                                                                                                     \
+                else                                                                                                  \
+                {                                                                                                     \
+                    (*this)[i] op rhs[i];                                                                             \
+                }                                                                                                     \
             }                                                                                                         \
-            else                                                                                                      \
-            {                                                                                                         \
-                (*this)[i] op rhs[i];                                                                                 \
-            }                                                                                                         \
+            return *this;                                                                                             \
         }                                                                                                             \
-        return *this;                                                                                                 \
-    }                                                                                                                 \
-    constexpr Simd& operator op(concepts::LosslesslyConvertible<T_Type> auto const value)                             \
-    {                                                                                                                 \
-        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
+        constexpr Simd& operator op(concepts::LosslesslyConvertible<T_Type> auto const value)                         \
         {                                                                                                             \
-            if constexpr(requires { unWrapp((*this)[i]) op value; })                                                  \
+            for(uint32_t i = 0u; i < T_width; i++)                                                                    \
             {                                                                                                         \
-                unWrapp((*this)[i]) op value;                                                                         \
+                if constexpr(requires { unWrapp((*this)[i]) op value; })                                              \
+                {                                                                                                     \
+                    unWrapp((*this)[i]) op value;                                                                     \
+                }                                                                                                     \
+                else                                                                                                  \
+                {                                                                                                     \
+                    (*this)[i] op value;                                                                              \
+                }                                                                                                     \
             }                                                                                                         \
-            else                                                                                                      \
-            {                                                                                                         \
-                (*this)[i] op value;                                                                                  \
-            }                                                                                                         \
+            return *this;                                                                                             \
+        }
+#else
+#    define ALPAKA_VECTOR_ASSIGN_OP(op)                                                                               \
+        template<typename T_OtherStorage>                                                                             \
+        constexpr Simd& operator op(Simd<T_Type, T_width, T_OtherStorage> const& rhs)                                 \
+        {                                                                                                             \
+            this->asBaseType() op rhs.asBaseType();                                                                   \
+                                                                                                                      \
+            return *this;                                                                                             \
         }                                                                                                             \
-        return *this;                                                                                                 \
-    }
-
+        constexpr Simd& operator op(concepts::LosslesslyConvertible<T_Type> auto const value)                         \
+        {                                                                                                             \
+            this->asBaseType() op value;                                                                              \
+                                                                                                                      \
+            return *this;                                                                                             \
+        }
+#endif
 
         ALPAKA_VECTOR_ASSIGN_OP(+=)
         ALPAKA_VECTOR_ASSIGN_OP(-=)
@@ -598,7 +660,7 @@ namespace alpaka
 
         template<concepts::SimdMask Mask, concepts::Simd T_Simd>
         friend struct SimdWhereExpr;
-
+#if 0
         /** create a SIMD vector where all bits are zero or one depedning on the mask value
          *
          * @return per lane: all bits one if mask is true, else all bits zero
@@ -649,17 +711,17 @@ namespace alpaka
         constexpr auto& update(concepts::SimdMask auto const& mask, auto const& t)
             requires concepts::LosslesslyConvertible<ALPAKA_TYPEOF(t), T_Type> && requires { t.valueMask(mask); }
         {
-#if 0
+#    if 0
             auto vm = t.valueMask(mask);
             using ValueBitMaskType = typename ALPAKA_TYPEOF(vm)::type;
             for(uint32_t i = 0u; i < T_width; ++i)
                 (*this)[i] = std::bit_cast<T_Type>(
                     (vm[i] & std::bit_cast<ValueBitMaskType>(static_cast<T_Type>(t)))
                     | (~vm[i] & std::bit_cast<ValueBitMaskType>((*this)[i])));
-#else
+#    else
             using ValueBitMaskType = ALPAKA_TYPEOF(mask);
             (*this) = (mask & std::bit_cast<ValueBitMaskType>(t)) | (~mask & std::bit_cast<ValueBitMaskType>(t));
-#endif
+#    endif
             return *this;
         }
 
@@ -671,6 +733,7 @@ namespace alpaka
                 (*this)[i] = (mask[i] ? static_cast<T_Type>(t) : (*this)[i]);
             return (*this);
         }
+#endif
     };
 
     template<std::size_t I, typename T_Type, uint32_t T_width, concepts::Alignment T_Alignment, typename T_Storage>
@@ -743,62 +806,100 @@ namespace alpaka
             uint32_t(sizeof...(T_Args) + 1u),
             Alignment<sizeof(T_1) * uint32_t(sizeof...(T_Args) + 1u)>>>;
 
+#if 0
     /** binary operators
      * @{
      */
-#define ALPAKA_VECTOR_BINARY_OP(typenameOrConcept, resultScalarType, op)                                              \
-    template<                                                                                                         \
-        typenameOrConcept T_Type,                                                                                     \
-        uint32_t T_width,                                                                                             \
-        concepts::Alignment T_Alignment,                                                                              \
-        typename T_Storage,                                                                                           \
-        concepts::Alignment T_OtherAlignment,                                                                         \
-        typename T_OtherStorage>                                                                                      \
-    constexpr auto operator op(                                                                                       \
-        const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs,                                                     \
-        const Simd<T_Type, T_width, T_OtherAlignment, T_OtherStorage>& rhs)                                           \
-    {                                                                                                                 \
-        /* to avoid allocation side effects the result is always a vector                                             \
-         * with default policies                                                                                      \
-         */                                                                                                           \
-        Simd<resultScalarType, T_width> result{};                                                                     \
-        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
-            result[i] = lhs[i] op rhs[i];                                                                             \
-        return result;                                                                                                \
-    }                                                                                                                 \
+#    define ALPAKA_VECTOR_BINARY_OP(typenameOrConcept, resultScalarType, op)                                          \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage,                                                                                       \
+            concepts::Alignment T_OtherAlignment,                                                                     \
+            typename T_OtherStorage>                                                                                  \
+        constexpr auto operator op(                                                                                   \
+            const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs,                                                 \
+            const Simd<T_Type, T_width, T_OtherAlignment, T_OtherStorage>& rhs)                                       \
+        {                                                                                                             \
+            /* to avoid allocation side effects the result is always a vector                                         \
+             * with default policies                                                                                  \
+             */                                                                                                       \
+            Simd<resultScalarType, T_width> result{};                                                                 \
+            for(uint32_t i = 0u; i < T_width; i++)                                                                    \
+                result[i] = lhs[i] op rhs[i];                                                                         \
+            return result;                                                                                            \
+        }                                                                                                             \
                                                                                                                       \
-    template<                                                                                                         \
-        typenameOrConcept T_Type,                                                                                     \
-        concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                          \
-        uint32_t T_width,                                                                                             \
-        concepts::Alignment T_Alignment,                                                                              \
-        typename T_Storage>                                                                                           \
-    constexpr auto operator op(const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs, T_ValueType rhs)             \
-    {                                                                                                                 \
-        /* to avoid allocation side effects the result is always a vector                                             \
-         * with default policies                                                                                      \
-         */                                                                                                           \
-        Simd<resultScalarType, T_width> result{};                                                                     \
-        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
-            result[i] = lhs[i] op rhs;                                                                                \
-        return result;                                                                                                \
-    }                                                                                                                 \
-    template<                                                                                                         \
-        typenameOrConcept T_Type,                                                                                     \
-        concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                          \
-        uint32_t T_width,                                                                                             \
-        concepts::Alignment T_Alignment,                                                                              \
-        typename T_Storage>                                                                                           \
-    constexpr auto operator op(T_ValueType lhs, const Simd<T_Type, T_width, T_Alignment, T_Storage>& rhs)             \
-    {                                                                                                                 \
-        /* to avoid allocation side effects the result is always a vector                                             \
-         * with default policies                                                                                      \
-         */                                                                                                           \
-        Simd<resultScalarType, T_width> result{};                                                                     \
-        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
-            result[i] = lhs op rhs[i];                                                                                \
-        return result;                                                                                                \
-    }
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                      \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage>                                                                                       \
+        constexpr auto operator op(const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs, T_ValueType rhs)         \
+        {                                                                                                             \
+            /* to avoid allocation side effects the result is always a vector                                         \
+             * with default policies                                                                                  \
+             */                                                                                                       \
+            Simd<resultScalarType, T_width> result{};                                                                 \
+            for(uint32_t i = 0u; i < T_width; i++)                                                                    \
+                result[i] = lhs[i] op rhs;                                                                            \
+            return result;                                                                                            \
+        }                                                                                                             \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                      \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage>                                                                                       \
+        constexpr auto operator op(T_ValueType lhs, const Simd<T_Type, T_width, T_Alignment, T_Storage>& rhs)         \
+        {                                                                                                             \
+            /* to avoid allocation side effects the result is always a vector                                         \
+             * with default policies                                                                                  \
+             */                                                                                                       \
+            Simd<resultScalarType, T_width> result{};                                                                 \
+            for(uint32_t i = 0u; i < T_width; i++)                                                                    \
+                result[i] = lhs op rhs[i];                                                                            \
+            return result;                                                                                            \
+        }
+#else
+#    define ALPAKA_VECTOR_BINARY_OP(typenameOrConcept, resultScalarType, op)                                          \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage,                                                                                       \
+            concepts::Alignment T_OtherAlignment,                                                                     \
+            typename T_OtherStorage>                                                                                  \
+        constexpr auto operator op(                                                                                   \
+            const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs,                                                 \
+            const Simd<T_Type, T_width, T_OtherAlignment, T_OtherStorage>& rhs)                                       \
+        {                                                                                                             \
+            return Simd<T_Type, T_width, T_Alignment, T_Storage>(lhs.asBaseType() op rhs.asBaseType());               \
+        }                                                                                                             \
+                                                                                                                      \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                      \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage>                                                                                       \
+        constexpr auto operator op(const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs, T_ValueType rhs)         \
+        {                                                                                                             \
+            return Simd<T_Type, T_width, T_Alignment, T_Storage>(lhs.asBaseType() op rhs);                            \
+        }                                                                                                             \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                      \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage>                                                                                       \
+        constexpr auto operator op(T_ValueType lhs, const Simd<T_Type, T_width, T_Alignment, T_Storage>& rhs)         \
+        {                                                                                                             \
+            return Simd<T_Type, T_width, T_Alignment, T_Storage>(lhs op rhs.asBaseType());                            \
+        }
+#endif
     ALPAKA_VECTOR_BINARY_OP(typename, T_Type, +)
     ALPAKA_VECTOR_BINARY_OP(typename, T_Type, -)
     ALPAKA_VECTOR_BINARY_OP(typename, T_Type, *)
@@ -813,64 +914,100 @@ namespace alpaka
     ALPAKA_VECTOR_BINARY_OP(std::integral, T_Type, ^)
 
 #undef ALPAKA_VECTOR_BINARY_OP
-
-#define ALPAKA_VECTOR_BINARY_CMP_OP(typenameOrConcept, op)                                                            \
-    template<                                                                                                         \
-        typenameOrConcept T_Type,                                                                                     \
-        uint32_t T_width,                                                                                             \
-        concepts::Alignment T_Alignment,                                                                              \
-        typename T_Storage,                                                                                           \
-        concepts::Alignment T_OtherAlignment,                                                                         \
-        typename T_OtherStorage>                                                                                      \
-    constexpr auto operator op(                                                                                       \
-        const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs,                                                     \
-        const Simd<T_Type, T_width, T_OtherAlignment, T_OtherStorage>& rhs)                                           \
-    {                                                                                                                 \
-        /* to avoid allocation side effects the result is always a vector                                             \
-         * with default policies                                                                                      \
-         */                                                                                                           \
-        using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                           \
-        Simd<ValueMaskType, T_width> result{0u};                                                                      \
-        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
-            result[i] = static_cast<ValueMaskType>(-(lhs[i] op rhs[i]));                                              \
-        return result;                                                                                                \
-    }                                                                                                                 \
+#if 0
+#    define ALPAKA_VECTOR_BINARY_CMP_OP(typenameOrConcept, op)                                                        \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage,                                                                                       \
+            concepts::Alignment T_OtherAlignment,                                                                     \
+            typename T_OtherStorage>                                                                                  \
+        constexpr auto operator op(                                                                                   \
+            const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs,                                                 \
+            const Simd<T_Type, T_width, T_OtherAlignment, T_OtherStorage>& rhs)                                       \
+        {                                                                                                             \
+            /* to avoid allocation side effects the result is always a vector                                         \
+             * with default policies                                                                                  \
+             */                                                                                                       \
+            using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                       \
+            Simd<ValueMaskType, T_width> result{0u};                                                                  \
+            for(uint32_t i = 0u; i < T_width; i++)                                                                    \
+                result[i] = static_cast<ValueMaskType>(-(lhs[i] op rhs[i]));                                          \
+            return result;                                                                                            \
+        }                                                                                                             \
                                                                                                                       \
-    template<                                                                                                         \
-        typenameOrConcept T_Type,                                                                                     \
-        concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                          \
-        uint32_t T_width,                                                                                             \
-        concepts::Alignment T_Alignment,                                                                              \
-        typename T_Storage>                                                                                           \
-    constexpr auto operator op(const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs, T_ValueType rhs)             \
-    {                                                                                                                 \
-        /* to avoid allocation side effects the result is always a vector                                             \
-         * with default policies                                                                                      \
-         */                                                                                                           \
-        using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                           \
-        Simd<ValueMaskType, T_width> result{0u};                                                                      \
-        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
-            result[i] = static_cast<ValueMaskType>(-(lhs[i] op rhs));                                                 \
-        return result;                                                                                                \
-    }                                                                                                                 \
-    template<                                                                                                         \
-        typenameOrConcept T_Type,                                                                                     \
-        concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                          \
-        uint32_t T_width,                                                                                             \
-        concepts::Alignment T_Alignment,                                                                              \
-        typename T_Storage>                                                                                           \
-    constexpr auto operator op(T_ValueType lhs, const Simd<T_Type, T_width, T_Alignment, T_Storage>& rhs)             \
-    {                                                                                                                 \
-        /* to avoid allocation side effects the result is always a vector                                             \
-         * with default policies                                                                                      \
-         */                                                                                                           \
-        using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                           \
-        Simd<ValueMaskType, T_width> result{0u};                                                                      \
-        for(uint32_t i = 0u; i < T_width; i++)                                                                        \
-            result[i] = static_cast<ValueMaskType>(-(lhs op rhs[i]));                                                 \
-        return result;                                                                                                \
-    }
-
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                      \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage>                                                                                       \
+        constexpr auto operator op(const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs, T_ValueType rhs)         \
+        {                                                                                                             \
+            /* to avoid allocation side effects the result is always a vector                                         \
+             * with default policies                                                                                  \
+             */                                                                                                       \
+            using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                       \
+            Simd<ValueMaskType, T_width> result{0u};                                                                  \
+            for(uint32_t i = 0u; i < T_width; i++)                                                                    \
+                result[i] = static_cast<ValueMaskType>(-(lhs[i] op rhs));                                             \
+            return result;                                                                                            \
+        }                                                                                                             \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                      \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage>                                                                                       \
+        constexpr auto operator op(T_ValueType lhs, const Simd<T_Type, T_width, T_Alignment, T_Storage>& rhs)         \
+        {                                                                                                             \
+            /* to avoid allocation side effects the result is always a vector                                         \
+             * with default policies                                                                                  \
+             */                                                                                                       \
+            using ValueMaskType = std::conditional_t<sizeof(T_Type) == 4u, uint32_t, uint64_t>;                       \
+            Simd<ValueMaskType, T_width> result{0u};                                                                  \
+            for(uint32_t i = 0u; i < T_width; i++)                                                                    \
+                result[i] = static_cast<ValueMaskType>(-(lhs op rhs[i]));                                             \
+            return result;                                                                                            \
+        }
+#else
+#    define ALPAKA_VECTOR_BINARY_CMP_OP(typenameOrConcept, op)                                                        \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage,                                                                                       \
+            concepts::Alignment T_OtherAlignment,                                                                     \
+            typename T_OtherStorage>                                                                                  \
+        constexpr auto operator op(                                                                                   \
+            const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs,                                                 \
+            const Simd<T_Type, T_width, T_OtherAlignment, T_OtherStorage>& rhs)                                       \
+        {                                                                                                             \
+            return lhs.asBaseType() op rhs.asBaseType();                                                              \
+        }                                                                                                             \
+                                                                                                                      \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                      \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage>                                                                                       \
+        constexpr auto operator op(const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs, T_ValueType rhs)         \
+        {                                                                                                             \
+            return lhs.asBaseType() op rhs;                                                                           \
+        }                                                                                                             \
+        template<                                                                                                     \
+            typenameOrConcept T_Type,                                                                                 \
+            concepts::LosslesslyConvertible<T_Type> T_ValueType,                                                      \
+            uint32_t T_width,                                                                                         \
+            concepts::Alignment T_Alignment,                                                                          \
+            typename T_Storage>                                                                                       \
+        constexpr auto operator op(T_ValueType lhs, const Simd<T_Type, T_width, T_Alignment, T_Storage>& rhs)         \
+        {                                                                                                             \
+            return lhs op rhs.asBaseType();                                                                           \
+        }
+#endif
     ALPAKA_VECTOR_BINARY_CMP_OP(typename, >=)
     ALPAKA_VECTOR_BINARY_CMP_OP(typename, >)
     ALPAKA_VECTOR_BINARY_CMP_OP(typename, <=)
