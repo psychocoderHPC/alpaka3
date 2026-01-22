@@ -25,17 +25,64 @@
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
-#include <experimental/simd>
 #include <functional>
 #include <iostream>
 #include <ranges>
 #include <sstream>
 #include <type_traits>
 
-namespace stdx = std::experimental;
+#if __has_include(<simd>)
+#    include <simd>
+namespace alpakaStdSimd = std;
+#    if !defined(HAS_STD_SIMD)
+#        define HAS_STD_SIMD 1
+#    endif
+#elif __has_include(<experimental/simd>)
+#    include <experimental/simd>
+namespace alpakaStdSimd = std::experimental;
+#    if !defined(HAS_STD_SIMD)
+#        define HAS_STD_SIMD 1
+#    endif
+#endif
 
 namespace alpaka
 {
+    namespace trait
+    {
+        template<typename T>
+        struct IsSimd : std::false_type
+        {
+        };
+
+    } // namespace trait
+
+    template<typename T>
+    constexpr bool isSimd_v = trait::IsSimd<T>::value;
+
+    namespace concepts
+    {
+        template<typename T>
+        concept Simd = isSimd_v<T>;
+
+#if 0
+        template<typename T>
+        concept SimdMask
+            = Simd<T> && (std::same_as<uint32_t, typename T::type> || std::same_as<uint64_t, typename T::type>);
+#else
+        template<typename T>
+        concept SimdMask = isSpecializationOf_v<T, std::experimental::simd_mask>;
+#endif
+
+        template<typename T>
+        concept SimdOrScalar = (isSimd_v<T> || std::integral<T> || std::floating_point<T>);
+
+        template<typename T, typename T_RequiredComponent>
+        concept TypeOrSimd = (isSimd_v<T> || std::is_same_v<T, T_RequiredComponent>);
+
+        template<typename T, typename T_RequiredComponent>
+        concept SimdOrConvertibleType = (isSimd_v<T> || std::is_convertible_v<T, T_RequiredComponent>);
+    } // namespace concepts
+
     namespace detail
     {
         template<typename T_ValueType, uint32_t T_numElements, concepts::Alignment T_Alignment>
@@ -77,10 +124,10 @@ namespace alpaka
         };
 
         template<typename T_Type, uint32_t T_width>
-        struct StdSimd : public stdx::rebind_simd_t<T_Type, stdx::fixed_size_simd<T_Type, T_width>>
+        struct StdSimd : public alpakaStdSimd::rebind_simd_t<T_Type, alpakaStdSimd::fixed_size_simd<T_Type, T_width>>
         {
             using type = T_Type;
-            using BaseType = stdx::rebind_simd_t<T_Type, stdx::fixed_size_simd<T_Type, T_width>>;
+            using BaseType = alpakaStdSimd::rebind_simd_t<T_Type, alpakaStdSimd::fixed_size_simd<T_Type, T_width>>;
             using BaseType::operator[];
 
             // constructor is required because exposing the array constructors does not work
@@ -93,6 +140,9 @@ namespace alpaka
             constexpr StdSimd(BaseType const& data) : BaseType{data}
             {
             }
+
+            template<concepts::Vector T>
+            friend struct VectorClass;
 
         private:
             template<std::size_t... I, typename... T_Args>
@@ -112,43 +162,12 @@ namespace alpaka
 
     namespace trait
     {
-        template<typename T>
-        struct IsSimd : std::false_type
-        {
-        };
-
         template<typename T_Type, uint32_t T_width, concepts::Alignment T_Alignment, typename T_Storage>
         struct IsSimd<Simd<T_Type, T_width, T_Alignment, T_Storage>> : std::true_type
         {
         };
     } // namespace trait
 
-    template<typename T>
-    constexpr bool isSimd_v = trait::IsSimd<T>::value;
-
-    namespace concepts
-    {
-        template<typename T>
-        concept Simd = isSimd_v<T>;
-
-#if 0
-        template<typename T>
-        concept SimdMask
-            = Simd<T> && (std::same_as<uint32_t, typename T::type> || std::same_as<uint64_t, typename T::type>);
-#else
-        template<typename T>
-        concept SimdMask = isSpecializationOf_v<T, std::experimental::simd_mask>;
-#endif
-
-        template<typename T>
-        concept SimdOrScalar = (isSimd_v<T> || std::integral<T> || std::floating_point<T>);
-
-        template<typename T, typename T_RequiredComponent>
-        concept TypeOrSimd = (isSimd_v<T> || std::is_same_v<T, T_RequiredComponent>);
-
-        template<typename T, typename T_RequiredComponent>
-        concept SimdOrConvertibleType = (isSimd_v<T> || std::is_convertible_v<T, T_RequiredComponent>);
-    } // namespace concepts
 
     // friend forward declaration
     template<concepts::SimdMask T_Mask, concepts::Simd T_Simd>
@@ -984,7 +1003,7 @@ namespace alpaka
             const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs,                                                 \
             const Simd<T_Type, T_width, T_OtherAlignment, T_OtherStorage>& rhs)                                       \
         {                                                                                                             \
-            return lhs.asBaseType() op rhs.asBaseType();                                                              \
+            return (lhs.asBaseType() op rhs.asBaseType());                                                            \
         }                                                                                                             \
                                                                                                                       \
         template<                                                                                                     \
@@ -995,7 +1014,7 @@ namespace alpaka
             typename T_Storage>                                                                                       \
         constexpr auto operator op(const Simd<T_Type, T_width, T_Alignment, T_Storage>& lhs, T_ValueType rhs)         \
         {                                                                                                             \
-            return lhs.asBaseType() op rhs;                                                                           \
+            return (lhs.asBaseType() op rhs);                                                                         \
         }                                                                                                             \
         template<                                                                                                     \
             typenameOrConcept T_Type,                                                                                 \
@@ -1005,7 +1024,7 @@ namespace alpaka
             typename T_Storage>                                                                                       \
         constexpr auto operator op(T_ValueType lhs, const Simd<T_Type, T_width, T_Alignment, T_Storage>& rhs)         \
         {                                                                                                             \
-            return lhs op rhs.asBaseType();                                                                           \
+            return (lhs op rhs.asBaseType());                                                                         \
         }
 #endif
     ALPAKA_VECTOR_BINARY_CMP_OP(typename, >=)

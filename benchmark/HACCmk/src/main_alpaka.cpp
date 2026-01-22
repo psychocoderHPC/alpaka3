@@ -16,6 +16,13 @@ namespace stdx = std::experimental;
 
 struct Kernel
 {
+    template<typename T_Type, uint32_t T_maxConcurrencyInByte, uint32_t T_cacheLineInByte>
+    static constexpr auto calcSimdWidth()
+    {
+        constexpr uint32_t maxSimdBytes = std::min(T_cacheLineInByte, T_maxConcurrencyInByte);
+        return alpaka::divExZero(maxSimdBytes, static_cast<uint32_t>(sizeof(T_Type)));
+    }
+
     constexpr void step10(
         auto const& acc,
         int count1,
@@ -38,7 +45,17 @@ struct Kernel
 
         constexpr uint32_t maxArchSimdWidth
             = getArchSimdWidth<float>(ALPAKA_TYPEOF(acc.getApi()){}, ALPAKA_TYPEOF(acc.getDeviceKind()){});
-        auto force = Vec<Simd<float, maxArchSimdWidth>, 3u>::fill(Simd<float, maxArchSimdWidth>::fill(0.));
+
+        constexpr auto maxConcurrecy
+            = alpaka::getNumElemPerThread<float>(ALPAKA_TYPEOF(acc.getApi()){}, ALPAKA_TYPEOF(acc.getDeviceKind()){})
+              * sizeof(float);
+
+        constexpr uint32_t cachelineBytes
+            = getCachelineSize(ALPAKA_TYPEOF(acc.getApi()){}, ALPAKA_TYPEOF(acc.getDeviceKind()){});
+
+        constexpr uint32_t width = std::min(maxArchSimdWidth, calcSimdWidth<float, maxConcurrecy, cachelineBytes>());
+
+        auto force = Vec<Simd<float, width>, 3u>::fill(Simd<float, width>::fill(0.));
 
         auto simdGrid = onAcc::SimdAlgo{onAcc::WorkerGroup{Vec{0}, Vec{1}}};
         simdGrid.concurrent(
@@ -53,9 +70,13 @@ struct Kernel
                 auto r2 = dxc * dxc + dyc * dyc + dzc * dzc;
 
                 using SimdType = ALPAKA_TYPEOF(simd_mass1.load());
-                auto m = SimdType::fill(0.f);
+#if 0
+                auto m = SimdType::fill(0.);
+#else
+                SimdType m(0.f);
+#endif
                 where(r2 < fsrrmax2, m) = simd_mass1.load();
-                //stdx::where(r2 < fsrrmax2, m.asBaseType()) = simd_mass1.load().asBaseType();
+                // stdx::where(r2 < fsrrmax2, m.asBaseType()) = simd_mass1.load().asBaseType();
                 auto tmp = r2 + mp_rsm2;
 #define FAST_POW 1
 #define SQRT_IMPL 3
@@ -70,8 +91,8 @@ struct Kernel
                 auto p = float{1.0} / (tmp * *reinterpret_cast<SimdType*>(&bar));
 #    elif SQRT_IMPL == 3
                 using std::sqrt;
-                auto bar = sqrt(tmp.asBaseType());
-                auto p = float{1.0} / (tmp * *reinterpret_cast<SimdType*>(&bar));
+                auto bar = sqrt(tmp);
+                auto p = float{1.0} / (tmp * SimdType(bar));
 #    endif
 
 #else
@@ -79,13 +100,13 @@ struct Kernel
 #endif
 
                 auto f = p - (ma0 + r2 * (ma1 + r2 * (ma2 + r2 * (ma3 + r2 * (ma4 + r2 * ma5)))));
-#if 1
+#if 0
                 auto fac = SimdType::fill(0.);
 #else
                 SimdType fac(0.f);
 #endif
                 where(r2 > 0.0f, fac) = m * f;
-                //stdx::where(r2 > 0.0f, fac.asBaseType()) = ( m * f).asBaseType();
+                // stdx::where(r2 > 0.0f, fac.asBaseType()) = ( m * f).asBaseType();
 
                 if constexpr(SimdType::width() == 1)
                 {

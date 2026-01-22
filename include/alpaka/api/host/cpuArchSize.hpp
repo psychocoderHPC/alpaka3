@@ -8,13 +8,29 @@
 
 #include <cstdint>
 
+#if __has_include(<simd>)
+#    include <simd>
+namespace alpakaStdSimd = std;
+#    if !defined(HAS_STD_SIMD)
+#        define HAS_STD_SIMD 1
+#    endif
+#elif __has_include(<experimental/simd>)
+#    include <experimental/simd>
+namespace alpakaStdSimd = std::experimental;
+#    if !defined(HAS_STD_SIMD)
+#        define HAS_STD_SIMD 1
+#    endif
+#endif
+
 namespace alpaka::onHost::internal
 {
     template<typename T_Type>
     constexpr uint32_t getCPUSimdWidth()
     {
         constexpr size_t simdWidthInByte =
-#if defined(__AVX512BW__) || defined(__AVX512F__) || defined(__AVX512DQ__) || defined(__AVX512VL__)
+#if (HAS_STD_SIMD)
+            alpakaStdSimd::native_simd<T_Type>::size() * sizeof(T_Type);
+#elif defined(__AVX512BW__) || defined(__AVX512F__) || defined(__AVX512DQ__) || defined(__AVX512VL__)
             64u;
 #elif defined(__riscv_vector)
             64u;
