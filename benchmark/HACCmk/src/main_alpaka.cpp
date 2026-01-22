@@ -53,7 +53,7 @@ struct Kernel
                 auto r2 = dxc * dxc + dyc * dyc + dzc * dzc;
 
                 using SimdType = ALPAKA_TYPEOF(simd_mass1.load());
-                auto m = SimdType::fill(0.);
+                auto m = SimdType::fill(0.f);
                 where(r2 < fsrrmax2, m) = simd_mass1.load();
                 //stdx::where(r2 < fsrrmax2, m.asBaseType()) = simd_mass1.load().asBaseType();
                 auto tmp = r2 + mp_rsm2;
@@ -79,10 +79,10 @@ struct Kernel
 #endif
 
                 auto f = p - (ma0 + r2 * (ma1 + r2 * (ma2 + r2 * (ma3 + r2 * (ma4 + r2 * ma5)))));
-#if 0
+#if 1
                 auto fac = SimdType::fill(0.);
 #else
-                SimdType fac = 0.f;
+                SimdType fac(0.f);
 #endif
                 where(r2 > 0.0f, fac) = m * f;
                 //stdx::where(r2 > 0.0f, fac.asBaseType()) = ( m * f).asBaseType();

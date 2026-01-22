@@ -77,10 +77,10 @@ namespace alpaka
         };
 
         template<typename T_Type, uint32_t T_width>
-        struct StdSimd : public stdx::fixed_size_simd<T_Type, T_width>
+        struct StdSimd : public stdx::rebind_simd_t<T_Type, stdx::fixed_size_simd<T_Type, T_width>>
         {
             using type = T_Type;
-            using BaseType = stdx::fixed_size_simd<T_Type, T_width>;
+            using BaseType = stdx::rebind_simd_t<T_Type, stdx::fixed_size_simd<T_Type, T_width>>;
             using BaseType::operator[];
 
             // constructor is required because exposing the array constructors does not work
