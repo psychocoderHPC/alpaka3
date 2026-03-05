@@ -75,9 +75,9 @@ int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeEx
     onHost::Queue queue = device.makeQueue();
 
     // allocate input and output buffers on the device
-    auto A_d = onHost::allocMirror(device, A_h);
-    auto B_d = onHost::allocMirror(device, B_h);
-    auto C_d = onHost::allocMirror(device, C_h);
+    auto A_d = onHost::allocLike(device, A_h);
+    auto B_d = onHost::allocLike(device, B_h);
+    auto C_d = onHost::allocLike(device, C_h);
 
     // copy the input data to the device; the size is known from the buffer objects
     onHost::memcpy(queue, A_d, A_h);
@@ -107,7 +107,7 @@ int testGMemCoalescedKernel(onHost::concepts::Device auto device, auto computeEx
     onHost::memcpy(queue, C_h, C_d);
 
     // check the results
-    auto cpu_out = onHost::allocHostMirror(C_h);
+    auto cpu_out = onHost::allocHostLike(C_h);
     onHost::memset(queue, cpu_out, 0x00);
 
     // wait for all the operations to complete
@@ -139,7 +139,7 @@ int example(auto const cfg)
     auto deviceSpec = cfg[object::deviceSpec];
     auto computeExec = cfg[object::exec];
 
-    std::cout << "Using alpaka accelerator: " << core::demangledName(computeExec) << " for "
+    std::cout << "Using alpaka accelerator: " << onHost::demangledName(computeExec) << " for "
               << deviceSpec.getApi().getName() << " " << deviceSpec.getDeviceKind().getName() << std::endl;
 
     // Select a device
@@ -160,7 +160,8 @@ int example(auto const cfg)
 auto main() -> int
 {
     // Execute the example once for each enabled API and executor.
-    return executeForEachIfHasDevice(
+    // Execute the example once for each enabled API and executor.
+    return onHost::executeForEachIfHasDevice(
         [=](auto const& cfg) { return example(cfg); },
-        onHost::allBackends(onHost::enabledApis));
+        onHost::allBackends(onHost::enabledApis, exec::enabledExecutors));
 }

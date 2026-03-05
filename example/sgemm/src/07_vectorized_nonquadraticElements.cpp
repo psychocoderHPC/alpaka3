@@ -30,14 +30,14 @@ constexpr uint32_t alignment = uint32_t{sizeof(DataType) * 4u};
 
 ALPAKA_FN_INLINE constexpr void loadAToShared(
     auto const& acc,
-    concepts::MdSpan auto const& sharedATile,
-    concepts::MdSpan auto const& A,
+    concepts::IMdSpan auto const& sharedATile,
+    concepts::IMdSpan auto const& A,
     concepts::Vector auto const& tileOffsetMD,
     concepts::Vector auto const& sAExtent,
     auto aXOffset)
 {
     for(auto tileElemIndexMD :
-        onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{Vec2D::all(0u), sAExtent, Vec2D{4u, 4u}}))
+        onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{Vec2D::fill(0u), sAExtent, Vec2D{4u, 4u}}))
     {
         auto a0 = SimdPtr{
             A,
@@ -78,7 +78,7 @@ ALPAKA_FN_INLINE constexpr void loadAToShared(
                 Vec2D{tileSlot + numTiles.product() * i, 0u},
                 Alignment<alignment>{},
                 CVec<uint32_t, 4u>{}};
-            auto foo = Simd<DataType, 4u, Alignment<alignment>>{a0[i], a1[i], a2[i], a3[i]};
+            auto foo = Simd<DataType, 4u>{a0[i], a1[i], a2[i], a3[i]};
             static_assert(std::is_same_v<decltype(sAPtr.load()), decltype(foo)>);
             sAPtr = foo;
         }
@@ -87,8 +87,8 @@ ALPAKA_FN_INLINE constexpr void loadAToShared(
 
 ALPAKA_FN_INLINE constexpr void loadBToShared(
     auto const& acc,
-    concepts::MdSpan auto const& sharedBTile,
-    concepts::MdSpan auto const& B,
+    concepts::IMdSpan auto const& sharedBTile,
+    concepts::IMdSpan auto const& B,
     concepts::Vector auto const& tileOffsetMD,
     concepts::Vector auto const& sBExtent,
     auto bYOffset)
@@ -97,9 +97,8 @@ ALPAKA_FN_INLINE constexpr void loadBToShared(
     simdGrid.template concurrent<alignment, Alignment<alignment>>(
         acc,
         sBExtent,
-        [&](auto const&, auto sharedB, auto const& b) constexpr {
-            sharedB = b[Vec2D{bYOffset, tileOffsetMD.x()}].load();
-        },
+        [&](auto const&, auto sharedB, auto const& b) constexpr
+        { sharedB = b[Vec2D{bYOffset, tileOffsetMD.x()}].load(); },
         sharedBTile,
         B);
 }
@@ -107,14 +106,16 @@ ALPAKA_FN_INLINE constexpr void loadBToShared(
 ALPAKA_FN_INLINE constexpr void computeCTile(
     auto const& acc,
     auto& regMdC,
-    concepts::MdSpan auto const& sharedATile,
-    concepts::MdSpan auto const& sharedBTile,
+    concepts::IMdSpan auto const& sharedATile,
+    concepts::IMdSpan auto const& sharedBTile,
     concepts::Vector auto const& threadIdxMD,
     concepts::CVector auto threadsInBlock,
     concepts::Vector auto const& sAExtent,
     concepts::CVector auto elemPerThread)
 {
     constexpr uint32_t regLoadElem = 1u;
+
+    using IndexType = typename ALPAKA_TYPEOF(threadIdxMD)::index_type;
 
 #define DO_FULL 2
 
@@ -123,7 +124,7 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
     auto regMdA = MdSpanArray<DataType[regLoadElem][4u], Alignment<alignment>>{regA};
 #elif DO_FULL == 2
     DataType regA[regLoadElem][elemPerThread.y()];
-    auto regMdA = MdSpanArray<DataType[regLoadElem][elemPerThread.y()], Alignment<alignment>>{regA};
+    auto regMdA = MdSpanArray<DataType[regLoadElem][elemPerThread.y()], IndexType, Alignment<alignment>>{regA};
 #endif
     DataType regB[regLoadElem][elemPerThread.x()];
 
@@ -131,7 +132,7 @@ ALPAKA_FN_INLINE constexpr void computeCTile(
      * not sure why it is not required for A. */
     constexpr auto numBRegElem = elemPerThread.x();
     using RegBArrayType = DataType[regLoadElem][numBRegElem];
-    auto regMdB = MdSpanArray<RegBArrayType, Alignment<alignment>>{regB};
+    auto regMdB = MdSpanArray<RegBArrayType, IndexType, Alignment<alignment>>{regB};
     for(uint32_t dotIdx = 0; dotIdx < sAExtent.x(); dotIdx += regLoadElem)
     {
 #if DO_FULL == 0
@@ -238,7 +239,7 @@ struct VectorizedNonQuadraticElementsKernel
         for(auto tileOffsetMD : onAcc::makeIdxMap(
                 acc,
                 onAcc::worker::blocksInGrid,
-                IdxRange{ALPAKA_TYPEOF(out.getExtents())::all(0), out.getExtents(), chunkExtent}))
+                IdxRange{ALPAKA_TYPEOF(out.getExtents())::fill(0), out.getExtents(), chunkExtent}))
         {
             // this seems like way too much shared memory usage
             concepts::CVector auto sBExtent = CVec<uint32_t, bk.x(), chunkExtent.x()>{};
@@ -253,7 +254,8 @@ struct VectorizedNonQuadraticElementsKernel
             static_assert(sAExtent.x() == sBExtent.y());
 
             DataType regC[elemPerThread.y()][elemPerThread.x()] = {0};
-            auto regMdC = MdSpanArray<DataType[elemPerThread.y()][elemPerThread.x()], Alignment<alignment>>{regC};
+            auto regMdC
+                = MdSpanArray<DataType[elemPerThread.y()][elemPerThread.x()], IndexType, Alignment<alignment>>{regC};
 
             for(IndexType chunkOffset = 0; chunkOffset < A.getExtents().x(); chunkOffset += bk.x())
             {
@@ -318,7 +320,7 @@ bool equal([[maybe_unused]] auto idx, auto a, auto b)
 
 int verifyResults(auto queue, auto C_d, auto CReference_h)
 {
-    auto C_h = onHost::allocHostMirror(C_d);
+    auto C_h = onHost::allocHostLike(C_d);
 
     onHost::memcpy(queue, C_h, C_d);
     // wait for all the operations to complete
@@ -378,9 +380,9 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::Queue queue = device.makeQueue();
 
     // allocate input and output buffers on the device
-    auto A_d = onHost::allocMirror(device, A_h);
-    auto B_d = onHost::allocMirror(device, B_h);
-    auto C_d = onHost::allocMirror(device, C_h);
+    auto A_d = onHost::allocLike(device, A_h);
+    auto B_d = onHost::allocLike(device, B_h);
+    auto C_d = onHost::allocLike(device, C_h);
 
     // copy the input data to the device; the size is known from the buffer objects
     onHost::memcpy(queue, A_d, A_h);
@@ -429,7 +431,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     cublasStatus_t stat = cublasCreate(&handle);
     cublasSetStream(handle, queue.getNativeHandle());
 
-    auto C_blas_d = onHost::allocMirror(device, C_h);
+    auto C_blas_d = onHost::allocLike(device, C_h);
     onHost::memset(queue, C_blas_d, 0x00);
     onHost::wait(queue);
 
@@ -482,7 +484,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
         return EXIT_FAILURE;
     }
 
-    auto C_blas_d = onHost::allocMirror(device, C_h);
+    auto C_blas_d = onHost::allocLike(device, C_h);
     onHost::memset(queue, C_blas_d, 0x00);
     onHost::wait(queue);
 
@@ -529,7 +531,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     if(A_h.getExtents().x() <= 1024u)
     {
         // check the results
-        auto cpuReference = onHost::allocHostMirror(C_h);
+        auto cpuReference = onHost::allocHostLike(C_h);
         auto host = onHost::makeHostDevice();
         auto q = host.makeQueue();
         onHost::memset(q, cpuReference, 0x00);
@@ -548,7 +550,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     if(A_h.getExtents().x() <= 4096u)
     {
         std::cout << "validation against cuBlas!\n";
-        auto blasReference_h = onHost::allocHostMirror(C_h);
+        auto blasReference_h = onHost::allocHostLike(C_h);
 
         onHost::memcpy(queue, blasReference_h, C_blas_d);
         onHost::wait(queue);
@@ -561,7 +563,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     if(A_h.getExtents().x() <= 4096u)
     {
         std::cout << "validation against hipBlas!\n";
-        auto blasReference_h = onHost::allocHostMirror(C_h);
+        auto blasReference_h = onHost::allocHostLike(C_h);
 
         onHost::memcpy(queue, blasReference_h, C_blas_d);
         onHost::wait(queue);
@@ -632,7 +634,7 @@ int example(auto const cfg)
     auto deviceSpec = cfg[object::deviceSpec];
     auto computeExec = cfg[object::exec];
 
-    std::cout << "Using alpaka accelerator: " << core::demangledName(computeExec) << " for "
+    std::cout << "Using alpaka accelerator: " << onHost::demangledName(computeExec) << " for "
               << deviceSpec.getApi().getName() << " " << deviceSpec.getDeviceKind().getName() << std::endl;
 
     // Select a device
@@ -653,7 +655,7 @@ int example(auto const cfg)
 auto main() -> int
 {
     // Execute the example once for each enabled API and executor.
-    return executeForEachIfHasDevice(
+    return onHost::executeForEachIfHasDevice(
         [=](auto const& cfg) { return example(cfg); },
-        onHost::allBackends(onHost::enabledApis));
+        onHost::allBackends(onHost::enabledApis, exec::enabledExecutors));
 }

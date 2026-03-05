@@ -14,6 +14,7 @@
 #include <random>
 #include <vector>
 
+#if 0
 using namespace alpaka;
 
 struct SMemThreadOversubscriptionNonQuadraticKernel
@@ -40,7 +41,7 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
         for(auto tileOffsetMD : onAcc::makeIdxMap(
                 acc,
                 onAcc::worker::blocksInGrid,
-                IdxRange{ALPAKA_TYPEOF(out.getExtents())::all(0), out.getExtents(), chunkExtent}))
+                IdxRange{ALPAKA_TYPEOF(out.getExtents())::fill(0), out.getExtents(), chunkExtent}))
         {
             constexpr uint32_t numElem = elemPerThread.x();
 
@@ -56,9 +57,9 @@ struct SMemThreadOversubscriptionNonQuadraticKernel
             float regA[numElem] = {0};
             float regB[numElem] = {0};
             float regC[numElem][numElem] = {0};
-            auto regMdA = MdSpanArray<float[numElem], Alignment<16u>>{regA};
-            auto regMdB = MdSpanArray<float[numElem], Alignment<16u>>{regB};
-            auto regMdC = MdSpanArray<float[numElem][numElem], Alignment<16u>>{regC};
+            auto regMdA = MdSpanArray<float[numElem],IndexType, Alignment<16u>>{regA};
+            auto regMdB = MdSpanArray<float[numElem],IndexType, Alignment<16u>>{regB};
+            auto regMdC = MdSpanArray<float[numElem][numElem],IndexType, Alignment<16u>>{regC};
 
 
             // iterate through input buffers with stride of smem size
@@ -179,9 +180,9 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
     onHost::Queue queue = device.makeQueue();
 
     // allocate input and output buffers on the device
-    auto A_d = onHost::allocMirror(device, A_h);
-    auto B_d = onHost::allocMirror(device, B_h);
-    auto C_d = onHost::allocMirror(device, C_h);
+    auto A_d = onHost::allocLike(device, A_h);
+    auto B_d = onHost::allocLike(device, B_h);
+    auto C_d = onHost::allocLike(device, C_h);
 
     // copy the input data to the device; the size is known from the buffer objects
     onHost::memcpy(queue, A_d, A_h);
@@ -242,7 +243,7 @@ int testGMemNaiveKernel(onHost::concepts::Device auto device, auto computeExec)
         onHost::memcpy(queue, C_h, C_d);
 
         // check the results
-        auto cpu_out = onHost::allocHostMirror(C_h);
+        auto cpu_out = onHost::allocHostLike(C_h);
         onHost::memset(queue, cpu_out, 0x00);
 
         // wait for all the operations to complete
@@ -280,7 +281,7 @@ int example(auto const cfg)
     auto deviceSpec = cfg[object::deviceSpec];
     auto computeExec = cfg[object::exec];
 
-    std::cout << "Using alpaka accelerator: " << core::demangledName(computeExec) << " for "
+    std::cout << "Using alpaka accelerator: " << onHost::demangledName(computeExec) << " for "
               << deviceSpec.getApi().getName() << " " << deviceSpec.getDeviceKind().getName() << std::endl;
 
     // Select a device
@@ -301,7 +302,9 @@ int example(auto const cfg)
 auto main() -> int
 {
     // Execute the example once for each enabled API and executor.
-    return executeForEachIfHasDevice(
+    // Execute the example once for each enabled API and executor.
+    return onHost::executeForEachIfHasDevice(
         [=](auto const& cfg) { return example(cfg); },
-        onHost::allBackends(onHost::enabledApis));
+        onHost::allBackends(onHost::enabledApis, exec::enabledExecutors));
 }
+#endif

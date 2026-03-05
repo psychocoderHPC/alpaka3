@@ -42,11 +42,11 @@ namespace
             }
 
             // All participating lanes vote false hence the inverse must be true.
-            warpCheck(success, !onAcc::warp::all(acc, 0));
+            warpCheck(success, !onAcc::warp::fill(acc, 0));
 
             // assumes non-zero values evaluate as true
             // All participating lanes vote true hence the result must be true.
-            warpCheck(success, onAcc::warp::all(acc, 42));
+            warpCheck(success, onAcc::warp::fill(acc, 42));
 
 
             auto const castIdx = static_cast<std::int32_t>(idx);
@@ -55,14 +55,14 @@ namespace
             if constexpr(warpExtent >= 2)
             {
                 // Example: active lanes {0,3,6}; choosing idx=3 yields predicates {0,1,0}, so unanimity fails.
-                warpCheck(success, !onAcc::warp::all(acc, lane == castIdx ? 1 : 0));
+                warpCheck(success, !onAcc::warp::fill(acc, lane == castIdx ? 1 : 0));
             }
 
             auto const expected = (idx % 3u != 0u);
             // Every active lane except the triggering one votes true; the result is true only if that lane is
             // inactive. Example: idx=4 (masked lane) leaves predicates {1,1,1} and the vote succeeds, whereas idx=3
             // produces {1,0,1} and fails.
-            warpCheck(success, onAcc::warp::all(acc, lane == castIdx ? 0 : 1) == expected);
+            warpCheck(success, onAcc::warp::fill(acc, lane == castIdx ? 0 : 1) == expected);
         }
     };
 } // namespace
