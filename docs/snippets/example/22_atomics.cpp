@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -15,8 +15,10 @@ namespace
     // BEGIN-TUTORIAL-atomicKernel
     struct HistogramKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IDataSource auto const& input, concepts::IMdSpan auto bins)
-            const
+        ALPAKA_FN_ACC void operator()(
+            auto const& acc,
+            concepts::IDataSource auto const& input,
+            concepts::IMdSpan auto bins) const
         {
             for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{input.getExtents()}))
             {
@@ -25,6 +27,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-atomicKernel
 } // namespace
 

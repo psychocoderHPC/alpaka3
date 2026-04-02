@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -15,6 +15,7 @@ namespace vendorTutorial
 {
     // BEGIN-TUTORIAL-vendorSymbol
     ALPAKA_FN_SYMBOL(AffineTransform, alpaka::fn::Fallback::toAlpaka, alpaka::fn::Registration::enforced);
+
     // END-TUTORIAL-vendorSymbol
 
     // BEGIN-TUTORIAL-vendorFallback
@@ -35,10 +36,10 @@ namespace vendorTutorial
         alpaka::onHost::transform(
             ALPAKA_FORWARD(queue),
             ALPAKA_FORWARD(output),
-            ScalarFunc{[=] ALPAKA_FN_ACC(float const& value)
-                       { return scale * value + shift; }},
+            ScalarFunc{[=] ALPAKA_FN_ACC(float const& value) { return scale * value + shift; }},
             ALPAKA_FORWARD(input));
     }
+
     // END-TUTORIAL-vendorFallback
 
     // BEGIN-TUTORIAL-vendorHost
@@ -62,10 +63,10 @@ namespace vendorTutorial
                     input.data(),
                     input.data() + input.getExtents().x(),
                     outPtr,
-                    [=](float value)
-                    { return scale * value + shift; });
+                    [=](float value) { return scale * value + shift; });
             });
     }
+
     // END-TUTORIAL-vendorHost
 } // namespace vendorTutorial
 

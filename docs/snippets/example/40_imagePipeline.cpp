@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -28,6 +28,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-imageThresholdKernel
 
     // BEGIN-TUTORIAL-imageHistogramKernel
@@ -45,6 +46,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-imageHistogramKernel
 } // namespace
 
@@ -58,8 +60,8 @@ TEST_CASE("tutorial image pipeline", "[docs]")
     auto hostBinary = onHost::allocHostLike(hostImage);
     auto hostBins = onHost::allocHost<uint32_t>(Vec{2u});
 
-    std::array<uint8_t, 16u> inputValues{
-        12u, 33u, 180u, 210u, 15u, 50u, 170u, 240u, 20u, 95u, 130u, 250u, 5u, 60u, 145u, 220u};
+    std::array<uint8_t, 16u>
+        inputValues{12u, 33u, 180u, 210u, 15u, 50u, 170u, 240u, 20u, 95u, 130u, 250u, 5u, 60u, 145u, 220u};
 
     for(std::size_t i = 0; i < inputValues.size(); ++i)
     {

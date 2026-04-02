@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -27,6 +27,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-randomKernel
 
     // BEGIN-TUTORIAL-randomIntervalsKernel
@@ -50,13 +51,18 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-randomIntervalsKernel
 
     // BEGIN-TUTORIAL-randomNormalKernel
     struct NormalNoiseKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, uint32_t seed, float mean, float stdDev)
-            const
+        ALPAKA_FN_ACC void operator()(
+            auto const& acc,
+            concepts::IMdSpan auto out,
+            uint32_t seed,
+            float mean,
+            float stdDev) const
         {
             for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
             {
@@ -66,6 +72,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-randomNormalKernel
 } // namespace
 

@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -13,8 +13,10 @@ namespace
     // BEGIN-TUTORIAL-multidimKernelStructure
     struct FivePointAverageKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, concepts::IDataSource auto const& in)
-            const
+        ALPAKA_FN_ACC void operator()(
+            auto const& acc,
+            concepts::IMdSpan auto out,
+            concepts::IDataSource auto const& in) const
         {
             auto extents = out.getExtents();
             ALPAKA_ASSERT_ACC(extents == in.getExtents());
@@ -29,11 +31,11 @@ namespace
                     continue;
                 }
 
-                out[idx] = (in[idx] + in[idx - yDir] + in[idx + yDir] + in[idx - xDir] + in[idx + xDir])
-                           / 5;
+                out[idx] = (in[idx] + in[idx - yDir] + in[idx + yDir] + in[idx - xDir] + in[idx + xDir]) / 5;
             }
         }
     };
+
     // END-TUTORIAL-multidimKernelStructure
 } // namespace
 
@@ -70,7 +72,7 @@ TEST_CASE("tutorial multidimensional stencil kernel", "[docs]")
     for(auto const idx : IdxRange{problemExtents})
     {
         auto const isCross = idx == Vec{2u, 2u} || idx == Vec{1u, 2u} || idx == Vec{2u, 1u} || idx == Vec{2u, 3u}
-                          || idx == Vec{3u, 2u};
+                             || idx == Vec{3u, 2u};
         CHECK(hostOutput[idx] == (isCross ? 20 : 0));
     }
 }

@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -48,6 +48,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-memFenceBlockKernel
 
     // BEGIN-TUTORIAL-memFenceDeviceKernel
@@ -86,6 +87,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-memFenceDeviceKernel
 } // namespace
 

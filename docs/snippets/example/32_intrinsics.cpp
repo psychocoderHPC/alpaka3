@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -33,6 +33,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-intrinsicKernel
 } // namespace
 
@@ -41,7 +42,7 @@ TEST_CASE("tutorial intrinsics", "[docs]")
     auto device = onHost::makeHostDevice();
     auto queue = device.makeQueue(queueKind::blocking);
 
-    std::array<uint32_t, 4u> hostInput{0u, 1u, 0b10110000u, 0xFFFF0000u};
+    std::array<uint32_t, 4u> hostInput{0u, 1u, 0b1011'0000u, 0xFFFF'0000u};
     std::array<int32_t, 4u> hostPopCount{};
     std::array<int32_t, 4u> hostFfs{};
     std::array<int32_t, 4u> hostClz{};
@@ -68,6 +69,8 @@ TEST_CASE("tutorial intrinsics", "[docs]")
         auto value = hostInput[i];
         CHECK(hostPopCount[i] == std::popcount(value));
         CHECK(hostFfs[i] == (value == 0u ? 0 : static_cast<int32_t>(std::countr_zero(value) + 1u)));
-        CHECK(hostClz[i] == (value == 0u ? std::numeric_limits<uint32_t>::digits : static_cast<int32_t>(std::countl_zero(value))));
+        CHECK(
+            hostClz[i]
+            == (value == 0u ? std::numeric_limits<uint32_t>::digits : static_cast<int32_t>(std::countl_zero(value))));
     }
 }

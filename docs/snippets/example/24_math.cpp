@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -17,8 +17,10 @@ namespace
     // BEGIN-TUTORIAL-mathKernel
     struct TrigIdentityKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, concepts::IDataSource auto const& angles)
-            const
+        ALPAKA_FN_ACC void operator()(
+            auto const& acc,
+            concepts::IMdSpan auto out,
+            concepts::IDataSource auto const& angles) const
         {
             for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{angles.getExtents()}))
             {
@@ -29,6 +31,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-mathKernel
 
     // BEGIN-TUTORIAL-rsqrtKernel
@@ -44,6 +47,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-rsqrtKernel
 } // namespace
 

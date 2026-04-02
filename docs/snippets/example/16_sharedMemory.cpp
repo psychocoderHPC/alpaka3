@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -15,8 +15,10 @@ namespace
     // BEGIN-TUTORIAL-sharedScalarKernel
     struct BlockSumKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, concepts::IDataSource auto const& in)
-            const
+        ALPAKA_FN_ACC void operator()(
+            auto const& acc,
+            concepts::IMdSpan auto out,
+            concepts::IDataSource auto const& in) const
         {
             auto& blockSum = onAcc::declareSharedVar<int, uniqueId()>(acc);
 
@@ -46,13 +48,16 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-sharedScalarKernel
 
     // BEGIN-TUTORIAL-sharedKernel
     struct ReverseFrameKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, concepts::IDataSource auto const& in)
-            const
+        ALPAKA_FN_ACC void operator()(
+            auto const& acc,
+            concepts::IMdSpan auto out,
+            concepts::IDataSource auto const& in) const
         {
             auto tile = onAcc::declareSharedMdArray<int, uniqueId()>(acc, acc[frame::extent]);
 
@@ -70,6 +75,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-sharedKernel
 
     // BEGIN-TUTORIAL-dynSharedMemberKernel
@@ -77,8 +83,10 @@ namespace
     {
         uint32_t dynSharedMemBytes;
 
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, concepts::IDataSource auto const& in)
-            const
+        ALPAKA_FN_ACC void operator()(
+            auto const& acc,
+            concepts::IMdSpan auto out,
+            concepts::IDataSource auto const& in) const
         {
             auto* tile = onAcc::getDynSharedMem<int>(acc);
 
@@ -96,6 +104,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-dynSharedMemberKernel
 
     // BEGIN-TUTORIAL-dynSharedTraitKernel
@@ -122,6 +131,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-dynSharedTraitKernel
 } // namespace
 
@@ -131,8 +141,7 @@ namespace alpaka::onHost::trait
     template<typename T_Spec>
     struct BlockDynSharedMemBytes<DynamicScaleKernel, T_Spec>
     {
-        BlockDynSharedMemBytes(DynamicScaleKernel const&, T_Spec const& spec)
-            : m_spec(spec)
+        BlockDynSharedMemBytes(DynamicScaleKernel const&, T_Spec const& spec) : m_spec(spec)
         {
         }
 
@@ -145,6 +154,7 @@ namespace alpaka::onHost::trait
     private:
         T_Spec m_spec;
     };
+
     // END-TUTORIAL-dynSharedTraitSpec
 } // namespace alpaka::onHost::trait
 
@@ -217,7 +227,10 @@ TEST_CASE("tutorial dynamic shared memory via member", "[docs]")
     auto frameSpec = onHost::FrameSpec{1u, CVec<uint32_t, 8u>{}};
     queue.enqueue(
         frameSpec,
-        KernelBundle{DynamicReverseKernel{static_cast<uint32_t>(hostInput.size() * sizeof(int))}, outputBuffer, inputBuffer});
+        KernelBundle{
+            DynamicReverseKernel{static_cast<uint32_t>(hostInput.size() * sizeof(int))},
+            outputBuffer,
+            inputBuffer});
 
     onHost::memcpy(queue, hostOutput, outputBuffer);
     onHost::wait(queue);

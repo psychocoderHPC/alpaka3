@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -45,8 +45,7 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
         queue,
         exec,
         transformBuffer,
-        ScalarFunc{[] ALPAKA_FN_ACC(int const& value)
-                   { return value * value; }},
+        ScalarFunc{[] ALPAKA_FN_ACC(int const& value) { return value * value; }},
         inputBuffer);
     // END-TUTORIAL-transform
 
@@ -66,8 +65,7 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
         0,
         transformReduceBuffer,
         std::plus{},
-        ScalarFunc{[] ALPAKA_FN_ACC(int const& a, int const& b)
-                   { return a * b; }},
+        ScalarFunc{[] ALPAKA_FN_ACC(int const& a, int const& b) { return a * b; }},
         inputBuffer,
         inputBuffer);
     // END-TUTORIAL-transformReduce
@@ -78,8 +76,7 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
         queue,
         exec,
         generatorBuffer,
-        ScalarFunc{[] ALPAKA_FN_ACC(int const& value, int const& linearIdx)
-                   { return value + linearIdx; }},
+        ScalarFunc{[] ALPAKA_FN_ACC(int const& value, int const& linearIdx) { return value + linearIdx; }},
         inputBuffer,
         generator);
     // END-TUTORIAL-generator

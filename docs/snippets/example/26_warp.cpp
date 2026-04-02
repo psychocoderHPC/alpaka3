@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -15,7 +15,10 @@ namespace
     // BEGIN-TUTORIAL-warpKernel
     struct WarpSumKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IDataSource auto const& in, concepts::IMdSpan auto out) const
+        ALPAKA_FN_ACC void operator()(
+            auto const& acc,
+            concepts::IDataSource auto const& in,
+            concepts::IMdSpan auto out) const
         {
             auto const threadsPerBlock = acc[layer::thread].count().product();
             auto const warpSize = onAcc::warp::getSize(acc);
@@ -36,6 +39,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-warpKernel
 } // namespace
 

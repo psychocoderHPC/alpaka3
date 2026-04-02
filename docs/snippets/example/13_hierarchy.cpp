@@ -1,4 +1,4 @@
-/* Copyright 2026 OpenAI
+/* Copyright 2026 René Widera
  * SPDX-License-Identifier: MPL-2.0
  */
 
@@ -23,7 +23,8 @@ namespace
             auto const imageExtent = input.getExtents();
             auto const tileExtent = acc[frame::extent];
 
-            for(auto blockStart : onAcc::makeIdxMap(acc, onAcc::worker::blocksInGrid, IdxRange{Vec{0u, 0u}, imageExtent, tileExtent}))
+            for(auto blockStart :
+                onAcc::makeIdxMap(acc, onAcc::worker::blocksInGrid, IdxRange{Vec{0u, 0u}, imageExtent, tileExtent}))
             {
                 for(auto localIdx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{tileExtent}))
                 {
@@ -34,7 +35,8 @@ namespace
                     }
                 }
 
-                for(auto warpRow : onAcc::makeIdxMap(acc, onAcc::worker::linearWarpsInBlock, onAcc::range::linearWarpsInBlock))
+                for(auto warpRow :
+                    onAcc::makeIdxMap(acc, onAcc::worker::linearWarpsInBlock, onAcc::range::linearWarpsInBlock))
                 {
                     auto rowStart = blockStart + Vec{warpRow.x(), 0u};
                     if(rowStart[0u] >= imageExtent[0u] || warpRow.x() >= tileExtent[0u])
@@ -42,10 +44,12 @@ namespace
                         continue;
                     }
 
-                    for(auto lane : onAcc::makeIdxMap(acc, onAcc::worker::linearThreadsInWarp, onAcc::range::linearThreadsInWarp))
+                    for(auto lane :
+                        onAcc::makeIdxMap(acc, onAcc::worker::linearThreadsInWarp, onAcc::range::linearThreadsInWarp))
                     {
                         auto globalIdx = rowStart + Vec{0u, lane.x()};
-                        if(lane.x() < tileExtent[1u] && globalIdx[1u] < imageExtent[1u] && input[globalIdx] >= threshold)
+                        if(lane.x() < tileExtent[1u] && globalIdx[1u] < imageExtent[1u]
+                           && input[globalIdx] >= threshold)
                         {
                             onAcc::atomicAdd(acc, &rowCounts[Vec{rowStart[0u]}], 1u);
                         }
@@ -54,6 +58,7 @@ namespace
             }
         }
     };
+
     // END-TUTORIAL-hierarchyKernel
 } // namespace
 
