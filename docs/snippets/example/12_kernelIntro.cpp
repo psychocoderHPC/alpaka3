@@ -65,7 +65,7 @@ TEST_CASE("tutorial kernel intro vector add", "[docs]")
     onHost::wait(queue);
     // END-TUTORIAL-kernelLaunch
 
-    for(std::size_t i = 0; i < result.size(); ++i)
+    for(size_t i = 0; i < result.size(); ++i)
     {
         CHECK(result[i] == lhs[i] + rhs[i]);
     }

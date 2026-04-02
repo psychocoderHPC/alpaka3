@@ -64,7 +64,7 @@ TEST_CASE("tutorial intrinsics", "[docs]")
     onHost::memcpy(queue, hostClz, clzBuffer);
     onHost::wait(queue);
 
-    for(std::size_t i = 0; i < hostInput.size(); ++i)
+    for(size_t i = 0; i < hostInput.size(); ++i)
     {
         auto value = hostInput[i];
         CHECK(hostPopCount[i] == std::popcount(value));

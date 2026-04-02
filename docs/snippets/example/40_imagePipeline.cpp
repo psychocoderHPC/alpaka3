@@ -63,7 +63,7 @@ TEST_CASE("tutorial image pipeline", "[docs]")
     std::array<uint8_t, 16u>
         inputValues{12u, 33u, 180u, 210u, 15u, 50u, 170u, 240u, 20u, 95u, 130u, 250u, 5u, 60u, 145u, 220u};
 
-    for(std::size_t i = 0; i < inputValues.size(); ++i)
+    for(size_t i = 0; i < inputValues.size(); ++i)
     {
         hostImage[mapToND(imageExtents, static_cast<uint32_t>(i))] = inputValues[i];
     }

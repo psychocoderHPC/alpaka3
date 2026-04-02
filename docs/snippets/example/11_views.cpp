@@ -19,20 +19,20 @@ TEST_CASE("tutorial views and subviews", "[docs]")
 
     // BEGIN-TUTORIAL-viewCreation
     auto hostView = makeView(hostData);
-    auto middleView = hostView.getSubView(std::size_t{2}, std::size_t{4});
+    auto middleView = hostView.getSubView(size_t{2}, size_t{4});
     // END-TUTORIAL-viewCreation
 
     CHECK(hostView.getExtents().x() == 8u);
     CHECK(middleView.getExtents().x() == 4u);
-    CHECK(middleView[Vec{std::size_t{0}}] == 2);
-    CHECK(middleView[Vec{std::size_t{3}}] == 5);
+    CHECK(middleView[Vec{size_t{0}}] == 2);
+    CHECK(middleView[Vec{size_t{3}}] == 5);
 
     // BEGIN-TUTORIAL-viewCopy
     auto deviceBuffer = onHost::allocLike(device, hostView);
     onHost::memcpy(queue, deviceBuffer, hostView);
 
     auto hostSlice = onHost::allocHost<int>(4u);
-    onHost::memcpy(queue, hostSlice, deviceBuffer.getSubView(Vec{std::size_t{2}}, Vec{std::size_t{4}}));
+    onHost::memcpy(queue, hostSlice, deviceBuffer.getSubView(Vec{size_t{2}}, Vec{size_t{4}}));
     onHost::wait(queue);
     // END-TUTORIAL-viewCopy
 

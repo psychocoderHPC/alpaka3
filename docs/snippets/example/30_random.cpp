@@ -128,7 +128,7 @@ TEST_CASE("tutorial random intervals", "[docs]")
     onHost::memcpy(queue, hostOo, ooBuffer);
     onHost::wait(queue);
 
-    for(std::size_t i = 0; i < hostCo.size(); ++i)
+    for(size_t i = 0; i < hostCo.size(); ++i)
     {
         CHECK(hostCo[i] >= 0.0f);
         CHECK(hostCo[i] < 1.0f);

@@ -79,7 +79,7 @@ TEST_CASE("tutorial math functions on device", "[docs]")
         CHECK(value == Catch::Approx(1.0f).margin(5e-6f));
     }
 
-    for(std::size_t i = 0; i < hostAngles.size(); ++i)
+    for(size_t i = 0; i < hostAngles.size(); ++i)
     {
         auto expected = 1.0f / std::sqrt(hostAngles[i] * hostAngles[i] + 1.0f);
         CHECK(hostInvLen[i] == Catch::Approx(expected).margin(5e-6f));

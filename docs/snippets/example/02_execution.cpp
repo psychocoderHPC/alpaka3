@@ -24,7 +24,7 @@ TEST_CASE("tutorial enumerate backends and executors", "[docs]")
     CHECK(properties.warpSize >= 1u);
     CHECK(!device.getName().empty());
 
-    std::size_t numVisitedBackends = 0u;
+    size_t numVisitedBackends = 0u;
     // BEGIN-TUTORIAL-enumerateBackends
     onHost::executeForEachIfHasDevice(
         [&](auto const& backend)
