@@ -13,6 +13,17 @@ using namespace alpaka;
 
 namespace vendorTutorial
 {
+    struct AffineTransformOp
+    {
+        float scale;
+        float shift;
+
+        ALPAKA_FN_ACC auto operator()(float const& value) const -> float
+        {
+            return scale * value + shift;
+        }
+    };
+
     // BEGIN-TUTORIAL-vendorSymbol
     ALPAKA_FN_SYMBOL(AffineTransform, alpaka::fn::Fallback::toAlpaka, alpaka::fn::Registration::enforced);
 
@@ -24,19 +35,23 @@ namespace vendorTutorial
     {
     }
 
-    template<alpaka::concepts::DeviceKind T_DeviceKind>
+    template<
+        alpaka::concepts::DeviceKind T_DeviceKind,
+        typename T_Queue,
+        alpaka::concepts::IMdSpan T_Output,
+        alpaka::concepts::IMdSpan T_Input>
     constexpr void fnDispatch(
         AffineTransform::Spec<alpaka::fn::api::Alpaka, T_DeviceKind>,
-        auto&& queue,
-        alpaka::concepts::IMdSpan auto&& output,
+        T_Queue&& queue,
+        T_Output&& output,
         float scale,
         float shift,
-        alpaka::concepts::IMdSpan auto&& input)
+        T_Input&& input)
     {
         alpaka::onHost::transform(
             ALPAKA_FORWARD(queue),
             ALPAKA_FORWARD(output),
-            ScalarFunc{[=] ALPAKA_FN_ACC(float const& value) { return scale * value + shift; }},
+            ScalarFunc{AffineTransformOp{scale, shift}},
             ALPAKA_FORWARD(input));
     }
 
@@ -47,13 +62,14 @@ namespace vendorTutorial
     {
     }
 
+    template<typename T_Queue, alpaka::concepts::IMdSpan T_Output, alpaka::concepts::IMdSpan T_Input>
     constexpr void fnDispatch(
         AffineTransform::Spec<alpaka::api::Host, alpaka::deviceKind::Cpu>,
-        auto&& queue,
-        alpaka::concepts::IMdSpan auto&& output,
+        T_Queue&& queue,
+        T_Output&& output,
         float scale,
         float shift,
-        alpaka::concepts::IMdSpan auto&& input)
+        T_Input&& input)
     {
         auto outPtr = output.data();
         queue.enqueueHostFn(

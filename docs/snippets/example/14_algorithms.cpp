@@ -68,12 +68,7 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
     // END-TUTORIAL-iota
 
     // BEGIN-TUTORIAL-transform
-    onHost::transform(
-        queue,
-        exec,
-        transformBuffer,
-        ScalarFunc{SquareValue{}},
-        inputBuffer);
+    onHost::transform(queue, exec, transformBuffer, ScalarFunc{SquareValue{}}, inputBuffer);
     // END-TUTORIAL-transform
 
     // BEGIN-TUTORIAL-reduce
@@ -99,13 +94,7 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
 
     // BEGIN-TUTORIAL-generator
     auto generator = LinearizedIdxGenerator{inputBuffer.getExtents()};
-    onHost::transform(
-        queue,
-        exec,
-        generatorBuffer,
-        ScalarFunc{AddLinearIdx{}},
-        inputBuffer,
-        generator);
+    onHost::transform(queue, exec, generatorBuffer, ScalarFunc{AddLinearIdx{}}, inputBuffer, generator);
     // END-TUTORIAL-generator
 
     onHost::memcpy(queue, hostIota, iotaBuffer);
