@@ -12,6 +12,33 @@
 
 using namespace alpaka;
 
+namespace
+{
+    struct SquareValue
+    {
+        ALPAKA_FN_ACC auto operator()(int const& value) const -> int
+        {
+            return value * value;
+        }
+    };
+
+    struct MultiplyValues
+    {
+        ALPAKA_FN_ACC auto operator()(int const& a, int const& b) const -> int
+        {
+            return a * b;
+        }
+    };
+
+    struct AddLinearIdx
+    {
+        ALPAKA_FN_ACC auto operator()(int const& value, size_t const& linearIdx) const -> int
+        {
+            return value + static_cast<int>(linearIdx);
+        }
+    };
+} // namespace
+
 TEST_CASE("tutorial onHost algorithms", "[docs]")
 {
     auto device = onHost::makeHostDevice();
@@ -45,7 +72,7 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
         queue,
         exec,
         transformBuffer,
-        ScalarFunc{[] ALPAKA_FN_ACC(int const& value) { return value * value; }},
+        ScalarFunc{SquareValue{}},
         inputBuffer);
     // END-TUTORIAL-transform
 
@@ -65,7 +92,7 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
         0,
         transformReduceBuffer,
         std::plus{},
-        ScalarFunc{[] ALPAKA_FN_ACC(int const& a, int const& b) { return a * b; }},
+        ScalarFunc{MultiplyValues{}},
         inputBuffer,
         inputBuffer);
     // END-TUTORIAL-transformReduce
@@ -76,7 +103,7 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
         queue,
         exec,
         generatorBuffer,
-        ScalarFunc{[] ALPAKA_FN_ACC(int const& value, int const& linearIdx) { return value + linearIdx; }},
+        ScalarFunc{AddLinearIdx{}},
         inputBuffer,
         generator);
     // END-TUTORIAL-generator

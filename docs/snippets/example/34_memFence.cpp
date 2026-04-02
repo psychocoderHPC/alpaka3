@@ -126,7 +126,6 @@ TEST_CASE("tutorial memFence device scope", "[docs]")
 
     // BEGIN-TUTORIAL-memFenceDeviceLaunch
     queue.enqueue(
-        exec::cpuOmpBlocks,
         onHost::ThreadSpec{3u, 1u},
         KernelBundle{ProducerConsumerFenceKernel{}, payload, readyFlag, mismatchCounter});
     // END-TUTORIAL-memFenceDeviceLaunch
