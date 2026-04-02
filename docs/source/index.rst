@@ -52,13 +52,13 @@ Individual chapters are based on the information of the chapters before.
 
 .. toctree::
    :caption: Tutorial
-   :maxdepth: 1
+   :maxdepth: 2
 
    tutorial/intro.rst
-   tutorial/vector.rst
-   tutorial/device.rst
-   tutorial/queue.rst
-   tutorial/memory.rst
+   tutorial/foundations.rst
+   tutorial/kernels.rst
+   tutorial/numerics.rst
+   tutorial/migration.rst
 
 .. toctree::
    :caption: Advanced

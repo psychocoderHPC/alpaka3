@@ -1,0 +1,57 @@
+/* Copyright 2026 OpenAI
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+#include <alpaka/alpaka.hpp>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <array>
+
+using namespace alpaka;
+
+namespace
+{
+    // BEGIN-TUTORIAL-atomicKernel
+    struct HistogramKernel
+    {
+        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IDataSource auto const& input, concepts::IMdSpan auto bins)
+            const
+        {
+            for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{input.getExtents()}))
+            {
+                auto const bin = input[i];
+                onAcc::atomicAdd(acc, &bins[Vec{bin}], 1u);
+            }
+        }
+    };
+    // END-TUTORIAL-atomicKernel
+} // namespace
+
+TEST_CASE("tutorial atomics histogram", "[docs]")
+{
+    auto device = onHost::makeHostDevice();
+    auto queue = device.makeQueue();
+
+    std::array<uint32_t, 12u> hostInput{0u, 1u, 0u, 2u, 3u, 0u, 1u, 2u, 2u, 3u, 3u, 3u};
+    std::array<uint32_t, 4u> hostBins{};
+
+    auto inputBuffer = onHost::allocLike(device, hostInput);
+    auto binsBuffer = onHost::alloc<uint32_t>(device, Vec{4u});
+
+    onHost::memcpy(queue, inputBuffer, hostInput);
+    onHost::memset(queue, binsBuffer, 0x00);
+
+    // BEGIN-TUTORIAL-atomicLaunch
+    auto frameSpec = onHost::FrameSpec{divExZero(static_cast<uint32_t>(hostInput.size()), 64u), 64u};
+    queue.enqueue(frameSpec, KernelBundle{HistogramKernel{}, inputBuffer, binsBuffer});
+    // END-TUTORIAL-atomicLaunch
+
+    onHost::memcpy(queue, hostBins, binsBuffer);
+    onHost::wait(queue);
+
+    CHECK(hostBins[0] == 3u);
+    CHECK(hostBins[1] == 2u);
+    CHECK(hostBins[2] == 3u);
+    CHECK(hostBins[3] == 4u);
+}

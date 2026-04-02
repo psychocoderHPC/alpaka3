@@ -5,6 +5,11 @@ Now that we know how to :ref:`get a device <device-selection>` and create :ref:`
 To allocate memory, you need a *device* and sometimes a *queue*.
 alpaka's memory allocation methods return a ``alpaka::onHost::SharedBuffer`` handle that tracks the lifetime of the memory and frees memory when the last instance goes out of scope, similar to ``std::shared_ptr<>`` in the STL.
 
+This chapter is easiest to picture with two recurring examples from the rest of the tutorial:
+
+- an image-processing pipeline, where you may keep one host image, one device image, and perhaps one temporary output image,
+- or a Monte Carlo workflow, where you keep input parameters, random samples, and partial results in separate buffers.
+
 - Copying a ``alpaka::onHost::SharedBuffer`` handle is a shallow copy of the buffer handle and does not duplicate the data.
 - A deep copy of the memory must be explicitly triggered using ``alpaka::onHost::memcpy()``.
 - A buffer is **not** initialized with default values.
@@ -58,6 +63,8 @@ Sometimes you want to allocate memory that is only used as a temporary buffer an
 Since memory allocations are costly, you generally avoid allocating memory, for example, in a loop.
 Depending on the device or queue API, ``alpaka::onHost::allocDeferred()`` automatically uses an internal caching allocator to keep allocation as cost-effective as possible.
 
+That kind of temporary buffer shows up naturally later for things such as scan scratch storage, intermediate image tiles, or one stage of a multi-step numerical pipeline.
+
   .. literalinclude:: ../../snippets/example/10_memory.cpp
     :language: cpp
     :start-after: BEGIN-TUTORIAL-allocBufferDeferred
@@ -69,6 +76,9 @@ Memory Operations
 
 One of the most commonly used memory operations is the copy operation, which copies data from one buffer to another.
 All memory operations support any dimension ``>=1``.
+
+In practice, these operations are the "plumbing" around nearly every example in this tutorial:
+copy an image to the device, clear a histogram buffer, move results back to the host, or prepare a Monte Carlo input/output pair before launching a kernel.
 
 - ``alpaka::onHost::memcpy()`` always works with the entire buffer unless you specify the extent. The extent defines the number of elements, **not** the size in bytes.
 

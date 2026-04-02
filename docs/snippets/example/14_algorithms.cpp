@@ -1,0 +1,133 @@
+/* Copyright 2026 OpenAI
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+#include <alpaka/alpaka.hpp>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <array>
+#include <bit>
+#include <functional>
+
+using namespace alpaka;
+
+TEST_CASE("tutorial onHost algorithms", "[docs]")
+{
+    auto device = onHost::makeHostDevice();
+    auto queue = device.makeQueue(queueKind::blocking);
+    auto exec = exec::cpuSerial;
+
+    std::array<int, 8u> hostInput{1, 2, 3, 4, 5, 6, 7, 8};
+    std::array<int, 8u> hostIota{};
+    std::array<int, 8u> hostTransform{};
+    std::array<int, 8u> hostScan{};
+    std::array<int, 8u> hostGenerator{};
+
+    auto iotaBuffer = onHost::allocLike(device, hostInput);
+    auto inputBuffer = onHost::allocLike(device, hostInput);
+    auto transformBuffer = onHost::allocLike(device, hostInput);
+    auto scanBuffer = onHost::allocLike(device, hostInput);
+    auto generatorBuffer = onHost::allocLike(device, hostInput);
+    auto reduceBuffer = onHost::alloc<int>(device, Vec{1u});
+    auto transformReduceBuffer = onHost::alloc<int>(device, Vec{1u});
+    auto reduceHost = onHost::allocHostLike(reduceBuffer);
+    auto transformReduceHost = onHost::allocHostLike(transformReduceBuffer);
+
+    onHost::memcpy(queue, inputBuffer, hostInput);
+
+    // BEGIN-TUTORIAL-iota
+    onHost::iota<int>(queue, exec, 10, iotaBuffer);
+    // END-TUTORIAL-iota
+
+    // BEGIN-TUTORIAL-transform
+    onHost::transform(
+        queue,
+        exec,
+        transformBuffer,
+        ScalarFunc{[] ALPAKA_FN_ACC(int const& value)
+                   { return value * value; }},
+        inputBuffer);
+    // END-TUTORIAL-transform
+
+    // BEGIN-TUTORIAL-reduce
+    onHost::reduce(queue, exec, 0, reduceBuffer, std::plus{}, inputBuffer);
+    // END-TUTORIAL-reduce
+
+    // BEGIN-TUTORIAL-scan
+    auto tmpBuffer = onHost::alloc<std::byte>(device, onHost::getScanBufferSize<int>(inputBuffer.getExtents()));
+    onHost::inclusiveScan(queue, exec, tmpBuffer, scanBuffer, inputBuffer);
+    // END-TUTORIAL-scan
+
+    // BEGIN-TUTORIAL-transformReduce
+    onHost::transformReduce(
+        queue,
+        exec,
+        0,
+        transformReduceBuffer,
+        std::plus{},
+        ScalarFunc{[] ALPAKA_FN_ACC(int const& a, int const& b)
+                   { return a * b; }},
+        inputBuffer,
+        inputBuffer);
+    // END-TUTORIAL-transformReduce
+
+    // BEGIN-TUTORIAL-generator
+    auto generator = LinearizedIdxGenerator{inputBuffer.getExtents()};
+    onHost::transform(
+        queue,
+        exec,
+        generatorBuffer,
+        ScalarFunc{[] ALPAKA_FN_ACC(int const& value, int const& linearIdx)
+                   { return value + linearIdx; }},
+        inputBuffer,
+        generator);
+    // END-TUTORIAL-generator
+
+    onHost::memcpy(queue, hostIota, iotaBuffer);
+    onHost::memcpy(queue, hostTransform, transformBuffer);
+    onHost::memcpy(queue, reduceHost, reduceBuffer);
+    onHost::memcpy(queue, hostScan, scanBuffer);
+    onHost::memcpy(queue, hostGenerator, generatorBuffer);
+    onHost::memcpy(queue, transformReduceHost, transformReduceBuffer);
+    onHost::wait(queue);
+
+    CHECK(hostIota[0] == 10);
+    CHECK(hostIota[1] == 11);
+    CHECK(hostIota[2] == 12);
+    CHECK(hostIota[3] == 13);
+    CHECK(hostIota[4] == 14);
+    CHECK(hostIota[5] == 15);
+    CHECK(hostIota[6] == 16);
+    CHECK(hostIota[7] == 17);
+
+    CHECK(hostTransform[0] == 1);
+    CHECK(hostTransform[1] == 4);
+    CHECK(hostTransform[2] == 9);
+    CHECK(hostTransform[3] == 16);
+    CHECK(hostTransform[4] == 25);
+    CHECK(hostTransform[5] == 36);
+    CHECK(hostTransform[6] == 49);
+    CHECK(hostTransform[7] == 64);
+
+    CHECK(reduceHost[0] == 36);
+    CHECK(hostScan[0] == 1);
+    CHECK(hostScan[1] == 3);
+    CHECK(hostScan[2] == 6);
+    CHECK(hostScan[3] == 10);
+    CHECK(hostScan[4] == 15);
+    CHECK(hostScan[5] == 21);
+    CHECK(hostScan[6] == 28);
+    CHECK(hostScan[7] == 36);
+
+    CHECK(hostGenerator[0] == 1);
+    CHECK(hostGenerator[1] == 3);
+    CHECK(hostGenerator[2] == 5);
+    CHECK(hostGenerator[3] == 7);
+    CHECK(hostGenerator[4] == 9);
+    CHECK(hostGenerator[5] == 11);
+    CHECK(hostGenerator[6] == 13);
+    CHECK(hostGenerator[7] == 15);
+
+    CHECK(transformReduceHost[0] == 204);
+}

@@ -55,3 +55,5 @@ The device with the api ``host`` and the device kind ``cpu`` which represents yo
     :start-after: BEGIN-TUTORIAL-devHostDev
     :end-before: END-TUTORIAL-devHostDev
     :dedent:
+
+If you want to see how to enumerate all enabled backends and executors instead of choosing one device manually, continue with :doc:`execution`.

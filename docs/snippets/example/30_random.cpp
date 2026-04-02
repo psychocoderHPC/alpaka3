@@ -1,0 +1,166 @@
+/* Copyright 2026 OpenAI
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+#include <alpaka/alpaka.hpp>
+
+#include <catch2/catch_test_macros.hpp>
+
+#include <array>
+#include <cmath>
+#include <numeric>
+
+using namespace alpaka;
+
+namespace
+{
+    // BEGIN-TUTORIAL-randomKernel
+    struct UniformRandomKernel
+    {
+        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, uint32_t seed) const
+        {
+            for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
+            {
+                rand::engine::Philox4x32x10 engine(seed + idx);
+                auto distribution = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::co};
+                out[idx] = distribution(engine);
+            }
+        }
+    };
+    // END-TUTORIAL-randomKernel
+
+    // BEGIN-TUTORIAL-randomIntervalsKernel
+    struct IntervalExamplesKernel
+    {
+        ALPAKA_FN_ACC void operator()(
+            auto const& acc,
+            concepts::IMdSpan auto coValues,
+            concepts::IMdSpan auto ocValues,
+            concepts::IMdSpan auto ccValues,
+            concepts::IMdSpan auto ooValues,
+            uint32_t seed) const
+        {
+            for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{coValues.getExtents()}))
+            {
+                rand::engine::Philox4x32x10 engine(seed + idx);
+                coValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::co}(engine);
+                ocValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::oc}(engine);
+                ccValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::cc}(engine);
+                ooValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::oo}(engine);
+            }
+        }
+    };
+    // END-TUTORIAL-randomIntervalsKernel
+
+    // BEGIN-TUTORIAL-randomNormalKernel
+    struct NormalNoiseKernel
+    {
+        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, uint32_t seed, float mean, float stdDev)
+            const
+        {
+            for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
+            {
+                rand::engine::Philox4x32x10 engine(seed + idx);
+                rand::distribution::NormalReal<float> normal(mean, stdDev);
+                out[idx] = normal(engine);
+            }
+        }
+    };
+    // END-TUTORIAL-randomNormalKernel
+} // namespace
+
+TEST_CASE("tutorial random numbers", "[docs]")
+{
+    auto device = onHost::makeHostDevice();
+    auto queue = device.makeQueue(queueKind::blocking);
+
+    std::array<float, 8u> hostValues{};
+    auto randomBuffer = onHost::allocLike(device, hostValues);
+
+    // BEGIN-TUTORIAL-randomLaunch
+    auto frameSpec = onHost::getFrameSpec<float>(device, randomBuffer.getExtents());
+    queue.enqueue(frameSpec, KernelBundle{UniformRandomKernel{}, randomBuffer, 1234u});
+    // END-TUTORIAL-randomLaunch
+
+    onHost::memcpy(queue, hostValues, randomBuffer);
+    onHost::wait(queue);
+
+    float sum = 0.0f;
+    for(auto value : hostValues)
+    {
+        CHECK(value >= 0.0f);
+        CHECK(value < 1.0f);
+        sum += value;
+    }
+
+    CHECK(sum > 0.0f);
+    CHECK(sum < 8.0f);
+}
+
+TEST_CASE("tutorial random intervals", "[docs]")
+{
+    auto device = onHost::makeHostDevice();
+    auto queue = device.makeQueue(queueKind::blocking);
+
+    std::array<float, 16u> hostCo{};
+    std::array<float, 16u> hostOc{};
+    std::array<float, 16u> hostCc{};
+    std::array<float, 16u> hostOo{};
+
+    auto coBuffer = onHost::allocLike(device, hostCo);
+    auto ocBuffer = onHost::allocLike(device, hostOc);
+    auto ccBuffer = onHost::allocLike(device, hostCc);
+    auto ooBuffer = onHost::allocLike(device, hostOo);
+
+    auto frameSpec = onHost::getFrameSpec<float>(device, coBuffer.getExtents());
+    queue.enqueue(frameSpec, KernelBundle{IntervalExamplesKernel{}, coBuffer, ocBuffer, ccBuffer, ooBuffer, 999u});
+
+    onHost::memcpy(queue, hostCo, coBuffer);
+    onHost::memcpy(queue, hostOc, ocBuffer);
+    onHost::memcpy(queue, hostCc, ccBuffer);
+    onHost::memcpy(queue, hostOo, ooBuffer);
+    onHost::wait(queue);
+
+    for(std::size_t i = 0; i < hostCo.size(); ++i)
+    {
+        CHECK(hostCo[i] >= 0.0f);
+        CHECK(hostCo[i] < 1.0f);
+        CHECK(hostOc[i] > 0.0f);
+        CHECK(hostOc[i] <= 1.0f);
+        CHECK(hostCc[i] >= 0.0f);
+        CHECK(hostCc[i] <= 1.0f);
+        CHECK(hostOo[i] > 0.0f);
+        CHECK(hostOo[i] < 1.0f);
+    }
+}
+
+TEST_CASE("tutorial random normal distribution", "[docs]")
+{
+    auto device = onHost::makeHostDevice();
+    auto queue = device.makeQueue(queueKind::blocking);
+
+    std::array<float, 64u> hostValues{};
+    auto randomBuffer = onHost::allocLike(device, hostValues);
+
+    // BEGIN-TUTORIAL-randomNormalLaunch
+    auto frameSpec = onHost::getFrameSpec<float>(device, randomBuffer.getExtents());
+    queue.enqueue(frameSpec, KernelBundle{NormalNoiseKernel{}, randomBuffer, 2025u, 5.0f, 2.0f});
+    // END-TUTORIAL-randomNormalLaunch
+
+    onHost::memcpy(queue, hostValues, randomBuffer);
+    onHost::wait(queue);
+
+    float mean = std::accumulate(hostValues.begin(), hostValues.end(), 0.0f) / static_cast<float>(hostValues.size());
+    CHECK(mean > 4.0f);
+    CHECK(mean < 6.0f);
+
+    bool foundBelowMean = false;
+    bool foundAboveMean = false;
+    for(auto value : hostValues)
+    {
+        foundBelowMean = foundBelowMean || value < 5.0f;
+        foundAboveMean = foundAboveMean || value > 5.0f;
+    }
+    CHECK(foundBelowMean);
+    CHECK(foundAboveMean);
+}
