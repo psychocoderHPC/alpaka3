@@ -42,6 +42,13 @@ Registering a Generic alpaka Fallback
 
 This overload is the portable baseline.
 It works on every backend that can run the normal alpaka algorithm path, so it is a good default even when you later add CUDA-, HIP-, or SYCL-specific overloads.
+The affine operation itself is spelled out as a tiny named functor so the tutorial still shows the callable logic directly even though backend-compatible code cannot use the original local lambda form here:
+
+  .. literalinclude:: ../../snippets/example/38_vendorInterop.cpp
+    :language: cpp
+    :start-after: BEGIN-TUTORIAL-vendorFunctor
+    :end-before: END-TUTORIAL-vendorFunctor
+    :dedent:
 
 Registering a Backend-Specific Overload
 ---------------------------------------

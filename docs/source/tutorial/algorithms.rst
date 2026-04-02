@@ -41,12 +41,20 @@ It applies a functor to one or more inputs and writes the result into an output 
 
   .. literalinclude:: ../../snippets/example/14_algorithms.cpp
     :language: cpp
-    :start-after: BEGIN-TUTORIAL-transform
-    :end-before: END-TUTORIAL-transform
+    :start-after: BEGIN-TUTORIAL-transformCall
+    :end-before: END-TUTORIAL-transformCall
     :dedent:
 
 For simple scalar functors, wrapping the callable in ``ScalarFunc`` keeps the intent clear and matches the tested alpaka pattern.
 That wrapper is especially useful when you want scalar semantics even though the algorithm may vectorize loads and stores internally.
+Because CUDA/HIP-friendly tutorial code should not rely on local lambdas here, the example uses a tiny named functor instead.
+
+  .. literalinclude:: ../../snippets/example/14_algorithms.cpp
+    :language: cpp
+    :start-after: BEGIN-TUTORIAL-transformFunctor
+    :end-before: END-TUTORIAL-transformFunctor
+    :dedent:
+
 The example squares every element, but the same pattern is what you would use for brightness scaling in an image row, converting Celsius to Kelvin, or applying a threshold to a signal.
 
 Reduction
@@ -107,14 +115,21 @@ That is the natural tool for dot products, weighted sums, norms, and many “com
 
   .. literalinclude:: ../../snippets/example/14_algorithms.cpp
     :language: cpp
-    :start-after: BEGIN-TUTORIAL-transformReduce
-    :end-before: END-TUTORIAL-transformReduce
+    :start-after: BEGIN-TUTORIAL-transformReduceCall
+    :end-before: END-TUTORIAL-transformReduceCall
     :dedent:
 
 The first functor is the reduction operator and the second one is the element-wise transform.
 As in ``reduce``, you provide the neutral element explicitly and store the result in a one-element output buffer.
 This is the natural dot-product pattern:
 take one product per element pair, then accumulate those products into one final value.
+The backend-compatible callable itself is still small enough to show directly:
+
+  .. literalinclude:: ../../snippets/example/14_algorithms.cpp
+    :language: cpp
+    :start-after: BEGIN-TUTORIAL-transformReduceFunctor
+    :end-before: END-TUTORIAL-transformReduceFunctor
+    :dedent:
 
 Generators Instead of Input Buffers
 -----------------------------------
@@ -124,8 +139,8 @@ That is useful when one input is synthetic, such as a linear index, and you do n
 
   .. literalinclude:: ../../snippets/example/14_algorithms.cpp
     :language: cpp
-    :start-after: BEGIN-TUTORIAL-generator
-    :end-before: END-TUTORIAL-generator
+    :start-after: BEGIN-TUTORIAL-generatorCall
+    :end-before: END-TUTORIAL-generatorCall
     :dedent:
 
 ``LinearizedIdxGenerator`` is the simplest generator to learn first.
@@ -133,6 +148,13 @@ It behaves like a virtual buffer whose value at each position is the correspondi
 The algorithm tests use the same pattern for ``reduce``, ``transform``, and ``transformReduce``.
 That is useful when the extra input is really a formula rather than stored data.
 For example, you may want "value plus index" or "weight derived from the linear position" without allocating another buffer just to hold those numbers.
+The helper functor is again small enough to show directly:
+
+  .. literalinclude:: ../../snippets/example/14_algorithms.cpp
+    :language: cpp
+    :start-after: BEGIN-TUTORIAL-generatorFunctor
+    :end-before: END-TUTORIAL-generatorFunctor
+    :dedent:
 
 How This Differs From STL and CUB-Style Expectations
 ----------------------------------------------------

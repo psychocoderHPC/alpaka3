@@ -13,6 +13,7 @@ using namespace alpaka;
 
 namespace vendorTutorial
 {
+    // BEGIN-TUTORIAL-vendorFunctor
     struct AffineTransformOp
     {
         float scale;
@@ -23,6 +24,7 @@ namespace vendorTutorial
             return scale * value + shift;
         }
     };
+    // END-TUTORIAL-vendorFunctor
 
     // BEGIN-TUTORIAL-vendorSymbol
     ALPAKA_FN_SYMBOL(AffineTransform, alpaka::fn::Fallback::toAlpaka, alpaka::fn::Registration::enforced);

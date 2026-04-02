@@ -14,6 +14,7 @@ using namespace alpaka;
 
 namespace
 {
+    // BEGIN-TUTORIAL-transformFunctor
     struct SquareValue
     {
         ALPAKA_FN_ACC auto operator()(int const& value) const -> int
@@ -21,7 +22,9 @@ namespace
             return value * value;
         }
     };
+    // END-TUTORIAL-transformFunctor
 
+    // BEGIN-TUTORIAL-transformReduceFunctor
     struct MultiplyValues
     {
         ALPAKA_FN_ACC auto operator()(int const& a, int const& b) const -> int
@@ -29,7 +32,9 @@ namespace
             return a * b;
         }
     };
+    // END-TUTORIAL-transformReduceFunctor
 
+    // BEGIN-TUTORIAL-generatorFunctor
     struct AddLinearIdx
     {
         ALPAKA_FN_ACC auto operator()(int const& value, size_t const& linearIdx) const -> int
@@ -37,6 +42,7 @@ namespace
             return value + static_cast<int>(linearIdx);
         }
     };
+    // END-TUTORIAL-generatorFunctor
 } // namespace
 
 TEST_CASE("tutorial onHost algorithms", "[docs]")
@@ -67,9 +73,9 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
     onHost::iota<int>(queue, exec, 10, iotaBuffer);
     // END-TUTORIAL-iota
 
-    // BEGIN-TUTORIAL-transform
+    // BEGIN-TUTORIAL-transformCall
     onHost::transform(queue, exec, transformBuffer, ScalarFunc{SquareValue{}}, inputBuffer);
-    // END-TUTORIAL-transform
+    // END-TUTORIAL-transformCall
 
     // BEGIN-TUTORIAL-reduce
     onHost::reduce(queue, exec, 0, reduceBuffer, std::plus{}, inputBuffer);
@@ -80,7 +86,7 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
     onHost::inclusiveScan(queue, exec, tmpBuffer, scanBuffer, inputBuffer);
     // END-TUTORIAL-scan
 
-    // BEGIN-TUTORIAL-transformReduce
+    // BEGIN-TUTORIAL-transformReduceCall
     onHost::transformReduce(
         queue,
         exec,
@@ -90,12 +96,12 @@ TEST_CASE("tutorial onHost algorithms", "[docs]")
         ScalarFunc{MultiplyValues{}},
         inputBuffer,
         inputBuffer);
-    // END-TUTORIAL-transformReduce
+    // END-TUTORIAL-transformReduceCall
 
-    // BEGIN-TUTORIAL-generator
+    // BEGIN-TUTORIAL-generatorCall
     auto generator = LinearizedIdxGenerator{inputBuffer.getExtents()};
     onHost::transform(queue, exec, generatorBuffer, ScalarFunc{AddLinearIdx{}}, inputBuffer, generator);
-    // END-TUTORIAL-generator
+    // END-TUTORIAL-generatorCall
 
     onHost::memcpy(queue, hostIota, iotaBuffer);
     onHost::memcpy(queue, hostTransform, transformBuffer);
