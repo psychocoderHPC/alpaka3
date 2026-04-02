@@ -41,6 +41,7 @@ Individual chapters are based on the information of the chapters before.
 .. toctree::
    :caption: Basic
    :maxdepth: 1
+   :titlesonly:
 
    basic/intro.rst
    basic/install.rst
@@ -53,6 +54,7 @@ Individual chapters are based on the information of the chapters before.
 .. toctree::
    :caption: Tutorial
    :maxdepth: 2
+   :titlesonly:
 
    tutorial/intro.rst
    tutorial/foundations.rst
@@ -63,6 +65,7 @@ Individual chapters are based on the information of the chapters before.
 .. toctree::
    :caption: Advanced
    :maxdepth: 1
+   :titlesonly:
 
    advanced/cmake.rst
    advanced/datastorage.rst
@@ -72,6 +75,7 @@ Individual chapters are based on the information of the chapters before.
 .. toctree::
    :caption: Developer
    :maxdepth: 1
+   :titlesonly:
 
    dev/logging.rst
    dev/online_tools.rst
@@ -79,6 +83,7 @@ Individual chapters are based on the information of the chapters before.
 .. toctree::
    :caption: Contribution
    :maxdepth: 1
+   :titlesonly:
 
    contribution/sphinx.rst
    contribution/tools.rst
@@ -86,6 +91,7 @@ Individual chapters are based on the information of the chapters before.
 .. toctree::
    :maxdepth: 2
    :caption: API Reference
+   :titlesonly:
 
    doxygen
    doxygen_dev
