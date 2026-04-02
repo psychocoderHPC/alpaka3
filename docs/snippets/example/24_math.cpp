@@ -18,7 +18,7 @@ namespace
     struct TrigIdentityKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
             concepts::IDataSource auto const& angles) const
         {
@@ -37,8 +37,10 @@ namespace
     // BEGIN-TUTORIAL-rsqrtKernel
     struct DistanceKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, concepts::IDataSource auto const& x)
-            const
+        ALPAKA_FN_ACC void operator()(
+            onAcc::concepts::Acc auto const& acc,
+            concepts::IMdSpan auto out,
+            concepts::IDataSource auto const& x) const
         {
             for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{x.getExtents()}))
             {

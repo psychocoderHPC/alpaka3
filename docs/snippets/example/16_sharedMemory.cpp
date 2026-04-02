@@ -16,7 +16,7 @@ namespace
     struct BlockSumKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
             concepts::IDataSource auto const& in) const
         {
@@ -55,7 +55,7 @@ namespace
     struct ReverseFrameKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
             concepts::IDataSource auto const& in) const
         {
@@ -84,7 +84,7 @@ namespace
         uint32_t dynSharedMemBytes;
 
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
             concepts::IDataSource auto const& in) const
         {
@@ -111,7 +111,7 @@ namespace
     struct DynamicScaleKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
             concepts::IDataSource auto const& in,
             int factor) const

@@ -18,7 +18,7 @@ namespace
     struct BitIntrinsicKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto popCounts,
             concepts::IMdSpan auto firstSetBits,
             concepts::IMdSpan auto leadingZeros,

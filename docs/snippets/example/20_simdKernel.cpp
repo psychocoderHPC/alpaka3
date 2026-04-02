@@ -16,7 +16,7 @@ using namespace alpaka;
 struct MDVectorSimdAdd
 {
     ALPAKA_FN_ACC void operator()(
-        auto const& acc,
+        onAcc::concepts::Acc auto const& acc,
         concepts::IMdSpan auto out,
         concepts::IDataSource auto const& in0,
         concepts::IDataSource auto const& in1) const

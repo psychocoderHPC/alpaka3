@@ -17,7 +17,7 @@ namespace
     struct VectorAddKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
             concepts::IDataSource auto const& lhs,
             concepts::IDataSource auto const& rhs) const

@@ -14,7 +14,7 @@ namespace
     struct ImageTileHierarchyKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IDataSource auto const& input,
             concepts::IMdSpan auto mask,
             concepts::IMdSpan auto rowCounts,

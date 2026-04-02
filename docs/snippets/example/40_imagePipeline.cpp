@@ -17,7 +17,7 @@ namespace
     struct ThresholdKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
             concepts::IDataSource auto const& in,
             uint8_t threshold) const
@@ -35,7 +35,7 @@ namespace
     struct BinaryHistogramKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto bins,
             concepts::IDataSource auto const& binaryImage) const
         {

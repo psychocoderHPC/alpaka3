@@ -17,7 +17,8 @@ namespace
     // BEGIN-TUTORIAL-randomKernel
     struct UniformRandomKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto out, uint32_t seed) const
+        ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto out, uint32_t seed)
+            const
         {
             for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
             {
@@ -34,7 +35,7 @@ namespace
     struct IntervalExamplesKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto coValues,
             concepts::IMdSpan auto ocValues,
             concepts::IMdSpan auto ccValues,
@@ -58,7 +59,7 @@ namespace
     struct NormalNoiseKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
             uint32_t seed,
             float mean,

@@ -16,7 +16,7 @@ namespace
     struct SaxpyKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
             concepts::IDataSource auto const& x,
             concepts::IDataSource auto const& y,

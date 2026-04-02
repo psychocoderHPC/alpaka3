@@ -16,7 +16,8 @@ namespace
     // BEGIN-TUTORIAL-piKernel
     struct MonteCarloPiKernel
     {
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto hits, uint32_t seed) const
+        ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto hits, uint32_t seed)
+            const
         {
             for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{hits.getExtents()}))
             {

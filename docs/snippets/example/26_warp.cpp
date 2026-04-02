@@ -16,7 +16,7 @@ namespace
     struct WarpSumKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IDataSource auto const& in,
             concepts::IMdSpan auto out) const
         {

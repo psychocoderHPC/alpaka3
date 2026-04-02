@@ -15,7 +15,7 @@ namespace
     {
         uint32_t dynSharedMemBytes = 2u * sizeof(int);
 
-        ALPAKA_FN_ACC void operator()(auto const& acc, concepts::IMdSpan auto successFlag) const
+        ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto successFlag) const
         {
             auto* shared = onAcc::getDynSharedMem<int>(acc);
 
@@ -55,7 +55,7 @@ namespace
     struct ProducerConsumerFenceKernel
     {
         ALPAKA_FN_ACC void operator()(
-            auto const& acc,
+            onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto payload,
             concepts::IMdSpan auto readyFlag,
             concepts::IMdSpan auto mismatchCounter) const
