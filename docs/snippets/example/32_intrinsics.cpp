@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -18,21 +18,21 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-intrinsicKernel
 struct BitIntrinsicKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto popCounts,
-            concepts::IMdSpan auto firstSetBits,
-            concepts::IMdSpan auto leadingZeros,
-            concepts::IDataSource auto const& input) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto popCounts,
+        concepts::IMdSpan auto firstSetBits,
+        concepts::IMdSpan auto leadingZeros,
+        concepts::IDataSource auto const& input) const
+    {
+        for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{input.getExtents()}))
         {
-            for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{input.getExtents()}))
-            {
-                auto value = input[idx];
-                popCounts[idx] = popcount(value);
-                firstSetBits[idx] = ffs(value);
-                leadingZeros[idx] = clz(value);
-            }
+            auto value = input[idx];
+            popCounts[idx] = popcount(value);
+            firstSetBits[idx] = ffs(value);
+            leadingZeros[idx] = clz(value);
         }
+    }
 };
 
 // END-TUTORIAL-intrinsicKernel

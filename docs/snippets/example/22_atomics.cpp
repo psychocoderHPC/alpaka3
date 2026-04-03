@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -16,17 +16,17 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-atomicKernel
 struct HistogramKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IDataSource auto const& input,
-            concepts::IMdSpan auto bins) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IDataSource auto const& input,
+        concepts::IMdSpan auto bins) const
+    {
+        for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{input.getExtents()}))
         {
-            for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{input.getExtents()}))
-            {
-                auto const bin = input[i];
-                onAcc::atomicAdd(acc, &bins[Vec{bin}], 1u);
-            }
+            auto const bin = input[i];
+            onAcc::atomicAdd(acc, &bins[Vec{bin}], 1u);
         }
+    }
 };
 
 // END-TUTORIAL-atomicKernel

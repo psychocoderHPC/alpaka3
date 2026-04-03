@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -16,38 +16,38 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-sharedScalarKernel
 struct BlockSumKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& in) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& in) const
+    {
+        auto& blockSum = onAcc::declareSharedVar<int, uniqueId()>(acc);
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
         {
-            auto& blockSum = onAcc::declareSharedVar<int, uniqueId()>(acc);
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
+            if(idx.x() == 0u)
             {
-                if(idx.x() == 0u)
-                {
-                    blockSum = 0;
-                }
-            }
-
-            onAcc::syncBlockThreads(acc);
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
-            {
-                onAcc::atomicAdd(acc, &blockSum, in[idx], onAcc::scope::block);
-            }
-
-            onAcc::syncBlockThreads(acc);
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
-            {
-                if(idx.x() == 0u)
-                {
-                    out[0u] = blockSum;
-                }
+                blockSum = 0;
             }
         }
+
+        onAcc::syncBlockThreads(acc);
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
+        {
+            onAcc::atomicAdd(acc, &blockSum, in[idx], onAcc::scope::block);
+        }
+
+        onAcc::syncBlockThreads(acc);
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
+        {
+            if(idx.x() == 0u)
+            {
+                out[0u] = blockSum;
+            }
+        }
+    }
 };
 
 // END-TUTORIAL-sharedScalarKernel
@@ -55,26 +55,26 @@ struct BlockSumKernel
 // BEGIN-TUTORIAL-sharedKernel
 struct ReverseFrameKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& in) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& in) const
+    {
+        auto tile = onAcc::declareSharedMdArray<int, uniqueId()>(acc, acc[frame::extent]);
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
         {
-            auto tile = onAcc::declareSharedMdArray<int, uniqueId()>(acc, acc[frame::extent]);
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
-            {
-                tile[idx] = in[idx];
-            }
-
-            onAcc::syncBlockThreads(acc);
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
-            {
-                auto reverseIdx = Vec{acc[frame::extent].x() - 1u - idx.x()};
-                out[idx] = tile[reverseIdx];
-            }
+            tile[idx] = in[idx];
         }
+
+        onAcc::syncBlockThreads(acc);
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
+        {
+            auto reverseIdx = Vec{acc[frame::extent].x() - 1u - idx.x()};
+            out[idx] = tile[reverseIdx];
+        }
+    }
 };
 
 // END-TUTORIAL-sharedKernel
@@ -82,28 +82,28 @@ struct ReverseFrameKernel
 // BEGIN-TUTORIAL-dynSharedMemberKernel
 struct DynamicReverseKernel
 {
-        uint32_t dynSharedMemBytes;
+    uint32_t dynSharedMemBytes;
 
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& in) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& in) const
+    {
+        auto* tile = onAcc::getDynSharedMem<int>(acc);
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
         {
-            auto* tile = onAcc::getDynSharedMem<int>(acc);
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
-            {
-                tile[idx.x()] = in[idx];
-            }
-
-            onAcc::syncBlockThreads(acc);
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
-            {
-                auto reverseIdx = acc[frame::extent].x() - 1u - idx.x();
-                out[idx] = tile[reverseIdx];
-            }
+            tile[idx.x()] = in[idx];
         }
+
+        onAcc::syncBlockThreads(acc);
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
+        {
+            auto reverseIdx = acc[frame::extent].x() - 1u - idx.x();
+            out[idx] = tile[reverseIdx];
+        }
+    }
 };
 
 // END-TUTORIAL-dynSharedMemberKernel
@@ -111,26 +111,26 @@ struct DynamicReverseKernel
 // BEGIN-TUTORIAL-dynSharedTraitKernel
 struct DynamicScaleKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& in,
-            int factor) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& in,
+        int factor) const
+    {
+        auto* cache = onAcc::getDynSharedMem<int>(acc);
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
         {
-            auto* cache = onAcc::getDynSharedMem<int>(acc);
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
-            {
-                cache[idx.x()] = in[idx] * factor;
-            }
-
-            onAcc::syncBlockThreads(acc);
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
-            {
-                out[idx] = cache[idx.x()];
-            }
+            cache[idx.x()] = in[idx] * factor;
         }
+
+        onAcc::syncBlockThreads(acc);
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, onAcc::range::frameExtent))
+        {
+            out[idx] = cache[idx.x()];
+        }
+    }
 };
 
 // END-TUTORIAL-dynSharedTraitKernel

@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -16,43 +16,42 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-chunkedKernel
 struct ChunkedVectorAddKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& in0,
-            concepts::IDataSource auto const& in1) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& in0,
+        concepts::IDataSource auto const& in1) const
+    {
+        auto frameExtent = acc[frame::extent];
+        auto linearNumFrames = Vec{acc[frame::count].product()};
+        auto linearFrameExtent = Vec{frameExtent.product()};
+
+        for(auto linearFrameIdx : onAcc::makeIdxMap(acc, onAcc::worker::linearBlocksInGrid, IdxRange{linearNumFrames}))
         {
-            auto frameExtent = acc[frame::extent];
-            auto linearNumFrames = Vec{acc[frame::count].product()};
-            auto linearFrameExtent = Vec{frameExtent.product()};
+            auto tile = onAcc::declareSharedMdArray<int, uniqueId()>(acc, frameExtent);
 
-            for(auto linearFrameIdx :
-                onAcc::makeIdxMap(acc, onAcc::worker::linearBlocksInGrid, IdxRange{linearNumFrames}))
+            for(auto linearFrameElem :
+                onAcc::makeIdxMap(acc, onAcc::worker::linearThreadsInBlock, IdxRange{linearFrameExtent}))
             {
-                auto tile = onAcc::declareSharedMdArray<int, uniqueId()>(acc, frameExtent);
-
-                for(auto linearFrameElem :
-                    onAcc::makeIdxMap(acc, onAcc::worker::linearThreadsInBlock, IdxRange{linearFrameExtent}))
-                {
-                    auto globalIdx = linearFrameIdx * frameExtent + linearFrameElem;
-                    tile[linearFrameElem] = in0[globalIdx];
-                }
-
-                onAcc::syncBlockThreads(acc);
-
-                for(auto linearFrameElem : onAcc::makeIdxMap(
-                        acc,
-                        onAcc::worker::linearThreadsInBlock,
-                        IdxRange{linearFrameExtent},
-                        onAcc::traverse::tiled))
-                {
-                    auto globalIdx = linearFrameIdx * frameExtent + linearFrameElem;
-                    out[globalIdx] = tile[linearFrameElem] + in1[globalIdx];
-                }
-
-                onAcc::syncBlockThreads(acc);
+                auto globalIdx = linearFrameIdx * frameExtent + linearFrameElem;
+                tile[linearFrameElem] = in0[globalIdx];
             }
+
+            onAcc::syncBlockThreads(acc);
+
+            for(auto linearFrameElem : onAcc::makeIdxMap(
+                    acc,
+                    onAcc::worker::linearThreadsInBlock,
+                    IdxRange{linearFrameExtent},
+                    onAcc::traverse::tiled))
+            {
+                auto globalIdx = linearFrameIdx * frameExtent + linearFrameElem;
+                out[globalIdx] = tile[linearFrameElem] + in1[globalIdx];
+            }
+
+            onAcc::syncBlockThreads(acc);
         }
+    }
 };
 
 // END-TUTORIAL-chunkedKernel

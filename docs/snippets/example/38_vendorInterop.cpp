@@ -105,7 +105,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial vendor interop dispatch", "[docs]", docs::test
 
     onHost::memcpy(queue, hostOutput, outputBuffer);
     onHost::wait(queue);
-    
+
     CHECK(hostOutput[0] == 2.5f);
     CHECK(hostOutput[1] == 4.5f);
     CHECK(hostOutput[2] == 6.5f);

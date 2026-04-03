@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_template_test_macros.hpp>
@@ -18,19 +18,19 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-mathKernel
 struct TrigIdentityKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& angles) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& angles) const
+    {
+        for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{angles.getExtents()}))
         {
-            for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{angles.getExtents()}))
-            {
-                float sine{};
-                float cosine{};
-                math::sincos(angles[i], sine, cosine);
-                out[i] = math::fma(sine, sine, cosine * cosine);
-            }
+            float sine{};
+            float cosine{};
+            math::sincos(angles[i], sine, cosine);
+            out[i] = math::fma(sine, sine, cosine * cosine);
         }
+    }
 };
 
 // END-TUTORIAL-mathKernel
@@ -38,17 +38,17 @@ struct TrigIdentityKernel
 // BEGIN-TUTORIAL-rsqrtKernel
 struct DistanceKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& x) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& x) const
+    {
+        for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{x.getExtents()}))
         {
-            for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{x.getExtents()}))
-            {
-                auto const squaredLength = math::fma(x[i], x[i], 1.0f);
-                out[i] = math::rsqrt(squaredLength);
-            }
+            auto const squaredLength = math::fma(x[i], x[i], 1.0f);
+            out[i] = math::rsqrt(squaredLength);
         }
+    }
 };
 
 // END-TUTORIAL-rsqrtKernel

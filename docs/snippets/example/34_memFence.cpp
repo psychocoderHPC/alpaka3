@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -14,40 +14,40 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-memFenceBlockKernel
 struct BlockFenceKernel
 {
-        uint32_t dynSharedMemBytes = 2u * sizeof(int);
+    uint32_t dynSharedMemBytes = 2u * sizeof(int);
 
-        ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto successFlag) const
+    ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto successFlag) const
+    {
+        auto* shared = onAcc::getDynSharedMem<int>(acc);
+
+        for(auto [tid] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, onAcc::range::threadsInGrid))
         {
-            auto* shared = onAcc::getDynSharedMem<int>(acc);
-
-            for(auto [tid] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, onAcc::range::threadsInGrid))
+            if(tid == 0u)
             {
-                if(tid == 0u)
-                {
-                    shared[0] = 1;
-                    shared[1] = 2;
-                }
-                onAcc::syncBlockThreads(acc);
+                shared[0] = 1;
+                shared[1] = 2;
+            }
+            onAcc::syncBlockThreads(acc);
 
-                if(tid == 0u)
-                {
-                    shared[0] = 10;
-                    onAcc::memFence(acc, onAcc::scope::block, onAcc::order::release);
-                    shared[1] = 20;
-                }
+            if(tid == 0u)
+            {
+                shared[0] = 10;
+                onAcc::memFence(acc, onAcc::scope::block, onAcc::order::release);
+                shared[1] = 20;
+            }
 
-                onAcc::syncBlockThreads(acc);
+            onAcc::syncBlockThreads(acc);
 
-                auto observedB = shared[1];
-                onAcc::memFence(acc, onAcc::scope::block, onAcc::order::acquire);
-                auto observedA = shared[0];
+            auto observedB = shared[1];
+            onAcc::memFence(acc, onAcc::scope::block, onAcc::order::acquire);
+            auto observedA = shared[0];
 
-                if(observedA == 1 && observedB == 20)
-                {
-                    onAcc::atomicExch(acc, &successFlag[0u], 0u);
-                }
+            if(observedA == 1 && observedB == 20)
+            {
+                onAcc::atomicExch(acc, &successFlag[0u], 0u);
             }
         }
+    }
 };
 
 // END-TUTORIAL-memFenceBlockKernel
@@ -55,38 +55,38 @@ struct BlockFenceKernel
 // BEGIN-TUTORIAL-memFenceDeviceKernel
 struct ProducerConsumerFenceKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto payload,
-            concepts::IMdSpan auto readyFlag,
-            concepts::IMdSpan auto mismatchCounter) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto payload,
+        concepts::IMdSpan auto readyFlag,
+        concepts::IMdSpan auto mismatchCounter) const
+    {
+        auto [tid] = acc.getIdxWithin(onAcc::origin::grid, onAcc::unit::threads);
+
+        if(!(tid == 0u || tid == 2u))
         {
-            auto [tid] = acc.getIdxWithin(onAcc::origin::grid, onAcc::unit::threads);
+            return;
+        }
 
-            if(!(tid == 0u || tid == 2u))
+        if(tid == 0u)
+        {
+            payload[0u] = 42u;
+            onAcc::memFence(acc, onAcc::scope::device, onAcc::order::release);
+            onAcc::atomicExch(acc, &readyFlag[0u], 1u);
+        }
+        else
+        {
+            while(onAcc::atomicCas(acc, &readyFlag[0u], 0u, 0u) == 0u)
             {
-                return;
             }
 
-            if(tid == 0u)
+            onAcc::memFence(acc, onAcc::scope::device, onAcc::order::acquire);
+            if(payload[0u] != 42u)
             {
-                payload[0u] = 42u;
-                onAcc::memFence(acc, onAcc::scope::device, onAcc::order::release);
-                onAcc::atomicExch(acc, &readyFlag[0u], 1u);
-            }
-            else
-            {
-                while(onAcc::atomicCas(acc, &readyFlag[0u], 0u, 0u) == 0u)
-                {
-                }
-
-                onAcc::memFence(acc, onAcc::scope::device, onAcc::order::acquire);
-                if(payload[0u] != 42u)
-                {
-                    onAcc::atomicAdd(acc, &mismatchCounter[0u], 1u);
-                }
+                onAcc::atomicAdd(acc, &mismatchCounter[0u], 1u);
             }
         }
+    }
 };
 
 // END-TUTORIAL-memFenceDeviceKernel

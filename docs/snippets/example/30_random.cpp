@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -18,16 +18,16 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-randomKernel
 struct UniformRandomKernel
 {
-        ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto out, uint32_t seed)
-            const
+    ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto out, uint32_t seed)
+        const
+    {
+        for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
         {
-            for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
-            {
-                rand::engine::Philox4x32x10 engine(seed + idx);
-                auto distribution = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::co};
-                out[idx] = distribution(engine);
-            }
+            rand::engine::Philox4x32x10 engine(seed + idx);
+            auto distribution = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::co};
+            out[idx] = distribution(engine);
         }
+    }
 };
 
 // END-TUTORIAL-randomKernel
@@ -35,23 +35,23 @@ struct UniformRandomKernel
 // BEGIN-TUTORIAL-randomIntervalsKernel
 struct IntervalExamplesKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto coValues,
-            concepts::IMdSpan auto ocValues,
-            concepts::IMdSpan auto ccValues,
-            concepts::IMdSpan auto ooValues,
-            uint32_t seed) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto coValues,
+        concepts::IMdSpan auto ocValues,
+        concepts::IMdSpan auto ccValues,
+        concepts::IMdSpan auto ooValues,
+        uint32_t seed) const
+    {
+        for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{coValues.getExtents()}))
         {
-            for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{coValues.getExtents()}))
-            {
-                rand::engine::Philox4x32x10 engine(seed + idx);
-                coValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::co}(engine);
-                ocValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::oc}(engine);
-                ccValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::cc}(engine);
-                ooValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::oo}(engine);
-            }
+            rand::engine::Philox4x32x10 engine(seed + idx);
+            coValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::co}(engine);
+            ocValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::oc}(engine);
+            ccValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::cc}(engine);
+            ooValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::oo}(engine);
         }
+    }
 };
 
 // END-TUTORIAL-randomIntervalsKernel
@@ -59,20 +59,20 @@ struct IntervalExamplesKernel
 // BEGIN-TUTORIAL-randomNormalKernel
 struct NormalNoiseKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            uint32_t seed,
-            float mean,
-            float stdDev) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        uint32_t seed,
+        float mean,
+        float stdDev) const
+    {
+        for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
         {
-            for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
-            {
-                rand::engine::Philox4x32x10 engine(seed + idx);
-                rand::distribution::NormalReal<float> normal(mean, stdDev);
-                out[idx] = normal(engine);
-            }
+            rand::engine::Philox4x32x10 engine(seed + idx);
+            rand::distribution::NormalReal<float> normal(mean, stdDev);
+            out[idx] = normal(engine);
         }
+    }
 };
 
 // END-TUTORIAL-randomNormalKernel

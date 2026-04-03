@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -17,17 +17,17 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-imageThresholdKernel
 struct ThresholdKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& in,
-            uint8_t threshold) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& in,
+        uint8_t threshold) const
+    {
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
         {
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
-            {
-                out[idx] = in[idx] >= threshold ? uint8_t{255} : uint8_t{0};
-            }
+            out[idx] = in[idx] >= threshold ? uint8_t{255} : uint8_t{0};
         }
+    }
 };
 
 // END-TUTORIAL-imageThresholdKernel
@@ -35,17 +35,17 @@ struct ThresholdKernel
 // BEGIN-TUTORIAL-imageHistogramKernel
 struct BinaryHistogramKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto bins,
-            concepts::IDataSource auto const& binaryImage) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto bins,
+        concepts::IDataSource auto const& binaryImage) const
+    {
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{binaryImage.getExtents()}))
         {
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{binaryImage.getExtents()}))
-            {
-                auto bin = binaryImage[idx] == 0u ? uint32_t{0} : uint32_t{1};
-                onAcc::atomicAdd(acc, &bins[Vec{bin}], uint32_t{1}, onAcc::scope::device);
-            }
+            auto bin = binaryImage[idx] == 0u ? uint32_t{0} : uint32_t{1};
+            onAcc::atomicAdd(acc, &bins[Vec{bin}], uint32_t{1}, onAcc::scope::device);
         }
+    }
 };
 
 // END-TUTORIAL-imageHistogramKernel

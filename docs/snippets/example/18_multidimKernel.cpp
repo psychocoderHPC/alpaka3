@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -14,27 +14,27 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-multidimKernelStructure
 struct FivePointAverageKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& in) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& in) const
+    {
+        auto extents = out.getExtents();
+        ALPAKA_ASSERT_ACC(extents == in.getExtents());
+        constexpr auto xDir = CVec<uint32_t, 0u, 1u>{};
+        constexpr auto yDir = CVec<uint32_t, 1u, 0u>{};
+
+        for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{extents}))
         {
-            auto extents = out.getExtents();
-            ALPAKA_ASSERT_ACC(extents == in.getExtents());
-            constexpr auto xDir = CVec<uint32_t, 0u, 1u>{};
-            constexpr auto yDir = CVec<uint32_t, 1u, 0u>{};
-
-            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{extents}))
+            if(idx.y() == 0u || idx.x() == 0u || idx.y() + 1u == extents.y() || idx.x() + 1u == extents.x())
             {
-                if(idx.y() == 0u || idx.x() == 0u || idx.y() + 1u == extents.y() || idx.x() + 1u == extents.x())
-                {
-                    out[idx] = in[idx];
-                    continue;
-                }
-
-                out[idx] = (in[idx] + in[idx - yDir] + in[idx + yDir] + in[idx - xDir] + in[idx + xDir]) / 5;
+                out[idx] = in[idx];
+                continue;
             }
+
+            out[idx] = (in[idx] + in[idx - yDir] + in[idx + yDir] + in[idx - xDir] + in[idx + xDir]) / 5;
         }
+    }
 };
 
 // END-TUTORIAL-multidimKernelStructure

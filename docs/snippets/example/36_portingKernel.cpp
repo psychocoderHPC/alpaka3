@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -16,18 +16,18 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-portingKernel
 struct SaxpyKernel
 {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& x,
-            concepts::IDataSource auto const& y,
-            float a) const
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& x,
+        concepts::IDataSource auto const& y,
+        float a) const
+    {
+        for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
         {
-            for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
-            {
-                out[i] = a * x[i] + y[i];
-            }
+            out[i] = a * x[i] + y[i];
         }
+    }
 };
 
 // END-TUTORIAL-portingKernel

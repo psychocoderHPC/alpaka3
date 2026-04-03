@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-#include <alpaka/alpaka.hpp>
-
 #include "docsTest.hpp"
+
+#include <alpaka/alpaka.hpp>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_template_test_macros.hpp>
@@ -17,18 +17,18 @@ using namespace alpaka;
 // BEGIN-TUTORIAL-piKernel
 struct MonteCarloPiKernel
 {
-        ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto hits, uint32_t seed)
-            const
+    ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto hits, uint32_t seed)
+        const
+    {
+        for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{hits.getExtents()}))
         {
-            for(auto [idx] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{hits.getExtents()}))
-            {
-                rand::engine::Philox4x32x10 engine(seed + idx);
-                auto uniform = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::co};
-                auto x = uniform(engine);
-                auto y = uniform(engine);
-                hits[idx] = (x * x + y * y <= 1.0f) ? 1u : 0u;
-            }
+            rand::engine::Philox4x32x10 engine(seed + idx);
+            auto uniform = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::co};
+            auto x = uniform(engine);
+            auto y = uniform(engine);
+            hits[idx] = (x * x + y * y <= 1.0f) ? 1u : 0u;
         }
+    }
 };
 
 // END-TUTORIAL-piKernel
