@@ -4,13 +4,19 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace alpaka;
 
-TEST_CASE("tutorial events and synchronization", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial events and synchronization", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue0 = device.makeQueue();
     auto queue1 = device.makeQueue();
     auto event = device.makeEvent();

@@ -4,15 +4,16 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-multidimKernelStructure
+struct FivePointAverageKernel
 {
-    // BEGIN-TUTORIAL-multidimKernelStructure
-    struct FivePointAverageKernel
-    {
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -34,14 +35,16 @@ namespace
                 out[idx] = (in[idx] + in[idx - yDir] + in[idx + yDir] + in[idx - xDir] + in[idx + xDir]) / 5;
             }
         }
-    };
+};
 
-    // END-TUTORIAL-multidimKernelStructure
-} // namespace
+// END-TUTORIAL-multidimKernelStructure
 
-TEST_CASE("tutorial multidimensional stencil kernel", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial multidimensional stencil kernel", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue();
 
     auto const problemExtents = Vec{5u, 5u};

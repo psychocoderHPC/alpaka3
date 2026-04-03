@@ -4,6 +4,9 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
@@ -12,11 +15,9 @@
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-randomKernel
+struct UniformRandomKernel
 {
-    // BEGIN-TUTORIAL-randomKernel
-    struct UniformRandomKernel
-    {
         ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto out, uint32_t seed)
             const
         {
@@ -27,13 +28,13 @@ namespace
                 out[idx] = distribution(engine);
             }
         }
-    };
+};
 
-    // END-TUTORIAL-randomKernel
+// END-TUTORIAL-randomKernel
 
-    // BEGIN-TUTORIAL-randomIntervalsKernel
-    struct IntervalExamplesKernel
-    {
+// BEGIN-TUTORIAL-randomIntervalsKernel
+struct IntervalExamplesKernel
+{
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto coValues,
@@ -51,13 +52,13 @@ namespace
                 ooValues[idx] = rand::distribution::UniformReal{0.0f, 1.0f, rand::interval::oo}(engine);
             }
         }
-    };
+};
 
-    // END-TUTORIAL-randomIntervalsKernel
+// END-TUTORIAL-randomIntervalsKernel
 
-    // BEGIN-TUTORIAL-randomNormalKernel
-    struct NormalNoiseKernel
-    {
+// BEGIN-TUTORIAL-randomNormalKernel
+struct NormalNoiseKernel
+{
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -72,14 +73,16 @@ namespace
                 out[idx] = normal(engine);
             }
         }
-    };
+};
 
-    // END-TUTORIAL-randomNormalKernel
-} // namespace
+// END-TUTORIAL-randomNormalKernel
 
-TEST_CASE("tutorial random numbers", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial random numbers", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 8u> hostValues{};
@@ -105,9 +108,12 @@ TEST_CASE("tutorial random numbers", "[docs]")
     CHECK(sum < 8.0f);
 }
 
-TEST_CASE("tutorial random intervals", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial random intervals", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 16u> hostCo{};
@@ -142,9 +148,12 @@ TEST_CASE("tutorial random intervals", "[docs]")
     }
 }
 
-TEST_CASE("tutorial random normal distribution", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial random normal distribution", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 64u> hostValues{};

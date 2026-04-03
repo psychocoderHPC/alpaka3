@@ -4,6 +4,9 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <numeric>
@@ -11,33 +14,33 @@
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-kernelStructure
+struct VectorAddKernel
 {
-    // BEGIN-TUTORIAL-kernelStructure
-    struct VectorAddKernel
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IMdSpan auto out,
+        concepts::IDataSource auto const& lhs,
+        concepts::IDataSource auto const& rhs) const
     {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IMdSpan auto out,
-            concepts::IDataSource auto const& lhs,
-            concepts::IDataSource auto const& rhs) const
+        ALPAKA_ASSERT_ACC(out.getExtents() == lhs.getExtents());
+        ALPAKA_ASSERT_ACC(out.getExtents() == rhs.getExtents());
+
+        for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
         {
-            ALPAKA_ASSERT_ACC(out.getExtents() == lhs.getExtents());
-            ALPAKA_ASSERT_ACC(out.getExtents() == rhs.getExtents());
-
-            for(auto [i] : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{out.getExtents()}))
-            {
-                out[i] = lhs[i] + rhs[i];
-            }
+            out[i] = lhs[i] + rhs[i];
         }
-    };
+    }
+};
 
-    // END-TUTORIAL-kernelStructure
-} // namespace
+// END-TUTORIAL-kernelStructure
 
-TEST_CASE("tutorial kernel intro vector add", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial kernel intro vector add", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue();
 
     std::vector<int> lhs(257u);

@@ -4,67 +4,69 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-hierarchyKernel
+struct ImageTileHierarchyKernel
 {
-    // BEGIN-TUTORIAL-hierarchyKernel
-    struct ImageTileHierarchyKernel
+    ALPAKA_FN_ACC void operator()(
+        onAcc::concepts::Acc auto const& acc,
+        concepts::IDataSource auto const& input,
+        concepts::IMdSpan auto mask,
+        concepts::IMdSpan auto rowCounts,
+        int threshold) const
     {
-        ALPAKA_FN_ACC void operator()(
-            onAcc::concepts::Acc auto const& acc,
-            concepts::IDataSource auto const& input,
-            concepts::IMdSpan auto mask,
-            concepts::IMdSpan auto rowCounts,
-            int threshold) const
-        {
-            auto const imageExtent = input.getExtents();
-            auto const tileExtent = acc[frame::extent];
+        auto const imageExtent = input.getExtents();
+        auto const tileExtent = acc[frame::extent];
 
-            for(auto blockStart :
-                onAcc::makeIdxMap(acc, onAcc::worker::blocksInGrid, IdxRange{Vec{0u, 0u}, imageExtent, tileExtent}))
+        for(auto blockStart :
+            onAcc::makeIdxMap(acc, onAcc::worker::blocksInGrid, IdxRange{Vec{0u, 0u}, imageExtent, tileExtent}))
+        {
+            for(auto localIdx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{tileExtent}))
             {
-                for(auto localIdx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{tileExtent}))
+                auto globalIdx = blockStart + localIdx;
+                if(globalIdx[0u] < imageExtent[0u] && globalIdx[1u] < imageExtent[1u])
                 {
-                    auto globalIdx = blockStart + localIdx;
-                    if(globalIdx[0u] < imageExtent[0u] && globalIdx[1u] < imageExtent[1u])
-                    {
-                        mask[globalIdx] = input[globalIdx] >= threshold ? 1u : 0u;
-                    }
+                    mask[globalIdx] = input[globalIdx] >= threshold ? 1u : 0u;
+                }
+            }
+
+            for(auto warpRow :
+                onAcc::makeIdxMap(acc, onAcc::worker::linearWarpsInBlock, onAcc::range::linearWarpsInBlock))
+            {
+                auto rowStart = blockStart + Vec{warpRow.x(), 0u};
+                if(rowStart[0u] >= imageExtent[0u] || warpRow.x() >= tileExtent[0u])
+                {
+                    continue;
                 }
 
-                for(auto warpRow :
-                    onAcc::makeIdxMap(acc, onAcc::worker::linearWarpsInBlock, onAcc::range::linearWarpsInBlock))
+                for(auto lane :
+                    onAcc::makeIdxMap(acc, onAcc::worker::linearThreadsInWarp, onAcc::range::linearThreadsInWarp))
                 {
-                    auto rowStart = blockStart + Vec{warpRow.x(), 0u};
-                    if(rowStart[0u] >= imageExtent[0u] || warpRow.x() >= tileExtent[0u])
+                    auto globalIdx = rowStart + Vec{0u, lane.x()};
+                    if(lane.x() < tileExtent[1u] && globalIdx[1u] < imageExtent[1u] && input[globalIdx] >= threshold)
                     {
-                        continue;
-                    }
-
-                    for(auto lane :
-                        onAcc::makeIdxMap(acc, onAcc::worker::linearThreadsInWarp, onAcc::range::linearThreadsInWarp))
-                    {
-                        auto globalIdx = rowStart + Vec{0u, lane.x()};
-                        if(lane.x() < tileExtent[1u] && globalIdx[1u] < imageExtent[1u]
-                           && input[globalIdx] >= threshold)
-                        {
-                            onAcc::atomicAdd(acc, &rowCounts[Vec{rowStart[0u]}], 1u);
-                        }
+                        onAcc::atomicAdd(acc, &rowCounts[Vec{rowStart[0u]}], 1u);
                     }
                 }
             }
         }
-    };
+    }
+};
 
-    // END-TUTORIAL-hierarchyKernel
-} // namespace
+// END-TUTORIAL-hierarchyKernel
 
-TEST_CASE("tutorial hierarchy blocks threads warps", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial hierarchy blocks threads warps", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     auto const warpSize = device.getDeviceProperties().warpSize;

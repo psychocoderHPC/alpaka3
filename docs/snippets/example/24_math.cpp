@@ -4,7 +4,10 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
 #include <catch2/catch_approx.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
@@ -12,11 +15,9 @@
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-mathKernel
+struct TrigIdentityKernel
 {
-    // BEGIN-TUTORIAL-mathKernel
-    struct TrigIdentityKernel
-    {
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -30,13 +31,13 @@ namespace
                 out[i] = math::fma(sine, sine, cosine * cosine);
             }
         }
-    };
+};
 
-    // END-TUTORIAL-mathKernel
+// END-TUTORIAL-mathKernel
 
-    // BEGIN-TUTORIAL-rsqrtKernel
-    struct DistanceKernel
-    {
+// BEGIN-TUTORIAL-rsqrtKernel
+struct DistanceKernel
+{
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -48,14 +49,16 @@ namespace
                 out[i] = math::rsqrt(squaredLength);
             }
         }
-    };
+};
 
-    // END-TUTORIAL-rsqrtKernel
-} // namespace
+// END-TUTORIAL-rsqrtKernel
 
-TEST_CASE("tutorial math functions on device", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial math functions on device", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue();
 
     std::array<float, 4u> hostAngles{0.0f, 0.5f, 1.0f, 1.5f};

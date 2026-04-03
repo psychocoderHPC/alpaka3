@@ -4,17 +4,18 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-portingKernel
+struct SaxpyKernel
 {
-    // BEGIN-TUTORIAL-portingKernel
-    struct SaxpyKernel
-    {
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -27,14 +28,16 @@ namespace
                 out[i] = a * x[i] + y[i];
             }
         }
-    };
+};
 
-    // END-TUTORIAL-portingKernel
-} // namespace
+// END-TUTORIAL-portingKernel
 
-TEST_CASE("tutorial porting saxpy kernel", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial porting saxpy kernel", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 8u> hostX{1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f, 8.f};

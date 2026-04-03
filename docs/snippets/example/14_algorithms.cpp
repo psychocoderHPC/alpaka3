@@ -4,6 +4,9 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
@@ -12,44 +15,45 @@
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-transformFunctor
+struct SquareValue
 {
-    // BEGIN-TUTORIAL-transformFunctor
-    struct SquareValue
+    ALPAKA_FN_ACC auto operator()(int const& value) const -> int
     {
-        ALPAKA_FN_ACC auto operator()(int const& value) const -> int
-        {
-            return value * value;
-        }
-    };
-    // END-TUTORIAL-transformFunctor
+        return value * value;
+    }
+};
+// END-TUTORIAL-transformFunctor
 
-    // BEGIN-TUTORIAL-transformReduceFunctor
-    struct MultiplyValues
-    {
-        ALPAKA_FN_ACC auto operator()(int const& a, int const& b) const -> int
-        {
-            return a * b;
-        }
-    };
-    // END-TUTORIAL-transformReduceFunctor
-
-    // BEGIN-TUTORIAL-generatorFunctor
-    struct AddLinearIdx
-    {
-        ALPAKA_FN_ACC auto operator()(int const& value, size_t const& linearIdx) const -> int
-        {
-            return value + static_cast<int>(linearIdx);
-        }
-    };
-    // END-TUTORIAL-generatorFunctor
-} // namespace
-
-TEST_CASE("tutorial onHost algorithms", "[docs]")
+// BEGIN-TUTORIAL-transformReduceFunctor
+struct MultiplyValues
 {
-    auto device = onHost::makeHostDevice();
+    ALPAKA_FN_ACC auto operator()(int const& a, int const& b) const -> int
+    {
+        return a * b;
+    }
+};
+// END-TUTORIAL-transformReduceFunctor
+
+// BEGIN-TUTORIAL-generatorFunctor
+struct AddLinearIdx
+{
+    ALPAKA_FN_ACC auto operator()(int const& value, size_t const& linearIdx) const -> int
+    {
+        return value + static_cast<int>(linearIdx);
+    }
+};
+// END-TUTORIAL-generatorFunctor
+
+TEMPLATE_LIST_TEST_CASE("tutorial onHost algorithms", "[docs]", docs::test::TestBackends)
+{
+    auto cfg = TestType::makeDict();
+    auto selector = onHost::makeDeviceSelector(cfg[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
-    auto exec = exec::cpuSerial;
+    auto exec = cfg[object::exec];
 
     std::array<int, 8u> hostInput{1, 2, 3, 4, 5, 6, 7, 8};
     std::array<int, 8u> hostIota{};

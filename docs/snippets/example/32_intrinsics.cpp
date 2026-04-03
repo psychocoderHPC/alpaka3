@@ -4,6 +4,9 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
@@ -12,11 +15,9 @@
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-intrinsicKernel
+struct BitIntrinsicKernel
 {
-    // BEGIN-TUTORIAL-intrinsicKernel
-    struct BitIntrinsicKernel
-    {
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto popCounts,
@@ -32,14 +33,16 @@ namespace
                 leadingZeros[idx] = clz(value);
             }
         }
-    };
+};
 
-    // END-TUTORIAL-intrinsicKernel
-} // namespace
+// END-TUTORIAL-intrinsicKernel
 
-TEST_CASE("tutorial intrinsics", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial intrinsics", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<uint32_t, 4u> hostInput{0u, 1u, 0b1011'0000u, 0xFFFF'0000u};

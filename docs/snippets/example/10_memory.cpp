@@ -4,6 +4,9 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -80,20 +83,12 @@ TEST_CASE("memory allocations like", "[docs]")
     alpaka::unused(devDoubleBuffer);
 }
 
-TEST_CASE("memory", "[docs]")
+TEMPLATE_LIST_TEST_CASE("memory", "[docs]", docs::test::TestBackends)
 {
-    // Nvidia GPU: onHost::DeviceSpec{api::cuda, deviceKind::nvidiaGpu};
-    // Amd GPU: onHost::DeviceSpec{api::hip, deviceKind::amdGpu};
-    // Intel GPU: onHost::DeviceSpec{api::oneApi, deviceKind::intelGpu};
-    // this call selects the host Cpu
-    auto computeDevSpec = onHost::DeviceSpec{api::host, deviceKind::cpu};
+    auto computeDevSpec = TestType::makeDict()[object::deviceSpec];
     auto computeDevSelector = alpaka::onHost::makeDeviceSelector(computeDevSpec);
-    auto numComputeDevs = computeDevSelector.getDeviceCount();
-
-    if(numComputeDevs == 0)
-    {
-        std::cout << "No device for " << onHost::getName(computeDevSpec) << " found." << std::endl;
-    }
+    if(!computeDevSelector.isAvailable())
+        return;
 
     // using the typed interface and not concept + auto
     onHost::Device computeDev = computeDevSelector.makeDevice(0);
@@ -133,20 +128,12 @@ TEST_CASE("memory", "[docs]")
         CHECK(v == 42);
 }
 
-TEST_CASE("memory using std::vector", "[docs]")
+TEMPLATE_LIST_TEST_CASE("memory using std::vector", "[docs]", docs::test::TestBackends)
 {
-    // Nvidia GPU: onHost::DeviceSpec{api::cuda, deviceKind::nvidiaGpu};
-    // Amd GPU: onHost::DeviceSpec{api::hip, deviceKind::amdGpu};
-    // Intel GPU: onHost::DeviceSpec{api::oneApi, deviceKind::intelGpu};
-    // this call selects the host Cpu
-    auto computeDevSpec = onHost::DeviceSpec{api::host, deviceKind::cpu};
+    auto computeDevSpec = TestType::makeDict()[object::deviceSpec];
     auto computeDevSelector = alpaka::onHost::makeDeviceSelector(computeDevSpec);
-    auto numComputeDevs = computeDevSelector.getDeviceCount();
-
-    if(numComputeDevs == 0)
-    {
-        std::cout << "No device for " << onHost::getName(computeDevSpec) << " found." << std::endl;
-    }
+    if(!computeDevSelector.isAvailable())
+        return;
 
     onHost::Device computeDev = computeDevSelector.makeDevice(0);
     onHost::Queue asyncComputeQueue = computeDev.makeQueue();

@@ -2,8 +2,11 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
+#include "docsTest.hpp"
+
 #include <alpaka/alpaka.hpp>
 
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -24,19 +27,15 @@ namespace vendorTutorial
             return scale * value + shift;
         }
     };
+
     // END-TUTORIAL-vendorFunctor
 
     // BEGIN-TUTORIAL-vendorSymbol
-    ALPAKA_FN_SYMBOL(AffineTransform, alpaka::fn::Fallback::toAlpaka, alpaka::fn::Registration::enforced);
+    ALPAKA_FN_SYMBOL(AffineTransform, alpaka::fn::Fallback::toAlpaka);
 
     // END-TUTORIAL-vendorSymbol
 
     // BEGIN-TUTORIAL-vendorFallback
-    template<alpaka::concepts::DeviceKind T_DeviceKind>
-    constexpr void fnRegister(AffineTransform::Spec<alpaka::fn::api::Alpaka, T_DeviceKind>)
-    {
-    }
-
     template<
         alpaka::concepts::DeviceKind T_DeviceKind,
         typename T_Queue,
@@ -60,10 +59,6 @@ namespace vendorTutorial
     // END-TUTORIAL-vendorFallback
 
     // BEGIN-TUTORIAL-vendorHost
-    constexpr void fnRegister(AffineTransform::Spec<alpaka::api::Host, alpaka::deviceKind::Cpu>)
-    {
-    }
-
     template<typename T_Queue, alpaka::concepts::IMdSpan T_Output, alpaka::concepts::IMdSpan T_Input>
     constexpr void fnDispatch(
         AffineTransform::Spec<alpaka::api::Host, alpaka::deviceKind::Cpu>,
@@ -88,9 +83,12 @@ namespace vendorTutorial
     // END-TUTORIAL-vendorHost
 } // namespace vendorTutorial
 
-TEST_CASE("tutorial vendor interop dispatch", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial vendor interop dispatch", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 5u> hostInput{1.f, 2.f, 3.f, 4.f, 5.f};
@@ -102,16 +100,12 @@ TEST_CASE("tutorial vendor interop dispatch", "[docs]")
     onHost::memcpy(queue, inputBuffer, hostInput);
 
     // BEGIN-TUTORIAL-vendorCall
-    if(vendorTutorial::AffineTransform::isRegistered(queue))
-    {
-        vendorTutorial::AffineTransform::call(queue, outputBuffer, 2.0f, 0.5f, inputBuffer);
-    }
+    vendorTutorial::AffineTransform::call(queue, outputBuffer, 2.0f, 0.5f, inputBuffer);
     // END-TUTORIAL-vendorCall
 
     onHost::memcpy(queue, hostOutput, outputBuffer);
     onHost::wait(queue);
-
-    CHECK(vendorTutorial::AffineTransform::isRegistered(queue));
+    
     CHECK(hostOutput[0] == 2.5f);
     CHECK(hostOutput[1] == 4.5f);
     CHECK(hostOutput[2] == 6.5f);

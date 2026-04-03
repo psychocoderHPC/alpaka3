@@ -4,17 +4,18 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-sharedScalarKernel
+struct BlockSumKernel
 {
-    // BEGIN-TUTORIAL-sharedScalarKernel
-    struct BlockSumKernel
-    {
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -47,13 +48,13 @@ namespace
                 }
             }
         }
-    };
+};
 
-    // END-TUTORIAL-sharedScalarKernel
+// END-TUTORIAL-sharedScalarKernel
 
-    // BEGIN-TUTORIAL-sharedKernel
-    struct ReverseFrameKernel
-    {
+// BEGIN-TUTORIAL-sharedKernel
+struct ReverseFrameKernel
+{
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -74,13 +75,13 @@ namespace
                 out[idx] = tile[reverseIdx];
             }
         }
-    };
+};
 
-    // END-TUTORIAL-sharedKernel
+// END-TUTORIAL-sharedKernel
 
-    // BEGIN-TUTORIAL-dynSharedMemberKernel
-    struct DynamicReverseKernel
-    {
+// BEGIN-TUTORIAL-dynSharedMemberKernel
+struct DynamicReverseKernel
+{
         uint32_t dynSharedMemBytes;
 
         ALPAKA_FN_ACC void operator()(
@@ -103,13 +104,13 @@ namespace
                 out[idx] = tile[reverseIdx];
             }
         }
-    };
+};
 
-    // END-TUTORIAL-dynSharedMemberKernel
+// END-TUTORIAL-dynSharedMemberKernel
 
-    // BEGIN-TUTORIAL-dynSharedTraitKernel
-    struct DynamicScaleKernel
-    {
+// BEGIN-TUTORIAL-dynSharedTraitKernel
+struct DynamicScaleKernel
+{
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -130,10 +131,9 @@ namespace
                 out[idx] = cache[idx.x()];
             }
         }
-    };
+};
 
-    // END-TUTORIAL-dynSharedTraitKernel
-} // namespace
+// END-TUTORIAL-dynSharedTraitKernel
 
 namespace alpaka::onHost::trait
 {
@@ -158,9 +158,12 @@ namespace alpaka::onHost::trait
     // END-TUTORIAL-dynSharedTraitSpec
 } // namespace alpaka::onHost::trait
 
-TEST_CASE("tutorial shared memory tile", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial shared memory tile", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostInput{0, 1, 2, 3, 4, 5, 6, 7};
@@ -189,9 +192,12 @@ TEST_CASE("tutorial shared memory tile", "[docs]")
     CHECK(hostOutput[7] == 0);
 }
 
-TEST_CASE("tutorial shared memory scalar value", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial shared memory scalar value", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostInput{1, 2, 3, 4, 5, 6, 7, 8};
@@ -211,9 +217,12 @@ TEST_CASE("tutorial shared memory scalar value", "[docs]")
     CHECK(hostOutput[0] == 36);
 }
 
-TEST_CASE("tutorial dynamic shared memory via member", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial dynamic shared memory via member", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostInput{0, 1, 2, 3, 4, 5, 6, 7};
@@ -245,9 +254,12 @@ TEST_CASE("tutorial dynamic shared memory via member", "[docs]")
     CHECK(hostOutput[7] == 0);
 }
 
-TEST_CASE("tutorial dynamic shared memory via trait", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial dynamic shared memory via trait", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostInput{0, 1, 2, 3, 4, 5, 6, 7};

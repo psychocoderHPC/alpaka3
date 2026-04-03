@@ -9,7 +9,7 @@ alpaka provides a function-symbol interface for exactly that job.
 The idea is simple:
 
 - define one logical operation,
-- register implementations for the backends that have a special vendor path,
+- specialize implementations for the backends that have a special vendor path,
 - keep one generic alpaka fallback for the rest.
 
 The caller still sees one function call.
@@ -29,7 +29,7 @@ Defining a Dispatchable Function
     :dedent:
 
 ``ALPAKA_FN_SYMBOL`` defines the public function symbol.
-The fallback choice tells alpaka that it may call the generic alpaka implementation when no vendor-specific overload is registered for the selected backend.
+The fallback choice tells alpaka that it may call the generic alpaka implementation when no vendor-specific overload can be dispatched.
 
 Registering a Generic alpaka Fallback
 -------------------------------------
@@ -80,10 +80,7 @@ Calling the Function
 
 The call itself stays simple.
 You pass the queue and the ordinary data arguments.
-alpaka looks at the queue's backend information and forwards the call to the best matching registered overload.
-
-If you need to decide earlier, for example while building a larger backend-specific pipeline, you can also ask whether a symbol is registered for a given queue or device specification before calling it.
-That is useful when you want to keep a fast vendor path for one backend and still fall back to the plain alpaka implementation everywhere else.
+alpaka looks at the queue's backend information and forwards the call to the best matching overload.
 
 How This Generalizes
 --------------------
@@ -101,7 +98,7 @@ In practice the recipe is:
 
 1. choose one clean public function signature,
 2. keep the arguments backend-neutral,
-3. register backend-specific overloads with ``fnRegister`` and ``fnDispatch``,
+3. specialize backend-specific overloads with ``fnDispatch``,
 4. keep one alpaka fallback when possible,
 5. use the queue's native handle inside the backend-specific overload if the vendor API expects a native stream or queue.
 

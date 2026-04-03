@@ -4,18 +4,19 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
 #include <catch2/catch_approx.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <cstdint>
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-piKernel
+struct MonteCarloPiKernel
 {
-    // BEGIN-TUTORIAL-piKernel
-    struct MonteCarloPiKernel
-    {
         ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto hits, uint32_t seed)
             const
         {
@@ -28,16 +29,19 @@ namespace
                 hits[idx] = (x * x + y * y <= 1.0f) ? 1u : 0u;
             }
         }
-    };
+};
 
-    // END-TUTORIAL-piKernel
-} // namespace
+// END-TUTORIAL-piKernel
 
-TEST_CASE("tutorial monte carlo pi", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial monte carlo pi", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto cfg = TestType::makeDict();
+    auto selector = onHost::makeDeviceSelector(cfg[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
-    auto exec = exec::cpuSerial;
+    auto exec = cfg[object::exec];
 
     constexpr uint32_t numSamples = 16384u;
     auto hitBuffer = onHost::alloc<uint32_t>(device, Vec{numSamples});

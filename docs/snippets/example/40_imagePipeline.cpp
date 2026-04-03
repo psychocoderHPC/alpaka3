@@ -4,6 +4,9 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
@@ -11,11 +14,9 @@
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-imageThresholdKernel
+struct ThresholdKernel
 {
-    // BEGIN-TUTORIAL-imageThresholdKernel
-    struct ThresholdKernel
-    {
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -27,13 +28,13 @@ namespace
                 out[idx] = in[idx] >= threshold ? uint8_t{255} : uint8_t{0};
             }
         }
-    };
+};
 
-    // END-TUTORIAL-imageThresholdKernel
+// END-TUTORIAL-imageThresholdKernel
 
-    // BEGIN-TUTORIAL-imageHistogramKernel
-    struct BinaryHistogramKernel
-    {
+// BEGIN-TUTORIAL-imageHistogramKernel
+struct BinaryHistogramKernel
+{
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto bins,
@@ -45,14 +46,16 @@ namespace
                 onAcc::atomicAdd(acc, &bins[Vec{bin}], uint32_t{1}, onAcc::scope::device);
             }
         }
-    };
+};
 
-    // END-TUTORIAL-imageHistogramKernel
-} // namespace
+// END-TUTORIAL-imageHistogramKernel
 
-TEST_CASE("tutorial image pipeline", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial image pipeline", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     auto const imageExtents = Vec{4u, 4u};

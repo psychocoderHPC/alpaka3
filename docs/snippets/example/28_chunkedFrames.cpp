@@ -4,17 +4,18 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-chunkedKernel
+struct ChunkedVectorAddKernel
 {
-    // BEGIN-TUTORIAL-chunkedKernel
-    struct ChunkedVectorAddKernel
-    {
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto out,
@@ -52,14 +53,16 @@ namespace
                 onAcc::syncBlockThreads(acc);
             }
         }
-    };
+};
 
-    // END-TUTORIAL-chunkedKernel
-} // namespace
+// END-TUTORIAL-chunkedKernel
 
-TEST_CASE("tutorial chunked frames kernel", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial chunked frames kernel", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostIn0{0, 1, 2, 3, 4, 5, 6, 7};

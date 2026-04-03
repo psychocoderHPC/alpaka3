@@ -4,15 +4,16 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-memFenceBlockKernel
+struct BlockFenceKernel
 {
-    // BEGIN-TUTORIAL-memFenceBlockKernel
-    struct BlockFenceKernel
-    {
         uint32_t dynSharedMemBytes = 2u * sizeof(int);
 
         ALPAKA_FN_ACC void operator()(onAcc::concepts::Acc auto const& acc, concepts::IMdSpan auto successFlag) const
@@ -47,13 +48,13 @@ namespace
                 }
             }
         }
-    };
+};
 
-    // END-TUTORIAL-memFenceBlockKernel
+// END-TUTORIAL-memFenceBlockKernel
 
-    // BEGIN-TUTORIAL-memFenceDeviceKernel
-    struct ProducerConsumerFenceKernel
-    {
+// BEGIN-TUTORIAL-memFenceDeviceKernel
+struct ProducerConsumerFenceKernel
+{
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IMdSpan auto payload,
@@ -86,14 +87,16 @@ namespace
                 }
             }
         }
-    };
+};
 
-    // END-TUTORIAL-memFenceDeviceKernel
-} // namespace
+// END-TUTORIAL-memFenceDeviceKernel
 
-TEST_CASE("tutorial memFence block scope", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial memFence block scope", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     auto successFlag = onHost::allocUnified<uint32_t>(device, Vec{1u});
@@ -107,9 +110,12 @@ TEST_CASE("tutorial memFence block scope", "[docs]")
     CHECK(successFlag[0u] == 1u);
 }
 
-TEST_CASE("tutorial memFence device scope", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial memFence device scope", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue(queueKind::blocking);
 
     auto payload = onHost::alloc<uint32_t>(device, Vec{1u});

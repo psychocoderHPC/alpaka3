@@ -4,17 +4,18 @@
 
 #include <alpaka/alpaka.hpp>
 
+#include "docsTest.hpp"
+
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
 
 using namespace alpaka;
 
-namespace
+// BEGIN-TUTORIAL-atomicKernel
+struct HistogramKernel
 {
-    // BEGIN-TUTORIAL-atomicKernel
-    struct HistogramKernel
-    {
         ALPAKA_FN_ACC void operator()(
             onAcc::concepts::Acc auto const& acc,
             concepts::IDataSource auto const& input,
@@ -26,14 +27,16 @@ namespace
                 onAcc::atomicAdd(acc, &bins[Vec{bin}], 1u);
             }
         }
-    };
+};
 
-    // END-TUTORIAL-atomicKernel
-} // namespace
+// END-TUTORIAL-atomicKernel
 
-TEST_CASE("tutorial atomics histogram", "[docs]")
+TEMPLATE_LIST_TEST_CASE("tutorial atomics histogram", "[docs]", docs::test::TestBackends)
 {
-    auto device = onHost::makeHostDevice();
+    auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
+    if(!selector.isAvailable())
+        return;
+    auto device = selector.makeDevice(0);
     auto queue = device.makeQueue();
 
     std::array<uint32_t, 12u> hostInput{0u, 1u, 0u, 2u, 3u, 0u, 1u, 2u, 2u, 3u, 3u, 3u};
