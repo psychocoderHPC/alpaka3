@@ -20,21 +20,19 @@ namespace
             concepts::IDataSource auto const& in,
             concepts::IMdSpan auto out) const
         {
-            auto const threadsPerBlock = acc[layer::thread].count().product();
             auto const warpSize = onAcc::warp::getSize(acc);
-            auto const blockBase = acc[layer::block].idx().x() * threadsPerBlock;
-
-            for(auto [localThread] :
-                onAcc::makeIdxMap(acc, onAcc::worker::threadsInBlock, IdxRange{Vec{threadsPerBlock}}))
+            auto const idxInWarp = onAcc::warp::getLaneIdx(acc);
+            auto const workSize = pCast<uint32_t>(out.getExtents());
+            for(auto [blockBase] :
+                onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{0u, workSize, warpSize}))
             {
-                auto value = in[Vec{blockBase + localThread}];
-
+                auto value = in[Vec{blockBase + idxInWarp}];
                 for(uint32_t offset = warpSize / 2u; offset > 0u; offset /= 2u)
                     value += onAcc::warp::shflDown(acc, value, offset);
 
                 if(onAcc::warp::getLaneIdx(acc) == 0u)
                 {
-                    out[Vec{acc[layer::block].idx().x()}] = value;
+                    out[blockBase / warpSize] = value;
                 }
             }
         }
@@ -53,8 +51,19 @@ TEST_CASE("tutorial warp shuffle reduction", "[docs]")
     auto const blocks = 2u;
     auto const threadsPerBlock = warpSize;
 
-    std::vector<uint32_t> hostInput(blocks * threadsPerBlock, 1u);
+    std::vector<uint32_t> hostInput(blocks * threadsPerBlock);
     std::vector<uint32_t> hostOutput(blocks, 0u);
+    std::vector<uint32_t> expectedOutput(blocks, 0u);
+
+    for(uint32_t blockIdx = 0; blockIdx < blocks; ++blockIdx)
+    {
+        for(uint32_t laneIdx = 0; laneIdx < warpSize; ++laneIdx)
+        {
+            auto const value = blockIdx * warpSize + laneIdx + 1u;
+            hostInput[blockIdx * threadsPerBlock + laneIdx] = value;
+            expectedOutput[blockIdx] += value;
+        }
+    }
 
     auto inputBuffer = onHost::allocLike(device, hostInput);
     auto outputBuffer = onHost::allocLike(device, hostOutput);
@@ -70,6 +79,6 @@ TEST_CASE("tutorial warp shuffle reduction", "[docs]")
     onHost::memcpy(queue, hostOutput, outputBuffer);
     onHost::wait(queue);
 
-    for(auto sum : hostOutput)
-        CHECK(sum == warpSize);
+    for(uint32_t blockIdx = 0; blockIdx < blocks; ++blockIdx)
+        CHECK(hostOutput[blockIdx] == expectedOutput[blockIdx]);
 }
