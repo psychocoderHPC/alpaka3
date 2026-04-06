@@ -638,6 +638,71 @@ TEST_CASE("View::getConstView keeps host metadata and read-only access", "[mem][
     }
 }
 
+TEST_CASE(
+    "alpaka::makeView(any) preserves host view shape alignment and inner constness",
+    "[mem][view][correctness][makeView]")
+{
+    auto mutableBuffer = alpaka::onHost::allocHost<int>(alpaka::Vec{2u, 3u});
+    auto mutableView = mutableBuffer.getView();
+    auto const& outerConstBuffer = mutableBuffer;
+    auto const& outerConstView = mutableView;
+
+    alignas(32) std::array<int const, 2 * 3> innerConstStorage{0, 1, 2, 3, 4, 5};
+    auto innerConstView
+        = alpaka::makeView(alpaka::api::host, innerConstStorage.data(), alpaka::Vec{2u, 3u}, alpaka::Alignment<32>{});
+
+    auto mutableBufferView = alpaka::makeView(mutableBuffer);
+    auto outerConstBufferView = alpaka::makeView(outerConstBuffer);
+    auto mutableRebuiltView = alpaka::makeView(mutableView);
+    auto outerConstRebuiltView = alpaka::makeView(outerConstView);
+    auto innerConstRebuiltView = alpaka::makeView(innerConstView);
+
+    SECTION("compile-time rebuilding keeps host API metadata and inner constness")
+    {
+        // `makeView(any)` should rebuild host buffers and views without changing their API, shape, alignment, or
+        // pointed-to constness.
+        static_assert(std::same_as<decltype(mutableBufferView.getApi()), alpaka::api::Host>);
+        static_assert(std::same_as<decltype(mutableRebuiltView.getApi()), alpaka::api::Host>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutableBufferView.getExtents())>,
+                      std::remove_cvref_t<decltype(mutableBuffer.getExtents())>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutableRebuiltView.getExtents())>,
+                      std::remove_cvref_t<decltype(mutableView.getExtents())>>);
+        static_assert(
+            std::same_as<decltype(mutableBufferView.getAlignment()), decltype(mutableBuffer.getAlignment())>);
+        static_assert(std::same_as<decltype(mutableRebuiltView.getAlignment()), decltype(mutableView.getAlignment())>);
+        static_assert(!std::is_const_v<std::remove_pointer_t<decltype(mutableBufferView.data())>>);
+        static_assert(!std::is_const_v<std::remove_reference_t<decltype(mutableBufferView[alpaka::Vec{0u, 0u}])>>);
+        static_assert(!std::is_const_v<std::remove_pointer_t<decltype(mutableRebuiltView.data())>>);
+        static_assert(!std::is_const_v<std::remove_reference_t<decltype(mutableRebuiltView[alpaka::Vec{0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstBufferView.getExtents())>,
+                      std::remove_cvref_t<decltype(outerConstBuffer.getExtents())>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstRebuiltView.getExtents())>,
+                      std::remove_cvref_t<decltype(outerConstView.getExtents())>>);
+        static_assert(
+            std::same_as<decltype(outerConstBufferView.getAlignment()), decltype(outerConstBuffer.getAlignment())>);
+        static_assert(
+            std::same_as<decltype(outerConstRebuiltView.getAlignment()), decltype(outerConstView.getAlignment())>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(outerConstBufferView.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(outerConstBufferView[alpaka::Vec{0u, 0u}])>>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(outerConstRebuiltView.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(outerConstRebuiltView[alpaka::Vec{0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(innerConstRebuiltView.getExtents())>,
+                      std::remove_cvref_t<decltype(innerConstView.getExtents())>>);
+        static_assert(
+            std::same_as<decltype(innerConstRebuiltView.getAlignment()), decltype(innerConstView.getAlignment())>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(innerConstRebuiltView.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(innerConstRebuiltView[alpaka::Vec{0u, 0u}])>>);
+    }
+}
+
 TEST_CASE("View::getMdSpan keeps host mutability boundaries", "[mem][view][mdspan][correctness]")
 {
     alignas(32) std::array<int, 2 * 3> storage{};
