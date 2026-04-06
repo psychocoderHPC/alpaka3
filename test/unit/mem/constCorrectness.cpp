@@ -571,3 +571,68 @@ TEST_CASE("buffer const correctness MD", "[mem][sharedBuffer][correctness]")
         static_assert(std::is_const_v<std::remove_reference_t<decltype(boundarySubView[Vec{0, 0}])>>);
     }
 }
+
+TEST_CASE("View::getConstView keeps host metadata and read-only access", "[mem][view][correctness][constView]")
+{
+    alignas(32) std::array<int, 2 * 3 * 4> storage{};
+    for(std::size_t i = 0; i < storage.size(); ++i)
+    {
+        storage[i] = static_cast<int>(100 + i);
+    }
+
+    auto mutableView = alpaka::makeView(alpaka::api::host, storage.data(), alpaka::Vec{2u, 3u, 4u}, alpaka::Alignment<32>{});
+    auto const constView = mutableView.getConstView();
+
+    SECTION("compile-time const access stays locked down")
+    {
+        // `getConstView()` must turn a mutable host view into a read-only view without changing its view category.
+        static_assert(
+            std::same_as<
+                std::remove_cvref_t<decltype(constView)>,
+                View<alpaka::api::Host, int const, alpaka::Vec<uint32_t, 3>, alpaka::Alignment<32>>>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(constView.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(constView[alpaka::Vec{0u, 0u, 0u}])>>);
+
+        auto const subView = constView.getSubView(alpaka::Vec{1u, 2u, 3u});
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(subView.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(subView[alpaka::Vec{0u, 0u, 0u}])>>);
+        static_assert(std::is_same_v<decltype(constView.getAlignment()), alpaka::Alignment<32>>);
+    }
+
+    SECTION("runtime metadata and aliasing are preserved")
+    {
+        // Converting to a const view must preserve shape, layout, aliasing, and the original alignment contract.
+        REQUIRE(constView.getExtents() == mutableView.getExtents());
+        REQUIRE(constView.getPitches() == mutableView.getPitches());
+        REQUIRE(constView.data() == mutableView.data());
+
+        STATIC_REQUIRE(std::is_same_v<decltype(constView.getAlignment()), alpaka::Alignment<32>>);
+
+        auto const sampleIdx = alpaka::Vec{1u, 2u, 3u};
+        REQUIRE(&constView[sampleIdx] == &mutableView[sampleIdx]);
+        REQUIRE(constView[sampleIdx] == mutableView[sampleIdx]);
+
+        mutableView[sampleIdx] = 777;
+        REQUIRE(constView[sampleIdx] == 777);
+    }
+
+    SECTION("subviews created from the const view stay read-only and alias the same storage")
+    {
+        // Follow-on subviews from the returned const view should keep the parent layout while exposing only const access.
+        auto const offset = alpaka::Vec{1u, 1u, 1u};
+        auto const extents = alpaka::Vec{1u, 2u, 3u};
+        auto const subView = constView.getSubView(offset, extents);
+
+        REQUIRE(subView.getExtents() == extents);
+        REQUIRE(subView.getPitches() == constView.getPitches());
+        REQUIRE(subView.data() == &constView[offset]);
+        STATIC_REQUIRE(std::is_same_v<decltype(subView.getAlignment()), alpaka::Alignment<>>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(subView.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(subView[alpaka::Vec{0u, 0u, 0u}])>>);
+
+        for(auto idx : alpaka::IdxRange{extents})
+        {
+            REQUIRE(subView[idx] == mutableView[offset + idx]);
+        }
+    }
+}
