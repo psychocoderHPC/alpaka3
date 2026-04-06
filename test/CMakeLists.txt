@@ -83,4 +83,4 @@ function(alpaka_add_test_target target_prefix folder)
 endfunction()
 
 alpaka_add_test_target(unit_test_ ${CMAKE_CURRENT_SOURCE_DIR}/unit/**)
-#alpaka_add_test_target(integ_test_ ${CMAKE_CURRENT_SOURCE_DIR}/integ/**)
+alpaka_add_test_target(integ_test_ ${CMAKE_CURRENT_SOURCE_DIR}/integ/**)
