@@ -175,6 +175,54 @@ TEST_CASE("mdIterator host coverage", "[mem][mdIterator][iterator]")
         REQUIRE(&mdSpan[sampleIdx] == &packedView[sampleIdx]);
     }
 
+    SECTION("makeMdSpan(any) rebuilds host buffers and views without breaking aliasing")
+    {
+        // Rebuilding an MdSpan from an existing host buffer or view should preserve the layout contract and keep
+        // direct access bound to the original storage.
+        auto const extents = alpaka::Vec{2u, 3u, 4u};
+        auto buffer = onHost::allocHost<int>(extents);
+        auto bufferMdSpan = alpaka::makeMdSpan(buffer);
+
+        meta::ndLoopIncIdx(
+            extents,
+            [&](alpaka::concepts::Vector<uint32_t, 3> auto idx)
+            { buffer[idx] = static_cast<int>(100u + linearize(extents, idx)); });
+
+        alignas(64) std::array<int, 2 * 3 * 4> storage{};
+        for(std::size_t i = 0; i < storage.size(); ++i)
+            storage[i] = static_cast<int>(i);
+
+        auto view = alpaka::makeView(api::host, storage.data(), extents, alpaka::Alignment<64>{});
+        auto mdSpan = alpaka::makeMdSpan(view);
+        auto const constMdSpan = alpaka::makeMdSpan(std::as_const(view));
+
+        REQUIRE(bufferMdSpan.getExtents() == buffer.getExtents());
+        REQUIRE(bufferMdSpan.getPitches() == buffer.getPitches());
+        REQUIRE(bufferMdSpan.data() == buffer.data());
+        STATIC_REQUIRE(std::is_same_v<decltype(bufferMdSpan.getAlignment()), decltype(buffer.getAlignment())>);
+
+        REQUIRE(mdSpan.getExtents() == view.getExtents());
+        REQUIRE(mdSpan.getPitches() == view.getPitches());
+        REQUIRE(mdSpan.data() == view.data());
+        STATIC_REQUIRE(std::is_same_v<decltype(mdSpan.getAlignment()), alpaka::Alignment<64>>);
+        STATIC_REQUIRE(std::is_same_v<decltype(constMdSpan.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(!std::is_const_v<std::remove_reference_t<decltype(mdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(constMdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+
+        auto const sampleIdx = alpaka::Vec{1u, 2u, 3u};
+        mdSpan[sampleIdx] = 777;
+        REQUIRE(view[sampleIdx] == 777);
+        REQUIRE(storage[storage.size() - 1u] == 777);
+        REQUIRE(&mdSpan[sampleIdx] == &view[sampleIdx]);
+        REQUIRE(&constMdSpan[sampleIdx] == &view[sampleIdx]);
+
+        auto const visited = collectValues(mdSpan);
+        REQUIRE(visited.size() == storage.size());
+        REQUIRE(visited.front() == 0);
+        REQUIRE(visited.back() == 777);
+        REQUIRE(collectValues(constMdSpan) == visited);
+    }
+
     SECTION("pre-increment and post-increment advance one element at a time")
     {
         // Forward-iterator increments need to preserve the old value for post-increment and return self for
