@@ -969,6 +969,58 @@ TEST_CASE(
     }
 }
 
+TEST_CASE(
+    "alpaka::makeMdSpan(pointer, extents, alignment) preserves packed host metadata and inner constness",
+    "[mem][mdspan][correctness][makeMdSpan]")
+{
+    auto const extents = alpaka::Vec{2u, 3u, 4u};
+    auto const packedPitches = alpaka::calculatePitchesFromExtents<int>(extents);
+    alignas(64) std::array<int, 2 * 3 * 4> mutableStorage{};
+    alignas(64) std::array<int const, 2 * 3 * 4> innerConstStorage{};
+
+    auto mutablePackedMdSpan = alpaka::makeMdSpan(mutableStorage.data(), extents, alpaka::Alignment<64>{});
+    auto const outerConstPackedMdSpan = alpaka::makeMdSpan(mutableStorage.data(), extents, alpaka::Alignment<64>{});
+    auto innerConstPackedMdSpan = alpaka::makeMdSpan(innerConstStorage.data(), extents, alpaka::Alignment<64>{});
+
+    SECTION("compile-time packed pitches are derived from extents and keep inner constness")
+    {
+        // The packed raw overload should keep the host extents and alignment while deriving the packed pitch type from
+        // the extents instead of accepting caller-managed layout metadata.
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutablePackedMdSpan.getExtents())>,
+                      std::remove_cvref_t<decltype(extents)>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutablePackedMdSpan.getPitches())>,
+                      std::remove_cvref_t<decltype(packedPitches)>>);
+        static_assert(std::same_as<decltype(mutablePackedMdSpan.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(!std::is_const_v<std::remove_pointer_t<decltype(mutablePackedMdSpan.data())>>);
+        static_assert(
+            !std::is_const_v<std::remove_reference_t<decltype(mutablePackedMdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstPackedMdSpan.getExtents())>,
+                      std::remove_cvref_t<decltype(extents)>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstPackedMdSpan.getPitches())>,
+                      std::remove_cvref_t<decltype(packedPitches)>>);
+        static_assert(std::same_as<decltype(outerConstPackedMdSpan.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(outerConstPackedMdSpan.data())>>);
+        static_assert(
+            std::is_const_v<std::remove_reference_t<decltype(outerConstPackedMdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(innerConstPackedMdSpan.getExtents())>,
+                      std::remove_cvref_t<decltype(extents)>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(innerConstPackedMdSpan.getPitches())>,
+                      std::remove_cvref_t<decltype(packedPitches)>>);
+        static_assert(std::same_as<decltype(innerConstPackedMdSpan.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(innerConstPackedMdSpan.data())>>);
+        static_assert(
+            std::is_const_v<std::remove_reference_t<decltype(innerConstPackedMdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+    }
+}
+
 TEST_CASE("View::getMdSpan keeps host mutability boundaries", "[mem][view][mdspan][correctness]")
 {
     alignas(32) std::array<int, 2 * 3> storage{};
