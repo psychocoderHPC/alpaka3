@@ -53,7 +53,10 @@ TEMPLATE_LIST_TEST_CASE("queue + memcpy + kernel round trip", "", TestApis)
     onHost::fill(queue, deviceBuffer, 99u);
 
     onHost::memcpy(queue, deviceBuffer, hostInput);
-    queue.enqueue(exec, onHost::FrameSpec{extent / frameExtent, frameExtent}, KernelBundle{AddOffsetKernel{}, deviceBuffer, offset});
+    queue.enqueue(
+        exec,
+        onHost::FrameSpec{extent / frameExtent, frameExtent},
+        KernelBundle{AddOffsetKernel{}, deviceBuffer, offset});
     onHost::memcpy(queue, hostOutput, deviceBuffer);
     onHost::wait(queue);
 
