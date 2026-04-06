@@ -223,6 +223,54 @@ TEST_CASE("mdIterator host coverage", "[mem][mdIterator][iterator]")
         REQUIRE(collectValues(constMdSpan) == visited);
     }
 
+    SECTION("explicit-pitch makeMdSpan keeps padded host layout and aliases the same storage")
+    {
+        // The raw explicit-pitch overload must keep caller-provided padded pitches for indexing instead of deriving a
+        // packed layout from the extents.
+        auto const extents = alpaka::Vec{2u, 3u, 4u};
+        auto const explicitPitches = alpaka::Vec{80u, 20u, 4u};
+        auto const packedPitches = alpaka::calculatePitchesFromExtents<int>(extents);
+        alignas(64) std::array<int, 40> mutableStorage{};
+        mutableStorage.fill(-1);
+        alignas(64) std::array<int const, 40> innerConstStorage{};
+
+        auto mdSpan = alpaka::makeMdSpan(mutableStorage.data(), extents, explicitPitches, alpaka::Alignment<64>{});
+        auto const outerConstMdSpan
+            = alpaka::makeMdSpan(mutableStorage.data(), extents, explicitPitches, alpaka::Alignment<64>{});
+        auto innerConstMdSpan
+            = alpaka::makeMdSpan(innerConstStorage.data(), extents, explicitPitches, alpaka::Alignment<64>{});
+
+        REQUIRE(mdSpan.getExtents() == extents);
+        REQUIRE(mdSpan.getPitches() == explicitPitches);
+        REQUIRE(mdSpan.getPitches() != packedPitches);
+        REQUIRE(mdSpan.data() == mutableStorage.data());
+        STATIC_REQUIRE(std::is_same_v<decltype(mdSpan.getAlignment()), alpaka::Alignment<64>>);
+        STATIC_REQUIRE(std::is_same_v<decltype(outerConstMdSpan.getAlignment()), alpaka::Alignment<64>>);
+        STATIC_REQUIRE(std::is_same_v<decltype(innerConstMdSpan.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(!std::is_const_v<std::remove_reference_t<decltype(mdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(outerConstMdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(innerConstMdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+
+        mutableStorage[5] = -50;
+        mutableStorage[4] = -40;
+        REQUIRE(mdSpan[alpaka::Vec{0u, 1u, 0u}] == -50);
+
+        mutableStorage[20] = 220;
+        mutableStorage[12] = 120;
+        REQUIRE(mdSpan[alpaka::Vec{1u, 0u, 0u}] == 220);
+
+        auto const sampleIdx = alpaka::Vec{1u, 2u, 3u};
+        mdSpan[sampleIdx] = 1323;
+        REQUIRE(mutableStorage[33] == 1323);
+        REQUIRE(mutableStorage[23] == -1);
+        REQUIRE(&mdSpan[sampleIdx] == &mutableStorage[33]);
+        REQUIRE(&outerConstMdSpan[sampleIdx] == &mutableStorage[33]);
+
+        auto iter = mdSpan.begin();
+        ++iter;
+        REQUIRE(&*iter == &mutableStorage[1]);
+    }
+
     SECTION("pre-increment and post-increment advance one element at a time")
     {
         // Forward-iterator increments need to preserve the old value for post-increment and return self for
