@@ -136,6 +136,45 @@ TEST_CASE("mdIterator host coverage", "[mem][mdIterator][iterator]")
         REQUIRE(collectValues(constMdSpan) == visited);
     }
 
+    SECTION("packed makeView derives packed pitches and getMdSpan keeps that layout")
+    {
+        // The packed raw-pointer overload must derive pitches from extents instead of accepting a padded layout, and
+        // the immediate MdSpan view should expose the same packed contract.
+        auto const extents = alpaka::Vec{2u, 3u, 4u};
+        auto const packedPitches = alpaka::calculatePitchesFromExtents<int>(extents);
+        auto const explicitPitches = alpaka::Vec{80u, 20u, 4u};
+        alignas(64) std::array<int, 2 * 3 * 4> storage{};
+        for(std::size_t i = 0; i < storage.size(); ++i)
+            storage[i] = static_cast<int>(i);
+
+        auto packedView = alpaka::makeView(api::host, storage.data(), extents, alpaka::Alignment<64>{});
+        auto mdSpan = packedView.getMdSpan();
+
+        REQUIRE(packedView.getApi() == api::host);
+        REQUIRE(packedView.getExtents() == extents);
+        REQUIRE(packedView.getPitches() == packedPitches);
+        REQUIRE(packedView.getPitches() != explicitPitches);
+        REQUIRE(packedView.data() == storage.data());
+        STATIC_REQUIRE(std::is_same_v<decltype(packedView.getAlignment()), alpaka::Alignment<64>>);
+
+        storage[15] = 1500;
+        storage[23] = 2300;
+        auto const sampleIdx = alpaka::Vec{1u, 0u, 3u};
+        REQUIRE(packedView[sampleIdx] == 1500);
+        REQUIRE(&packedView[sampleIdx] == &storage[15]);
+
+        REQUIRE(mdSpan.getExtents() == packedView.getExtents());
+        REQUIRE(mdSpan.getPitches() == packedView.getPitches());
+        REQUIRE(mdSpan.data() == packedView.data());
+        STATIC_REQUIRE(std::is_same_v<decltype(mdSpan.getAlignment()), alpaka::Alignment<64>>);
+
+        mdSpan[sampleIdx] = 777;
+        REQUIRE(packedView[sampleIdx] == 777);
+        REQUIRE(storage[15] == 777);
+        REQUIRE(storage[23] == 2300);
+        REQUIRE(&mdSpan[sampleIdx] == &packedView[sampleIdx]);
+    }
+
     SECTION("pre-increment and post-increment advance one element at a time")
     {
         // Forward-iterator increments need to preserve the old value for post-increment and return self for
