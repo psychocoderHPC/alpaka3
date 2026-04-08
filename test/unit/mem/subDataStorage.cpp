@@ -289,6 +289,65 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "alpaka::makeView(api, pointer, extents, pitches, alignment) keeps padded host pitches and subview aliasing",
+    "[mem][view][SubDataStorage]")
+{
+    auto const extents = alpaka::Vec{2u, 3u, 4u};
+    auto const explicitPitches = alpaka::Vec{80u, 20u, 4u};
+    auto const packedPitches = alpaka::calculatePitchesFromExtents<int>(extents);
+    alignas(64) std::array<int, 40> storage{};
+    storage.fill(-1);
+
+    auto explicitPitchView
+        = alpaka::makeView(alpaka::api::host, storage.data(), extents, explicitPitches, alpaka::Alignment<64>{});
+
+    SECTION("explicit host pitches override the packed layout for indexing")
+    {
+        // The explicit-pitch overload must use the caller-provided padded layout instead of silently recomputing a
+        // packed one from the extents.
+        REQUIRE(explicitPitchView.getApi() == alpaka::api::host);
+        REQUIRE(explicitPitchView.getExtents() == extents);
+        REQUIRE(explicitPitchView.getPitches() == explicitPitches);
+        REQUIRE(explicitPitchView.data() == storage.data());
+        REQUIRE(explicitPitches != packedPitches);
+        STATIC_REQUIRE(std::is_same_v<decltype(explicitPitchView.getAlignment()), alpaka::Alignment<64>>);
+
+        storage[5] = -50;
+        storage[4] = -40;
+        REQUIRE(explicitPitchView[alpaka::Vec{0u, 1u, 0u}] == -50);
+
+        storage[20] = 220;
+        storage[12] = 120;
+        REQUIRE(explicitPitchView[alpaka::Vec{1u, 0u, 0u}] == 220);
+
+        auto const sampleIdx = alpaka::Vec{1u, 2u, 3u};
+        explicitPitchView[sampleIdx] = 1323;
+        REQUIRE(storage[33] == 1323);
+        REQUIRE(storage[23] == -1);
+        REQUIRE(&explicitPitchView[sampleIdx] == &storage[33]);
+    }
+
+    SECTION("offset subviews keep the padded pitch contract")
+    {
+        // Follow-on subviews should keep the same padded pitches after shifting the origin into the caller-defined
+        // layout.
+        auto const offset = alpaka::Vec{1u, 1u, 1u};
+        auto const subExtents = alpaka::Vec{1u, 2u, 3u};
+        auto subView = explicitPitchView.getSubView(offset, subExtents);
+
+        REQUIRE(subView.getExtents() == subExtents);
+        REQUIRE(subView.getPitches() == explicitPitchView.getPitches());
+        REQUIRE(subView.data() == &explicitPitchView[offset]);
+        STATIC_REQUIRE(std::is_same_v<decltype(subView.getAlignment()), alpaka::Alignment<>>);
+
+        subView[alpaka::Vec{0u, 1u, 2u}] = 777;
+        REQUIRE(explicitPitchView[offset + alpaka::Vec{0u, 1u, 2u}] == 777);
+        REQUIRE(storage[33] == 777);
+        REQUIRE(storage[23] == -1);
+    }
+}
+
+TEST_CASE(
     "alpaka::View::getSubView(BoundaryDirection) covers host lower upper core and const aliasing",
     "[mem][view][SubDataStorage]")
 {
