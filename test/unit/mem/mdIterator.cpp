@@ -318,6 +318,67 @@ TEST_CASE("mdIterator host coverage", "[mem][mdIterator][iterator]")
         REQUIRE(&*iter == &mutableStorage[1]);
     }
 
+    SECTION("MdSpan::getConstMdSpan keeps host layout metadata and read order")
+    {
+        // `getConstMdSpan()` should preserve the original host layout contract while exposing the same storage through
+        // read-only element access and iteration for both packed and explicit-pitch mdspans.
+        auto const extents = alpaka::Vec{2u, 3u, 4u};
+        auto const packedPitches = alpaka::calculatePitchesFromExtents<int>(extents);
+        auto const explicitPitches = alpaka::Vec{80u, 20u, 4u};
+        alignas(64) std::array<int, 2 * 3 * 5 * 2> packedStorage{};
+        alignas(64) std::array<int, 2 * 3 * 5 * 2> explicitPitchStorage{};
+        for(std::size_t i = 0; i < packedStorage.size(); ++i)
+            packedStorage[i] = static_cast<int>(100 + i);
+        explicitPitchStorage.fill(-1);
+
+        auto packedMdSpan = alpaka::makeMdSpan(packedStorage.data(), extents, alpaka::Alignment<64>{});
+        auto explicitPitchMdSpan
+            = alpaka::makeMdSpan(explicitPitchStorage.data(), extents, explicitPitches, alpaka::Alignment<64>{});
+        auto const packedConstMdSpan = packedMdSpan.getConstMdSpan();
+        auto const explicitPitchConstMdSpan = explicitPitchMdSpan.getConstMdSpan();
+
+        explicitPitchStorage[0] = 500;
+        explicitPitchStorage[1] = 501;
+        explicitPitchStorage[5] = 505;
+        explicitPitchStorage[20] = 520;
+        explicitPitchStorage[33] = 533;
+        explicitPitchStorage[23] = 523;
+
+        REQUIRE(packedConstMdSpan.getExtents() == extents);
+        REQUIRE(packedConstMdSpan.getPitches() == packedPitches);
+        REQUIRE(packedConstMdSpan.data() == packedStorage.data());
+        STATIC_REQUIRE(std::is_same_v<decltype(packedConstMdSpan.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(packedConstMdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(*packedConstMdSpan.begin())>>);
+
+        auto const packedSampleIdx = alpaka::Vec{1u, 2u, 3u};
+        REQUIRE(packedConstMdSpan[packedSampleIdx] == packedStorage[23]);
+        REQUIRE(&packedConstMdSpan[packedSampleIdx] == &packedStorage[23]);
+        auto packedIter = packedConstMdSpan.begin();
+        ++packedIter;
+        REQUIRE(&*packedIter == &packedStorage[1]);
+        REQUIRE(collectValues(packedConstMdSpan) == collectValues(packedMdSpan));
+
+        REQUIRE(explicitPitchConstMdSpan.getExtents() == extents);
+        REQUIRE(explicitPitchConstMdSpan.getPitches() == explicitPitches);
+        REQUIRE(explicitPitchConstMdSpan.getPitches() != packedPitches);
+        REQUIRE(explicitPitchConstMdSpan.data() == explicitPitchStorage.data());
+        STATIC_REQUIRE(std::is_same_v<decltype(explicitPitchConstMdSpan.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(
+            std::is_const_v<std::remove_reference_t<decltype(explicitPitchConstMdSpan[alpaka::Vec{0u, 0u, 0u}])>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(*explicitPitchConstMdSpan.begin())>>);
+
+        auto const explicitPitchSampleIdx = alpaka::Vec{1u, 2u, 3u};
+        REQUIRE(explicitPitchConstMdSpan[alpaka::Vec{0u, 1u, 0u}] == 505);
+        REQUIRE(explicitPitchConstMdSpan[alpaka::Vec{1u, 0u, 0u}] == 520);
+        REQUIRE(explicitPitchConstMdSpan[explicitPitchSampleIdx] == 533);
+        REQUIRE(&explicitPitchConstMdSpan[explicitPitchSampleIdx] == &explicitPitchStorage[33]);
+        auto explicitPitchIter = explicitPitchConstMdSpan.begin();
+        ++explicitPitchIter;
+        REQUIRE(&*explicitPitchIter == &explicitPitchStorage[1]);
+        REQUIRE(collectValues(explicitPitchConstMdSpan) == collectValues(explicitPitchMdSpan));
+    }
+
     SECTION("pre-increment and post-increment advance one element at a time")
     {
         // Forward-iterator increments need to preserve the old value for post-increment and return self for
