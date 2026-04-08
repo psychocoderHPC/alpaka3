@@ -226,6 +226,69 @@ TEST_CASE("alpaka::View::getSubView keeps pitches, pointer, and alignment contra
 }
 
 TEST_CASE(
+    "alpaka::makeView(any) keeps host metadata and rebuilt subviews alias the source",
+    "[mem][view][SubDataStorage]")
+{
+    auto const extents = alpaka::Vec{2u, 3u, 4u};
+    auto buffer = alpaka::onHost::allocHost<int>(extents);
+    for(auto idx : alpaka::IdxRange{extents})
+    {
+        buffer[idx] = static_cast<int>(alpaka::linearize(extents, idx));
+    }
+
+    auto rebuiltFromBuffer = alpaka::makeView(buffer);
+
+    alignas(32) std::array<int, 2 * 3 * 4> storage{};
+    for(std::size_t i = 0; i < storage.size(); ++i)
+    {
+        storage[i] = static_cast<int>(100 + i);
+    }
+
+    auto sourceView = alpaka::makeView(alpaka::api::host, storage.data(), extents, alpaka::Alignment<32>{});
+    auto rebuiltFromView = alpaka::makeView(sourceView);
+
+    SECTION("rebuilding from a host buffer preserves the parent metadata and alias")
+    {
+        // `makeView(buffer)` should hand back a plain host view with the same layout contract as the owning buffer.
+        REQUIRE(rebuiltFromBuffer.getApi() == buffer.getApi());
+        REQUIRE(rebuiltFromBuffer.getExtents() == buffer.getExtents());
+        REQUIRE(rebuiltFromBuffer.getPitches() == buffer.getPitches());
+        REQUIRE(rebuiltFromBuffer.data() == buffer.data());
+        STATIC_REQUIRE(std::is_same_v<decltype(rebuiltFromBuffer.getAlignment()), decltype(buffer.getAlignment())>);
+
+        auto const sampleIdx = alpaka::Vec{1u, 2u, 3u};
+        rebuiltFromBuffer[sampleIdx] = 777;
+        REQUIRE(buffer[sampleIdx] == 777);
+        REQUIRE(&rebuiltFromBuffer[sampleIdx] == &buffer[sampleIdx]);
+    }
+
+    SECTION("rebuilding from a host view preserves layout and narrowed subviews still alias")
+    {
+        // `makeView(view)` must keep the original view metadata, and follow-on subviews should still reference the
+        // same shifted region.
+        REQUIRE(rebuiltFromView.getApi() == sourceView.getApi());
+        REQUIRE(rebuiltFromView.getExtents() == sourceView.getExtents());
+        REQUIRE(rebuiltFromView.getPitches() == sourceView.getPitches());
+        REQUIRE(rebuiltFromView.data() == sourceView.data());
+        STATIC_REQUIRE(std::is_same_v<decltype(rebuiltFromView.getAlignment()), alpaka::Alignment<32>>);
+
+        auto const offset = alpaka::Vec{1u, 1u, 1u};
+        auto const subExtents = alpaka::Vec{1u, 2u, 3u};
+        auto subView = rebuiltFromView.getSubView(offset, subExtents);
+
+        REQUIRE(subView.getExtents() == subExtents);
+        REQUIRE(subView.getPitches() == rebuiltFromView.getPitches());
+        REQUIRE(subView.data() == &rebuiltFromView[offset]);
+        STATIC_REQUIRE(std::is_same_v<decltype(subView.getAlignment()), alpaka::Alignment<>>);
+
+        auto const localIdx = alpaka::Vec{0u, 1u, 2u};
+        subView[localIdx] = 2026;
+        REQUIRE(rebuiltFromView[offset + localIdx] == 2026);
+        REQUIRE(sourceView[offset + localIdx] == 2026);
+    }
+}
+
+TEST_CASE(
     "alpaka::View::getSubView(BoundaryDirection) covers host lower upper core and const aliasing",
     "[mem][view][SubDataStorage]")
 {
@@ -242,18 +305,13 @@ TEST_CASE(
     auto const upperHalos = alpaka::Vec{2u, 1u, 3u};
     using HaloVec = std::remove_cvref_t<decltype(lowerHalos)>;
     auto const makeBoundary = [&](auto const& boundaries)
-    {
-        return alpaka::BoundaryDirection<3, HaloVec, HaloVec>{
-            boundaries,
-            lowerHalos,
-            upperHalos};
-    };
+    { return alpaka::BoundaryDirection<3, HaloVec, HaloVec>{boundaries, lowerHalos, upperHalos}; };
 
     SECTION("lower boundary keeps the origin region")
     {
         // LOWER should select the leading halo without shifting the origin in any chosen dimension.
-        auto subView = view0.getSubView(
-            makeBoundary(alpaka::Vec{alpaka::BoundaryType::LOWER, alpaka::BoundaryType::MIDDLE, alpaka::BoundaryType::LOWER}));
+        auto subView = view0.getSubView(makeBoundary(
+            alpaka::Vec{alpaka::BoundaryType::LOWER, alpaka::BoundaryType::MIDDLE, alpaka::BoundaryType::LOWER}));
 
         auto const expectedExtents = alpaka::Vec{1, 2, 1};
         auto const expectedOffset = alpaka::Vec{0, static_cast<int>(lowerHalos.y()), 0};
@@ -269,8 +327,8 @@ TEST_CASE(
     SECTION("upper boundary maps to the shifted tail region")
     {
         // UPPER should start from the tail extents minus the upper halo sizes.
-        auto subView = view0.getSubView(
-            makeBoundary(alpaka::Vec{alpaka::BoundaryType::UPPER, alpaka::BoundaryType::UPPER, alpaka::BoundaryType::MIDDLE}));
+        auto subView = view0.getSubView(makeBoundary(
+            alpaka::Vec{alpaka::BoundaryType::UPPER, alpaka::BoundaryType::UPPER, alpaka::BoundaryType::MIDDLE}));
 
         auto const expectedExtents = alpaka::Vec{2, 1, 2};
         auto const expectedOffset = alpaka::Vec{
@@ -311,7 +369,8 @@ TEST_CASE(
     SECTION("degenerate middle boundary with a consumed dimension stays empty")
     {
         // If halos consume a dimension completely, the middle region should be a valid zero-extent subview.
-        auto subView = view0.getSubView(alpaka::makeCoreBoundaryDirection<3>(alpaka::Vec{1u, 2u, 3u}, alpaka::Vec{2u, 3u, 3u}));
+        auto subView
+            = view0.getSubView(alpaka::makeCoreBoundaryDirection<3>(alpaka::Vec{1u, 2u, 3u}, alpaka::Vec{2u, 3u, 3u}));
 
         REQUIRE(subView.getExtents() == alpaka::Vec{1, 0, 0});
 
@@ -328,8 +387,8 @@ TEST_CASE(
     {
         // The boundary-direction overload must propagate constness just like the offset overload does.
         auto const& constView0 = view0;
-        auto subView = constView0.getSubView(
-            makeBoundary(alpaka::Vec{alpaka::BoundaryType::UPPER, alpaka::BoundaryType::MIDDLE, alpaka::BoundaryType::UPPER}));
+        auto subView = constView0.getSubView(makeBoundary(
+            alpaka::Vec{alpaka::BoundaryType::UPPER, alpaka::BoundaryType::MIDDLE, alpaka::BoundaryType::UPPER}));
 
         auto const expectedOffset = alpaka::Vec{
             totalExtents.z() - static_cast<int>(upperHalos.z()),
@@ -350,8 +409,8 @@ TEST_CASE(
     SECTION("non-const boundary subviews preserve mutability and alias the parent")
     {
         // Non-const parents should keep writable element access so boundary views can update the original storage.
-        auto subView = view0.getSubView(
-            makeBoundary(alpaka::Vec{alpaka::BoundaryType::LOWER, alpaka::BoundaryType::UPPER, alpaka::BoundaryType::MIDDLE}));
+        auto subView = view0.getSubView(makeBoundary(
+            alpaka::Vec{alpaka::BoundaryType::LOWER, alpaka::BoundaryType::UPPER, alpaka::BoundaryType::MIDDLE}));
 
         auto const expectedOffset
             = alpaka::Vec{0, totalExtents.y() - static_cast<int>(upperHalos.y()), static_cast<int>(lowerHalos.x())};
