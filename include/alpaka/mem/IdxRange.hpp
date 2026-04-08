@@ -137,8 +137,8 @@ namespace alpaka
         auto const range,
         alpaka::BoundaryDirection<T_dim, T_LowHaloVec, T_UpHaloVec> const& boundaryDir)
     {
-        auto m_begin = Vec<uint32_t, T_dim>::fill(0u);
-        auto m_end = Vec<uint32_t, T_dim>::fill(0u);
+        auto m_begin = range.m_begin;
+        auto m_end = range.m_end;
         for(uint32_t i = 0; i < T_dim; ++i)
         {
             switch(boundaryDir.data[i])
