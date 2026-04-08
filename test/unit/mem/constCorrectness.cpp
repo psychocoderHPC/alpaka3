@@ -835,6 +835,85 @@ TEST_CASE(
     }
 }
 
+TEST_CASE(
+    "alpaka::makeMdSpan(any) preserves host shape alignment and inner constness",
+    "[mem][mdspan][correctness][makeMdSpan]")
+{
+    auto mutableBuffer = alpaka::onHost::allocHost<int>(alpaka::Vec{2u, 3u});
+    auto mutableView = mutableBuffer.getView();
+    auto const& outerConstBuffer = mutableBuffer;
+    auto const& outerConstView = mutableView;
+
+    alignas(32) std::array<int const, 2 * 3> innerConstStorage{0, 1, 2, 3, 4, 5};
+    auto innerConstView
+        = alpaka::makeView(alpaka::api::host, innerConstStorage.data(), alpaka::Vec{2u, 3u}, alpaka::Alignment<32>{});
+
+    auto mutableBufferMdSpan = alpaka::makeMdSpan(mutableBuffer);
+    auto mutableViewMdSpan = alpaka::makeMdSpan(mutableView);
+    auto outerConstBufferMdSpan = alpaka::makeMdSpan(outerConstBuffer);
+    auto outerConstViewMdSpan = alpaka::makeMdSpan(outerConstView);
+    auto innerConstViewMdSpan = alpaka::makeMdSpan(innerConstView);
+
+    SECTION("compile-time rebuilding keeps host layout metadata and inner constness")
+    {
+        // `makeMdSpan(any)` should rebuild host buffers and views without changing shape, pitches, alignment, or the
+        // pointed-to constness encoded by the source object.
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutableBufferMdSpan.getExtents())>,
+                      std::remove_cvref_t<decltype(mutableBuffer.getExtents())>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutableBufferMdSpan.getPitches())>,
+                      std::remove_cvref_t<decltype(mutableBuffer.getPitches())>>);
+        static_assert(
+            std::same_as<decltype(mutableBufferMdSpan.getAlignment()), decltype(mutableBuffer.getAlignment())>);
+        static_assert(!std::is_const_v<std::remove_pointer_t<decltype(mutableBufferMdSpan.data())>>);
+        static_assert(!std::is_const_v<std::remove_reference_t<decltype(mutableBufferMdSpan[alpaka::Vec{0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutableViewMdSpan.getExtents())>,
+                      std::remove_cvref_t<decltype(mutableView.getExtents())>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutableViewMdSpan.getPitches())>,
+                      std::remove_cvref_t<decltype(mutableView.getPitches())>>);
+        static_assert(std::same_as<decltype(mutableViewMdSpan.getAlignment()), decltype(mutableView.getAlignment())>);
+        static_assert(!std::is_const_v<std::remove_pointer_t<decltype(mutableViewMdSpan.data())>>);
+        static_assert(!std::is_const_v<std::remove_reference_t<decltype(mutableViewMdSpan[alpaka::Vec{0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstBufferMdSpan.getExtents())>,
+                      std::remove_cvref_t<decltype(outerConstBuffer.getExtents())>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstBufferMdSpan.getPitches())>,
+                      std::remove_cvref_t<decltype(outerConstBuffer.getPitches())>>);
+        static_assert(
+            std::same_as<decltype(outerConstBufferMdSpan.getAlignment()), decltype(outerConstBuffer.getAlignment())>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(outerConstBufferMdSpan.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(outerConstBufferMdSpan[alpaka::Vec{0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstViewMdSpan.getExtents())>,
+                      std::remove_cvref_t<decltype(outerConstView.getExtents())>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstViewMdSpan.getPitches())>,
+                      std::remove_cvref_t<decltype(outerConstView.getPitches())>>);
+        static_assert(
+            std::same_as<decltype(outerConstViewMdSpan.getAlignment()), decltype(outerConstView.getAlignment())>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(outerConstViewMdSpan.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(outerConstViewMdSpan[alpaka::Vec{0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(innerConstViewMdSpan.getExtents())>,
+                      std::remove_cvref_t<decltype(innerConstView.getExtents())>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(innerConstViewMdSpan.getPitches())>,
+                      std::remove_cvref_t<decltype(innerConstView.getPitches())>>);
+        static_assert(
+            std::same_as<decltype(innerConstViewMdSpan.getAlignment()), decltype(innerConstView.getAlignment())>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(innerConstViewMdSpan.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(innerConstViewMdSpan[alpaka::Vec{0u, 0u}])>>);
+    }
+}
+
 TEST_CASE("View::getMdSpan keeps host mutability boundaries", "[mem][view][mdspan][correctness]")
 {
     alignas(32) std::array<int, 2 * 3> storage{};
