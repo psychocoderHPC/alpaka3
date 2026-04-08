@@ -703,6 +703,80 @@ TEST_CASE(
     }
 }
 
+TEST_CASE(
+    "alpaka::makeView(api, pointer, extents, pitches, alignment) preserves explicit-pitch host metadata and inner "
+    "constness",
+    "[mem][view][correctness][makeView]")
+{
+    auto const extents = alpaka::Vec{2u, 3u, 4u};
+    auto const explicitPitches = alpaka::Vec{80u, 20u, 4u};
+    alignas(64) std::array<int, 2 * 3 * 5 * 2> mutableStorage{};
+    alignas(64) std::array<int const, 2 * 3 * 5 * 2> innerConstStorage{};
+
+    auto mutableSeedView
+        = alpaka::makeView(alpaka::api::host, mutableStorage.data(), extents, alpaka::Alignment<64>{});
+    auto const& outerConstSeedView = mutableSeedView;
+    auto innerConstSeedView
+        = alpaka::makeView(alpaka::api::host, innerConstStorage.data(), extents, alpaka::Alignment<64>{});
+
+    auto mutableExplicitPitchView
+        = alpaka::makeView(mutableSeedView, mutableStorage.data(), extents, explicitPitches, alpaka::Alignment<64>{});
+    auto const outerConstExplicitPitchView = alpaka::makeView(
+        outerConstSeedView,
+        mutableStorage.data(),
+        extents,
+        explicitPitches,
+        alpaka::Alignment<64>{});
+    auto innerConstExplicitPitchView = alpaka::makeView(
+        innerConstSeedView,
+        innerConstStorage.data(),
+        extents,
+        explicitPitches,
+        alpaka::Alignment<64>{});
+
+    SECTION("compile-time explicit pitches stay part of the returned host view contract")
+    {
+        // The explicit-pitch overload should keep the host API, vector types, alignment, and mutability encoded by the
+        // caller instead of rebuilding a packed view.
+        static_assert(std::same_as<decltype(mutableExplicitPitchView.getApi()), alpaka::api::Host>);
+        static_assert(std::same_as<decltype(outerConstExplicitPitchView.getApi()), alpaka::api::Host>);
+        static_assert(std::same_as<decltype(innerConstExplicitPitchView.getApi()), alpaka::api::Host>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutableExplicitPitchView.getExtents())>,
+                      std::remove_cvref_t<decltype(extents)>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutableExplicitPitchView.getPitches())>,
+                      std::remove_cvref_t<decltype(explicitPitches)>>);
+        static_assert(std::same_as<decltype(mutableExplicitPitchView.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(!std::is_const_v<std::remove_pointer_t<decltype(mutableExplicitPitchView.data())>>);
+        static_assert(
+            !std::is_const_v<std::remove_reference_t<decltype(mutableExplicitPitchView[alpaka::Vec{0u, 0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstExplicitPitchView.getExtents())>,
+                      std::remove_cvref_t<decltype(extents)>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(outerConstExplicitPitchView.getPitches())>,
+                      std::remove_cvref_t<decltype(explicitPitches)>>);
+        static_assert(std::same_as<decltype(outerConstExplicitPitchView.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(outerConstExplicitPitchView.data())>>);
+        static_assert(
+            std::is_const_v<std::remove_reference_t<decltype(outerConstExplicitPitchView[alpaka::Vec{0u, 0u, 0u}])>>);
+
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(innerConstExplicitPitchView.getExtents())>,
+                      std::remove_cvref_t<decltype(extents)>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(innerConstExplicitPitchView.getPitches())>,
+                      std::remove_cvref_t<decltype(explicitPitches)>>);
+        static_assert(std::same_as<decltype(innerConstExplicitPitchView.getAlignment()), alpaka::Alignment<64>>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(innerConstExplicitPitchView.data())>>);
+        static_assert(
+            std::is_const_v<std::remove_reference_t<decltype(innerConstExplicitPitchView[alpaka::Vec{0u, 0u, 0u}])>>);
+    }
+}
+
 TEST_CASE("View::getMdSpan keeps host mutability boundaries", "[mem][view][mdspan][correctness]")
 {
     alignas(32) std::array<int, 2 * 3> storage{};
