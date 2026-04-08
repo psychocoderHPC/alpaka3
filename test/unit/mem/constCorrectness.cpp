@@ -31,6 +31,44 @@ void requiresMutableBufferMd(concepts::IMdSpan auto buffer)
     static_assert(!std::is_const_v<std::remove_reference_t<decltype(buffer[Vec{0, 0}])>>);
 }
 
+TEST_CASE("View::getMdSpan keeps host mutability boundaries", "[mem][view][mdspan][correctness]")
+{
+    alignas(32) std::array<int, 2 * 3> storage{};
+    auto mutableView
+        = alpaka::makeView(alpaka::api::host, storage.data(), alpaka::Vec{2u, 3u}, alpaka::Alignment<32>{});
+    auto mutableMdSpan = mutableView.getMdSpan();
+    auto const constMdSpanFromOuterConst = std::as_const(mutableView).getMdSpan();
+    auto const constMdSpanFromConstView = mutableView.getConstView().getMdSpan();
+
+    SECTION("compile-time mutability follows the originating host view")
+    {
+        // `getMdSpan()` must keep mutable access only for mutable host views and lock read-only paths otherwise.
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(mutableMdSpan)>,
+                      MdSpan<int, alpaka::Vec<uint32_t, 2>, alpaka::Vec<uint32_t, 2>, alpaka::Alignment<32>>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(constMdSpanFromOuterConst)>,
+                      MdSpan<int const, alpaka::Vec<uint32_t, 2>, alpaka::Vec<uint32_t, 2>, alpaka::Alignment<32>>>);
+        static_assert(std::same_as<
+                      std::remove_cvref_t<decltype(constMdSpanFromConstView)>,
+                      MdSpan<int const, alpaka::Vec<uint32_t, 2>, alpaka::Vec<uint32_t, 2>, alpaka::Alignment<32>>>);
+
+        static_assert(!std::is_const_v<std::remove_pointer_t<decltype(mutableMdSpan.data())>>);
+        static_assert(!std::is_const_v<std::remove_reference_t<decltype(mutableMdSpan[alpaka::Vec{0u, 0u}])>>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(constMdSpanFromOuterConst.data())>>);
+        static_assert(
+            std::is_const_v<std::remove_reference_t<decltype(constMdSpanFromOuterConst[alpaka::Vec{0u, 0u}])>>);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(constMdSpanFromConstView.data())>>);
+        static_assert(
+            std::is_const_v<std::remove_reference_t<decltype(constMdSpanFromConstView[alpaka::Vec{0u, 0u}])>>);
+
+        auto const readOnlyMdSpan = mutableMdSpan.getConstMdSpan();
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(readOnlyMdSpan.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(readOnlyMdSpan[alpaka::Vec{0u, 0u}])>>);
+        static_assert(std::is_same_v<decltype(readOnlyMdSpan.getAlignment()), alpaka::Alignment<32>>);
+    }
+}
+
 TEST_CASE("mdspan inner const copy constructor", "[mem][mdspan][correctness][copyConstruct]")
 {
     constexpr size_t size = 10;
