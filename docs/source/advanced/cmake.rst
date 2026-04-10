@@ -98,12 +98,10 @@ Arguments
 
     The executor ``exec::cpuSerial`` is always available and does not require any special CMake flags beside linking the taget ``alpaka::alpaka`` or ``alpaka::host``.
 
-
 ``alpaka_CXX_STANDARD``
   .. code-block:: markdown
 
      Set the C++ standard version.
-
 
 ``alpaka_TESTS``
   .. code-block:: markdown
@@ -300,7 +298,6 @@ Numa Awareness
 
     **attention** If `CMake` is not **NOT** defining the preprocessor define `ALPAKA_HOST_MEM_PINNING_CAN_FAIL` will allow that pinning can fail without an exception.
 
-
 Intel oneAPI Threading Building Blocks
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -344,7 +341,6 @@ Executors
   .. code-block:: markdown
 
      Enable the oneAPI SYCL executor `exec::oneApi`.
-
 
 Available during the Installation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

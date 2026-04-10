@@ -26,8 +26,6 @@ That means a direct ``bins[bin] += 1`` would create a data race.
     :end-before: END-TUTORIAL-atomicKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/22_atomics.cpp`
-
 The important detail is that the loop still uses ``makeIdxMap``.
 The iteration stays data-centric; only the conflicting update needs special treatment.
 
@@ -39,8 +37,6 @@ Launching the Atomic Kernel
     :start-after: BEGIN-TUTORIAL-atomicLaunch
     :end-before: END-TUTORIAL-atomicLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/22_atomics.cpp`
 
 The same idea shows up in many real kernels:
 
@@ -105,3 +101,19 @@ Where To Go Next
 - read :doc:`memFence` when atomics interact with publication or ordering protocols
 - read :doc:`tuning` when atomics become the main performance bottleneck
 - read :doc:`miniProject` for a small image histogram pipeline using atomics in context
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>22_atomics.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/22_atomics.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

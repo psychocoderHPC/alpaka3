@@ -26,8 +26,6 @@ Each block owns one 2D row stripe of the image, each thread classifies one pixel
     :end-before: END-TUTORIAL-hierarchyKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/13_hierarchy.cpp`
-
 The structure is the important part:
 
 - ``onAcc::worker::blocksInGrid`` chooses tile starts in the full 2D image
@@ -47,8 +45,6 @@ Launching a Hierarchical Kernel
     :start-after: BEGIN-TUTORIAL-hierarchyLaunch
     :end-before: END-TUTORIAL-hierarchyLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/13_hierarchy.cpp`
 
 This launch shape deliberately makes that mapping easy to see:
 
@@ -78,3 +74,19 @@ Practical Advice
 
 The later :doc:`warp` chapter goes deeper into warp-local communication such as shuffle and voting operations.
 This chapter is only about understanding where that subgroup level fits into the overall hierarchy.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>13_hierarchy.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/13_hierarchy.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

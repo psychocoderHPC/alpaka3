@@ -28,8 +28,6 @@ Defining a Dispatchable Function
     :end-before: END-TUTORIAL-vendorSymbol
     :dedent:
 
-  Full example: :src-file:`snippets/example/38_vendorInterop.cpp`
-
 ``ALPAKA_FN_SYMBOL`` defines the public function symbol.
 The fallback choice tells alpaka that it may call the generic alpaka implementation when no vendor-specific overload can be dispatched.
 
@@ -42,8 +40,6 @@ Registering a Generic alpaka Fallback
     :end-before: END-TUTORIAL-vendorFallback
     :dedent:
 
-  Full example: :src-file:`snippets/example/38_vendorInterop.cpp`
-
 This overload is the portable baseline.
 It works on every backend that can run the normal alpaka algorithm path, so it is a good default even when you later add CUDA-, HIP-, or SYCL-specific overloads.
 The affine operation itself is spelled out as a tiny named functor so the tutorial still shows the callable logic directly even though backend-compatible code cannot use the original local lambda form here:
@@ -54,8 +50,6 @@ The affine operation itself is spelled out as a tiny named functor so the tutori
     :end-before: END-TUTORIAL-vendorFunctor
     :dedent:
 
-  Full example: :src-file:`snippets/example/38_vendorInterop.cpp`
-
 Registering a Backend-Specific Overload
 ---------------------------------------
 
@@ -64,8 +58,6 @@ Registering a Backend-Specific Overload
     :start-after: BEGIN-TUTORIAL-vendorHost
     :end-before: END-TUTORIAL-vendorHost
     :dedent:
-
-  Full example: :src-file:`snippets/example/38_vendorInterop.cpp`
 
 This example uses ``std::transform`` as a small stand-in for a third-party backend function.
 The pattern is the same when the backend-specific code comes from a GPU vendor library.
@@ -85,8 +77,6 @@ Calling the Function
     :start-after: BEGIN-TUTORIAL-vendorCall
     :end-before: END-TUTORIAL-vendorCall
     :dedent:
-
-  Full example: :src-file:`snippets/example/38_vendorInterop.cpp`
 
 The call itself stays simple.
 You pass the queue and the ordinary data arguments.
@@ -116,3 +106,19 @@ That last point is what usually matters for CUDA, HIP, and SYCL integrations.
 The caller remains pure alpaka code, while the backend-specific overload is free to bridge from the alpaka queue into the vendor runtime.
 Seen from the outside, the code still reads like "apply this operation to my data."
 That is exactly the separation you want: portable call site, backend-specific implementation detail.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>38_vendorInterop.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/38_vendorInterop.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

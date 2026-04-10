@@ -14,8 +14,6 @@ The followed example can be executed online using `Godbolt Compiler Explorer <ht
    :end-before: END-EXAMPLE-elementWiseMultiplication
    :dedent:
 
-Full example: :src-file:`snippets/example/30_elementWiseMultiplication.cpp`
-
 .. note::
 
    Do not forget to set the compiler flags to compile with C++20 and optimization if you would like to inspect the assembler, e.g. ``-std=c++20 -O3``.
@@ -66,3 +64,19 @@ In the CMake configuration phase of the project, you must activate the accelerat
 .. A complete list of CMake flags for the  accelerator can be found :doc:`here </advanced/cmake>`.
 
 If the configuration was successful and CMake found the CUDA SDK, the C++ api `cuda` and the executor `gpuCuda` is available.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>30_elementWiseMultiplication.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/30_elementWiseMultiplication.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

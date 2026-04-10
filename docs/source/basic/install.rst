@@ -138,7 +138,6 @@ The following ``CMakeLists.txt`` demonstrates how to use ``FetchContent`` with *
     :language: C++
     :caption: CMakeLists.txt
 
-Full example: :src-file:`snippets/fetchContent/CMakeLists.txt`
   
 Example Source Code
 ^^^^^^^^^^^^^^^^^^^
@@ -147,8 +146,6 @@ Create a ``main.cpp`` file that uses the device specification passed from CMake:
 .. literalinclude:: ../../snippets/fetchContent/main.cpp
     :language: C++
     :caption: main.cpp
-
-Full example: :src-file:`snippets/fetchContent/main.cpp`
 
   
 Building Your Application
@@ -190,7 +187,6 @@ You can select different device specifications at CMake configuration time using
 .. warning::
     
     The CUDA, HIP, or Intel backends are only working if the CUDA SDK, HIP SDK, or OneAPI SDK are available respectively
-
 
 .. _tests-and-examples:
 

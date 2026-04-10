@@ -13,8 +13,6 @@ The Kernel
     :end-before: END-TUTORIAL-portingKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/36_portingKernel.cpp`
-
 What changed compared to the usual CUDA-style beginner kernel:
 
 - there is no manual ``blockIdx * blockDim + threadIdx`` arithmetic
@@ -33,8 +31,6 @@ The Launch
     :start-after: BEGIN-TUTORIAL-portingLaunch
     :end-before: END-TUTORIAL-portingLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/36_portingKernel.cpp`
 
 The launch still has the same ingredients migration users expect:
 
@@ -57,3 +53,19 @@ When porting a small CUDA, HIP, or SYCL kernel into alpaka:
 4. add shared memory, warp logic, or atomics only after the plain data-parallel version is correct
 
 That order makes migration much less error-prone.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>36_portingKernel.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/36_portingKernel.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

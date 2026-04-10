@@ -17,8 +17,6 @@ A ``DeviceSpec`` combines an API and a device kind, for example host CPU, CUDA N
     :end-before: END-TUTORIAL-enumerateDeviceSpec
     :dedent:
 
-  Full example: :src-file:`snippets/example/02_execution.cpp`
-
 From that selector you can get:
 
 - the number of visible devices for that backend,
@@ -36,8 +34,6 @@ Many alpaka examples are written so they run once for every enabled backend that
     :end-before: END-TUTORIAL-enumerateBackends
     :dedent:
 
-  Full example: :src-file:`snippets/example/02_execution.cpp`
-
 This pattern is especially useful when:
 
 - you want one example or test to exercise every enabled backend,
@@ -50,3 +46,19 @@ That is how many alpaka examples stay generic without branching into separate CU
 For a human learner, the easiest way to think about this is:
 "I have one calculation, and I want to ask alpaka where that calculation can run on this machine."
 That is a better starting point than hard-coding CUDA or HIP first and only later trying to recover portability.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>02_execution.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/02_execution.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

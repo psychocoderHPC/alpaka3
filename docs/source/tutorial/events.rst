@@ -22,8 +22,6 @@ Creating an Event
     :end-before: END-TUTORIAL-eventCreation
     :dedent:
 
-  Full example: :src-file:`snippets/example/08_events.cpp`
-
 This records a point in ``queue0`` after the earlier tasks in that queue.
 
 Waiting From Another Queue
@@ -34,8 +32,6 @@ Waiting From Another Queue
     :start-after: BEGIN-TUTORIAL-eventWait
     :end-before: END-TUTORIAL-eventWait
     :dedent:
-
-  Full example: :src-file:`snippets/example/08_events.cpp`
 
 This is the standard way to connect two queues without forcing the host to block between them.
 
@@ -48,3 +44,19 @@ When to Use Which Primitive
 
 For beginners, the most important habit is to be explicit about synchronization.
 Most bugs in parallel programs are not arithmetic mistakes but ordering mistakes.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>08_events.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/08_events.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

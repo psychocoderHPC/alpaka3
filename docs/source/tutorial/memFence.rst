@@ -30,8 +30,6 @@ The fence guarantees that the write to ``shared[0]`` becomes visible before the 
     :end-before: END-TUTORIAL-memFenceBlockKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/34_memFence.cpp`
-
 Launching that kernel looks ordinary.
 The important part is the fence inside the kernel, not the host-side launch code.
 
@@ -40,8 +38,6 @@ The important part is the fence inside the kernel, not the host-side launch code
     :start-after: BEGIN-TUTORIAL-memFenceBlockLaunch
     :end-before: END-TUTORIAL-memFenceBlockLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/34_memFence.cpp`
 
 Device-Scope Publication
 ------------------------
@@ -56,15 +52,11 @@ The consumer spins on the atomic ready flag, issues an acquire fence, and then r
     :end-before: END-TUTORIAL-memFenceDeviceKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/34_memFence.cpp`
-
   .. literalinclude:: ../../snippets/example/34_memFence.cpp
     :language: cpp
     :start-after: BEGIN-TUTORIAL-memFenceDeviceLaunch
     :end-before: END-TUTORIAL-memFenceDeviceLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/34_memFence.cpp`
 
 This is the pattern to remember:
 
@@ -94,3 +86,19 @@ Where To Go Next
 - read :doc:`atomics` for conflicting updates
 - read :doc:`sharedMemory` for block-local cooperation patterns
 - read :doc:`backendDifferences` if you want to understand how the same semantics feel across different backends
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>34_memFence.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/34_memFence.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

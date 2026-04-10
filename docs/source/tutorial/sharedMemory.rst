@@ -31,8 +31,6 @@ The next example computes one block-local sum in a shared variable.
     :end-before: END-TUTORIAL-sharedScalarKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/16_sharedMemory.cpp`
-
 This pattern is useful for block-local counters, flags, or partial reductions.
 The important detail is that the scalar still belongs to the whole block, not to one thread.
 One thread initializes it, the block synchronizes, all participating threads update it, and then the block synchronizes again before any thread consumes the final value.
@@ -48,8 +46,6 @@ The following kernel loads one frame into shared memory, synchronizes the block,
     :start-after: BEGIN-TUTORIAL-sharedKernel
     :end-before: END-TUTORIAL-sharedKernel
     :dedent:
-
-  Full example: :src-file:`snippets/example/16_sharedMemory.cpp`
 
 The important steps are:
 
@@ -74,8 +70,6 @@ Launching a Shared-Memory Kernel
     :end-before: END-TUTORIAL-sharedLaunch
     :dedent:
 
-  Full example: :src-file:`snippets/example/16_sharedMemory.cpp`
-
 This example uses ``CVec`` for the frame extent because compile-time-known extents are the simplest way to express a fixed shared-memory tile.
 
 Dynamic Shared Memory
@@ -97,8 +91,6 @@ This works well when the required size is already known when the kernel object i
     :start-after: BEGIN-TUTORIAL-dynSharedMemberKernel
     :end-before: END-TUTORIAL-dynSharedMemberKernel
     :dedent:
-
-  Full example: :src-file:`snippets/example/16_sharedMemory.cpp`
 
 When you launch that kernel, set the byte count in the kernel object itself.
 
@@ -126,8 +118,6 @@ That is what the unit tests exercise as the second dynamic-shared-memory path.
     :end-before: END-TUTORIAL-dynSharedTraitSpec
     :dedent:
 
-  Full example: :src-file:`snippets/example/16_sharedMemory.cpp`
-
 The kernel itself still uses ``getDynSharedMem`` in the normal way.
 
   .. literalinclude:: ../../snippets/example/16_sharedMemory.cpp
@@ -135,8 +125,6 @@ The kernel itself still uses ``getDynSharedMem`` in the normal way.
     :start-after: BEGIN-TUTORIAL-dynSharedTraitKernel
     :end-before: END-TUTORIAL-dynSharedTraitKernel
     :dedent:
-
-  Full example: :src-file:`snippets/example/16_sharedMemory.cpp`
 
 This form is the more flexible one because the trait call can inspect:
 
@@ -183,3 +171,19 @@ Where To Go Next
 - read :doc:`multidim` if your shared-memory use is tied to a 2D or 3D stencil
 - read :doc:`chunked` if you want to think about frames as reusable tiles
 - read :doc:`miniProject` for a small image pipeline that can later be optimized with shared-memory tiles
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>16_sharedMemory.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/16_sharedMemory.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

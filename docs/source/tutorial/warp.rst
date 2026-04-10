@@ -31,8 +31,6 @@ It still uses ``makeIdxMap`` to assign block-local work, but the reduction insid
     :end-before: END-TUTORIAL-warpKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/26_warp.cpp`
-
 Launching the Kernel
 --------------------
 
@@ -41,8 +39,6 @@ Launching the Kernel
     :start-after: BEGIN-TUTORIAL-warpLaunch
     :end-before: END-TUTORIAL-warpLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/26_warp.cpp`
 
 Important rules:
 
@@ -62,3 +58,19 @@ Other useful warp functions include:
 - ``onAcc::warp::ballot`` for predicate masks.
 
 These are powerful tools, but they are best introduced after you are comfortable with ordinary data-parallel kernels.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>26_warp.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/26_warp.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

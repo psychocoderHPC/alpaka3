@@ -22,8 +22,6 @@ iterate over the data with ``makeIdxMap`` and call math functions on each elemen
     :end-before: END-TUTORIAL-mathKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/24_math.cpp`
-
 This example uses ``math::sincos`` and ``math::fma``.
 That combination is common in numerical kernels because it keeps the code compact and can map efficiently to backend-specific instructions.
 You can read this as "compute a mathematically meaningful quantity per input element".
@@ -39,8 +37,6 @@ Reciprocal square root is another common operation in physics, graphics, and geo
     :start-after: BEGIN-TUTORIAL-rsqrtKernel
     :end-before: END-TUTORIAL-rsqrtKernel
     :dedent:
-
-  Full example: :src-file:`snippets/example/24_math.cpp`
 
 Commonly used functions include:
 
@@ -99,3 +95,19 @@ Good follow-up exercises for this chapter are:
 - build a simple Gaussian-like curve with ``exp(-x * x)``
 - compute a 2D point length with ``sqrt(x*x + y*y)``
 - add a small image-processing example such as gamma correction with ``pow``
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>24_math.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/24_math.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

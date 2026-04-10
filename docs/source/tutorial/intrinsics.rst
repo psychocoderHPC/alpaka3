@@ -22,8 +22,6 @@ A Small Bit-Manipulation Kernel
     :end-before: END-TUTORIAL-intrinsicKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/32_intrinsics.cpp`
-
 The three operations in this example are:
 
 - ``popcount(value)``: number of set bits,
@@ -40,8 +38,6 @@ Launching the Kernel
     :start-after: BEGIN-TUTORIAL-intrinsicLaunch
     :end-before: END-TUTORIAL-intrinsicLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/32_intrinsics.cpp`
 
 When to Use Them
 ----------------
@@ -67,3 +63,19 @@ If you want one small exercise after this page, treat each integer as a row of e
 - and where the first active flag starts.
 
 That is a small but realistic stepping stone toward histograms, sparse occupancy maps, and compact bit-mask workflows.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>32_intrinsics.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/32_intrinsics.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

@@ -26,8 +26,6 @@ Here is a small example for a *blocking* queue:
     :end-before: END-TUTORIAL-blockingQueue
     :dedent:
 
-  Full example: :src-file:`snippets/example/06_queue.cpp`
-
 The use of a *non-blocking* queue requires explicit synchronization before accessing the modified data, otherwise a data race will occur.
 If you do not pass ``queueKind`` as an argument, you will get a *non-blocking* queue.
 
@@ -37,7 +35,21 @@ If you do not pass ``queueKind`` as an argument, you will get a *non-blocking* q
     :end-before: END-TUTORIAL-nonBlockingQueue
     :dedent:
 
-  Full example: :src-file:`snippets/example/06_queue.cpp`
-
 We will learn more about queue functions in later chapters.
 Before that, we need to deal with memory allocation, kernel writing, and events.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>06_queue.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/06_queue.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

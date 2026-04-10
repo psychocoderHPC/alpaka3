@@ -3,7 +3,6 @@ Terms & Structure
 
 .. sectionauthor:: Simeon Ehrig, René Widera
 
-
 Host and Accelerator
 --------------------
 
@@ -117,12 +116,9 @@ The memory is row-oriented. The fastest index is the outer right one.
   :end-before: END-DATASTORAGE-termExtents
   :dedent:
 
-Full example: :src-file:`snippets/dataStorage/terms_extents.cpp`
-
 .. figure:: images/extents_access_example.svg
 
     Memory layout of a Data Storage object with the extents [3, 5]. Access to memory at position [1, 3]. For simplicity, pitches and alignment are not shown in the figure.
-
 
 IMdSpan
 ```````
@@ -150,3 +146,19 @@ An ``IBuffer`` Data Storage object is pointing to memory and manages its lifetim
 When all ``IBuffer`` Data Storage objects that are pointing to the same memory are deleted, the memory is freed.
 
 Go to the `IBuffer Interface definition <https://alpaka3.readthedocs.io/en/latest/doxygen/conceptalpaka_1_1concepts_1_1impl_1_1IBuffer.html>`_
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>terms_extents.cpp</summary>
+
+.. literalinclude:: ../../snippets/dataStorage/terms_extents.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

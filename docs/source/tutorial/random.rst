@@ -26,8 +26,6 @@ Uniform Random Numbers in a Kernel
     :end-before: END-TUTORIAL-randomKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/30_random.cpp`
-
 This example uses:
 
 - ``rand::engine::Philox4x32x10`` as the random engine,
@@ -42,8 +40,6 @@ Launching the Kernel
     :start-after: BEGIN-TUTORIAL-randomLaunch
     :end-before: END-TUTORIAL-randomLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/30_random.cpp`
 
 This style follows the alpaka random example and the unit tests:
 the kernel stays data-parallel, and the engine state is derived from a stable seed plus a stable worker index.
@@ -78,8 +74,6 @@ each worker draws one point, writes ``1`` if the point falls inside the quarter 
     :end-before: END-TUTORIAL-piKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/31_monteCarloPi.cpp`
-
 The launch and accumulation step stay compact because the reduction happens on the same queue right after the kernel.
 
   .. literalinclude:: ../../snippets/example/31_monteCarloPi.cpp
@@ -88,8 +82,6 @@ The launch and accumulation step stay compact because the reduction happens on t
     :end-before: END-TUTORIAL-piLaunch
     :dedent:
 
-  Full example: :src-file:`snippets/example/31_monteCarloPi.cpp`
-
 After copying back the single reduction result, the estimate itself is just the usual Monte Carlo formula.
 
   .. literalinclude:: ../../snippets/example/31_monteCarloPi.cpp
@@ -97,8 +89,6 @@ After copying back the single reduction result, the estimate itself is just the 
     :start-after: BEGIN-TUTORIAL-piEstimate
     :end-before: END-TUTORIAL-piEstimate
     :dedent:
-
-  Full example: :src-file:`snippets/example/31_monteCarloPi.cpp`
 
 This is a good anchor example because it combines three ideas from the tutorial in one small program:
 
@@ -123,8 +113,6 @@ The following kernel shows all four forms side by side.
     :start-after: BEGIN-TUTORIAL-randomIntervalsKernel
     :end-before: END-TUTORIAL-randomIntervalsKernel
     :dedent:
-
-  Full example: :src-file:`snippets/example/30_random.cpp`
 
 The interval choice matters more than it may seem at first:
 
@@ -157,8 +145,6 @@ Unlike the uniform distribution, it keeps internal state, so each worker should 
     :end-before: END-TUTORIAL-randomNormalKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/30_random.cpp`
-
 Launching the kernel is the same as before; only the kernel logic changes.
 
   .. literalinclude:: ../../snippets/example/30_random.cpp
@@ -166,8 +152,6 @@ Launching the kernel is the same as before; only the kernel logic changes.
     :start-after: BEGIN-TUTORIAL-randomNormalLaunch
     :end-before: END-TUTORIAL-randomNormalLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/30_random.cpp`
 
 This is useful for small, realistic teaching examples such as:
 
@@ -203,3 +187,32 @@ Where To Go Next
 - read :doc:`algorithms` with the Monte Carlo pi example in mind if you want to summarize random samples
 - read :doc:`atomics` if random samples are written into shared bins or histograms
 - read :doc:`tuning` once the first correct random kernel is working and you want to scale it up
+
+Complete Source Files
+---------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>30_random.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/30_random.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>31_monteCarloPi.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/31_monteCarloPi.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

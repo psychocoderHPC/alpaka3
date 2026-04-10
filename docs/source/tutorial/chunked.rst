@@ -24,8 +24,6 @@ The Kernel Structure
     :end-before: END-TUTORIAL-chunkedKernel
     :dedent:
 
-  Full example: :src-file:`snippets/example/28_chunkedFrames.cpp`
-
 There are a few moving parts in this pattern:
 
 - ``acc[frame::extent]`` is the current frame shape.
@@ -45,8 +43,6 @@ Launching a Chunked Kernel
     :end-before: END-TUTORIAL-chunkedLaunch
     :dedent:
 
-  Full example: :src-file:`snippets/example/28_chunkedFrames.cpp`
-
 The example uses ``CVec`` for the frame extent because compile-time-known frame sizes work especially well with shared-memory tiles.
 
 Practical Advice
@@ -56,3 +52,19 @@ Practical Advice
 - Use chunked kernels when there is real data reuse or tiled structure.
 - Prefer frame-based traversal over manual thread arithmetic when teaching, prototyping, or writing portable kernels.
 - Add explicit synchronization if the same block reuses shared memory across multiple passes or multiple frames.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>28_chunkedFrames.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/28_chunkedFrames.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>

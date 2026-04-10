@@ -5,19 +5,6 @@ import os
 import subprocess
 import shutil
 
-
-def get_source_ref():
-    for env_var in ("READTHEDOCS_GIT_COMMIT_HASH", "READTHEDOCS_GIT_IDENTIFIER", "READTHEDOCS_VERSION"):
-        value = os.environ.get(env_var)
-        if value:
-            return value
-
-    try:
-        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo_root, text=True).strip()
-    except Exception:
-        return "dev"
-
 def generate_single_header(app, exception):
     # Destination folder relative to conf.py
     single_header_path = os.path.abspath(os.path.join(app.builder.outdir))
@@ -92,7 +79,6 @@ show_authors = True
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx.ext.extlinks",
     "sphinx.ext.mathjax",
     #    'sphinx.ext.napoleon',
     "breathe",
@@ -101,11 +87,6 @@ extensions = [
     #    'matplotlib.sphinxext.plot_directive'
     #    "sphinx.ext.autosectionlabel",
 ]
-
-source_ref = get_source_ref()
-extlinks = {
-    "src-file": (f"https://github.com/psychocoderHPC/alpaka3/blob/{source_ref}/%s", "%s"),
-}
 
 
 # Add any paths that contain templates here, relative to this directory.

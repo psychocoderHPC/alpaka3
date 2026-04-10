@@ -17,8 +17,6 @@ This avoids hand-written index decoding and makes boundary conditions easier to 
     :end-before: END-TUTORIAL-multidimFrameSpec
     :dedent:
 
-  Full example: :src-file:`snippets/example/18_multidimKernel.cpp`
-
 The important idea is that the frame shape should follow the logical shape of the work:
 
 - 1D frames for flat vectors and simple reductions.
@@ -44,8 +42,6 @@ This is a common teaching example because it introduces three important ideas at
     :end-before: END-TUTORIAL-multidimKernelStructure
     :dedent:
 
-  Full example: :src-file:`snippets/example/18_multidimKernel.cpp`
-
 The structure is still the same as in the one-dimensional tutorial:
 
 - ask the output buffer for its extents,
@@ -68,8 +64,6 @@ The host-side launch is unchanged except that both the problem extents and the f
     :start-after: BEGIN-TUTORIAL-multidimKernelLaunch
     :end-before: END-TUTORIAL-multidimKernelLaunch
     :dedent:
-
-  Full example: :src-file:`snippets/example/18_multidimKernel.cpp`
 
 This is one of the main design strengths of *alpaka*: the launch flow remains stable while the data shape changes.
 Only the extents and the kernel body become multidimensional.
@@ -97,3 +91,19 @@ There are cases where explicit thread or block indices are useful, for example:
 That is not the best starting point for most kernels.
 For beginner code, prefer ``FrameSpec`` plus ``makeIdxMap`` first.
 Once the algorithm is correct and tested, you can move to more specialized mappings if profiling shows that you need them.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>18_multidimKernel.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/18_multidimKernel.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>
