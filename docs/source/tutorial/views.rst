@@ -25,6 +25,8 @@ You can create a non-owning view from a host container and then derive a subview
     :end-before: END-TUTORIAL-viewCreation
     :dedent:
 
+  Full example: :src-file:`snippets/example/11_views.cpp`
+
 This is useful when the data already exists and you want to keep using the original storage.
 It also makes function interfaces simpler because kernels and helper functions can accept views without caring who owns the memory.
 For example, a stencil update often wants the interior cells only, while a boundary kernel wants a narrow halo view around the edge.
@@ -40,6 +42,8 @@ That means you can allocate device memory based on a view and copy only the rele
     :start-after: BEGIN-TUTORIAL-viewCopy
     :end-before: END-TUTORIAL-viewCopy
     :dedent:
+
+  Full example: :src-file:`snippets/example/11_views.cpp`
 
 Typical use cases:
 

@@ -3,6 +3,7 @@ Allocate Memory
 
 Now that we know how to :ref:`get a device <device-selection>` and create :ref:`a queue <queue_creation>`, we can move on to memory allocation.
 To allocate memory, you need a *device* and sometimes a *queue*.
+See :ref:`memory-operations` for copy, fill, and memset details once the buffers exist.
 alpaka's memory allocation methods return a ``alpaka::onHost::SharedBuffer`` handle that tracks the lifetime of the memory and frees memory when the last instance goes out of scope, similar to ``std::shared_ptr<>`` in the STL.
 
 This chapter is easiest to picture with two recurring examples from the rest of the tutorial:
@@ -25,6 +26,8 @@ The following examples show how to create memory which is **only** visible on th
     :end-before: END-TUTORIAL-allocBufferDev
     :dedent:
 
+  Full example: :src-file:`snippets/example/10_memory.cpp`
+
 There is a type of memory called mapped memory, which is located on the CPU but is also accessible on the device.
 Explicit memory copies are not required to access the memory from the device or host.
 When using mapped memory, you must be careful not to access the memory of the host and the device in parallel.
@@ -35,6 +38,8 @@ Accessing this type of memory from the device is usually associated with high la
     :start-after: BEGIN-TUTORIAL-allocBufferMapped
     :end-before: END-TUTORIAL-allocBufferMapped
     :dedent:
+
+  Full example: :src-file:`snippets/example/10_memory.cpp`
 
 Unified memory largely equal to the mapped memory and does not require explicit memory copies.
 Depending on the API used, it is located on the host or device.
@@ -48,6 +53,8 @@ The first access to a memory location is often associated with high latencies, b
     :end-before: END-TUTORIAL-allocBufferUnified
     :dedent:
 
+  Full example: :src-file:`snippets/example/10_memory.cpp`
+
 Very often, the typical pattern for memory allocation is that you create a buffer for the host and need a second buffer for the device with the same value type and dimensions.
 For this, you can use ``alpaka::onHost::allocLike(device, sourceBuffer)`` to adopt all properties except the target device.
 The data in the source buffer is not copied.
@@ -58,6 +65,8 @@ This can only be done explicitly.
     :start-after: BEGIN-TUTORIAL-allocLike
     :end-before: END-TUTORIAL-allocLike
     :dedent:
+
+  Full example: :src-file:`snippets/example/10_memory.cpp`
 
 Sometimes you want to allocate memory that is only used as a temporary buffer and is no longer needed after your tasks are complete.
 Since memory allocations are costly, you generally avoid allocating memory, for example, in a loop.
@@ -70,3 +79,5 @@ That kind of temporary buffer shows up naturally later for things such as scan s
     :start-after: BEGIN-TUTORIAL-allocBufferDeferred
     :end-before: END-TUTORIAL-allocBufferDeferred
     :dedent:
+
+  Full example: :src-file:`snippets/example/10_memory.cpp`

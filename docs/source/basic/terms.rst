@@ -117,6 +117,8 @@ The memory is row-oriented. The fastest index is the outer right one.
   :end-before: END-DATASTORAGE-termExtents
   :dedent:
 
+Full example: :src-file:`snippets/dataStorage/terms_extents.cpp`
+
 .. figure:: images/extents_access_example.svg
 
     Memory layout of a Data Storage object with the extents [3, 5]. Access to memory at position [1, 3]. For simplicity, pitches and alignment are not shown in the figure.

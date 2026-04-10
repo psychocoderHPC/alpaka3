@@ -42,7 +42,7 @@ TEMPLATE_LIST_TEST_CASE("blocking queue", "[docs]", docs::test::TestBackends)
     onHost::Queue queue = device.makeQueue(queueKind::blocking);
     uint32_t value = 42u;
     queue.enqueueHostFn([&value]() { value = 23u; });
-    // no wait required, enqueue will wait untile the task is finished
+    // no wait required, enqueue will wait until the task is finished
     CHECK(value == 23u);
     // END-TUTORIAL-blockingQueue
 }

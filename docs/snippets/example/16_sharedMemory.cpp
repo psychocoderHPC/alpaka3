@@ -10,6 +10,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <cassert>
 
 using namespace alpaka;
 
@@ -148,7 +149,11 @@ namespace alpaka::onHost::trait
         uint32_t operator()(auto const executor, auto const& out, auto const& in, int factor) const
         {
             alpaka::unused(executor, out, in, factor);
-            return static_cast<uint32_t>(m_spec.getNumThreads().x() * sizeof(int));
+            auto const totalCachedElements = in.getExtents().product();
+            auto const numBlocks = m_spec.getNumBlocks().product();
+            assert(totalCachedElements % numBlocks == 0u);
+            auto const cachedFrameExtent = totalCachedElements / numBlocks;
+            return static_cast<uint32_t>(cachedFrameExtent * sizeof(int));
         }
 
     private:

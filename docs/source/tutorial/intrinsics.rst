@@ -22,6 +22,8 @@ A Small Bit-Manipulation Kernel
     :end-before: END-TUTORIAL-intrinsicKernel
     :dedent:
 
+  Full example: :src-file:`snippets/example/32_intrinsics.cpp`
+
 The three operations in this example are:
 
 - ``popcount(value)``: number of set bits,
@@ -38,6 +40,8 @@ Launching the Kernel
     :start-after: BEGIN-TUTORIAL-intrinsicLaunch
     :end-before: END-TUTORIAL-intrinsicLaunch
     :dedent:
+
+  Full example: :src-file:`snippets/example/32_intrinsics.cpp`
 
 When to Use Them
 ----------------

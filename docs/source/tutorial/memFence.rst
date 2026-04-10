@@ -30,6 +30,8 @@ The fence guarantees that the write to ``shared[0]`` becomes visible before the 
     :end-before: END-TUTORIAL-memFenceBlockKernel
     :dedent:
 
+  Full example: :src-file:`snippets/example/34_memFence.cpp`
+
 Launching that kernel looks ordinary.
 The important part is the fence inside the kernel, not the host-side launch code.
 
@@ -39,12 +41,14 @@ The important part is the fence inside the kernel, not the host-side launch code
     :end-before: END-TUTORIAL-memFenceBlockLaunch
     :dedent:
 
+  Full example: :src-file:`snippets/example/34_memFence.cpp`
+
 Device-Scope Publication
 ------------------------
 
 The second example shows the classic producer/consumer publication pattern in global memory.
-The producer writes the payload, issues a release fence, and only then sets a ready flag.
-The consumer spins on the ready flag, issues an acquire fence, and then reads the payload.
+The producer writes the payload, issues a release fence, and only then atomically sets a ready flag.
+The consumer spins on the atomic ready flag, issues an acquire fence, and then reads the payload.
 
   .. literalinclude:: ../../snippets/example/34_memFence.cpp
     :language: cpp
@@ -52,23 +56,27 @@ The consumer spins on the ready flag, issues an acquire fence, and then reads th
     :end-before: END-TUTORIAL-memFenceDeviceKernel
     :dedent:
 
+  Full example: :src-file:`snippets/example/34_memFence.cpp`
+
   .. literalinclude:: ../../snippets/example/34_memFence.cpp
     :language: cpp
     :start-after: BEGIN-TUTORIAL-memFenceDeviceLaunch
     :end-before: END-TUTORIAL-memFenceDeviceLaunch
     :dedent:
 
+  Full example: :src-file:`snippets/example/34_memFence.cpp`
+
 This is the pattern to remember:
 
-- producer: write data, ``memFence(..., scope::device, order::release)``, then publish the flag
-- consumer: observe the flag, ``memFence(..., scope::device, order::acquire)``, then read the data
+- producer: write data, ``memFence(..., scope::device, order::release)``, then atomically publish the flag
+- consumer: atomically observe the flag, ``memFence(..., scope::device, order::acquire)``, then read the data
 
 Practical Advice
 ----------------
 
 - Do not use ``memFence`` as a substitute for ``syncBlockThreads``.
 - A fence orders memory operations; it does not make conflicting non-atomic writes safe.
-- Keep the publication protocol simple: payload first, fence second, flag last.
+- Keep the publication protocol simple: payload first, fence second, atomic flag update last.
 - Prefer ``scope::block`` over ``scope::device`` when block-local visibility is enough.
 - Use the weakest memory order that expresses the algorithm clearly. ``release`` / ``acquire`` is often the right pair for producer/consumer publication.
 

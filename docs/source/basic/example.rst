@@ -14,6 +14,8 @@ The followed example can be executed online using `Godbolt Compiler Explorer <ht
    :end-before: END-EXAMPLE-elementWiseMultiplication
    :dedent:
 
+Full example: :src-file:`snippets/example/30_elementWiseMultiplication.cpp`
+
 .. note::
 
    Do not forget to set the compiler flags to compile with C++20 and optimization if you would like to inspect the assembler, e.g. ``-std=c++20 -O3``.

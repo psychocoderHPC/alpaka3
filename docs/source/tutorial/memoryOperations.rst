@@ -1,3 +1,5 @@
+.. _memory-operations:
+
 Memory Operations
 =================
 
@@ -16,6 +18,8 @@ copy an image to the device, clear a histogram buffer, move results back to the 
     :end-before: END-TUTORIAL-memcpy
     :dedent:
 
+  Full example: :src-file:`snippets/example/10_memory.cpp`
+
 - You can also set all values of a buffer to a specific value using ``alpaka::onHost::fill()``.
 
   .. literalinclude:: ../../snippets/example/10_memory.cpp
@@ -23,6 +27,8 @@ copy an image to the device, clear a histogram buffer, move results back to the 
     :start-after: BEGIN-TUTORIAL-fill
     :end-before: END-TUTORIAL-fill
     :dedent:
+
+  Full example: :src-file:`snippets/example/10_memory.cpp`
 
 - With ``alpaka::onHost::memset()``, all bytes of a buffer can be set to a specific byte value.
   This is typically used to set all bytes to zero.
@@ -33,3 +39,5 @@ copy an image to the device, clear a histogram buffer, move results back to the 
     :start-after: BEGIN-TUTORIAL-memset
     :end-before: END-TUTORIAL-memset
     :dedent:
+
+  Full example: :src-file:`snippets/example/10_memory.cpp`

@@ -26,6 +26,8 @@ That means a direct ``bins[bin] += 1`` would create a data race.
     :end-before: END-TUTORIAL-atomicKernel
     :dedent:
 
+  Full example: :src-file:`snippets/example/22_atomics.cpp`
+
 The important detail is that the loop still uses ``makeIdxMap``.
 The iteration stays data-centric; only the conflicting update needs special treatment.
 
@@ -37,6 +39,8 @@ Launching the Atomic Kernel
     :start-after: BEGIN-TUTORIAL-atomicLaunch
     :end-before: END-TUTORIAL-atomicLaunch
     :dedent:
+
+  Full example: :src-file:`snippets/example/22_atomics.cpp`
 
 The same idea shows up in many real kernels:
 
@@ -75,7 +79,7 @@ In practice, the shape looks like this:
 - ``onAcc::atomicAdd(acc, ptr, value, onAcc::scope::block)``
 - ``onAcc::atomicAdd(acc, ptr, value, onAcc::scope::device)``
 
-If you do not pass a scope, the default is ``onAcc::scope::Device``.
+If you do not pass a scope, the default is ``onAcc::scope::device``.
 
 This is useful because not every algorithm needs the same visibility:
 

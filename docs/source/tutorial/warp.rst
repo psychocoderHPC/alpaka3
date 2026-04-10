@@ -31,6 +31,8 @@ It still uses ``makeIdxMap`` to assign block-local work, but the reduction insid
     :end-before: END-TUTORIAL-warpKernel
     :dedent:
 
+  Full example: :src-file:`snippets/example/26_warp.cpp`
+
 Launching the Kernel
 --------------------
 
@@ -39,6 +41,8 @@ Launching the Kernel
     :start-after: BEGIN-TUTORIAL-warpLaunch
     :end-before: END-TUTORIAL-warpLaunch
     :dedent:
+
+  Full example: :src-file:`snippets/example/26_warp.cpp`
 
 Important rules:
 

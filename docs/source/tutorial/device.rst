@@ -23,6 +23,8 @@ If you use a combination that is not supported because the required dependency i
     :end-before: END-TUTORIAL-devSelect
     :dedent:
 
+  Full example: :src-file:`snippets/example/05_device.cpp`
+
 We create an object that can allocate a device of the given device kind for us, but first we need to check if there is a device available.
 Maybe there is no device available due to driver issues.
 
@@ -32,6 +34,8 @@ Maybe there is no device available due to driver issues.
     :end-before: END-TUTORIAL-devCount
     :dedent:
 
+  Full example: :src-file:`snippets/example/05_device.cpp`
+
 Before we take a device let's check the device properties e.g. the name and warp size.
 
   .. literalinclude:: ../../snippets/example/05_device.cpp
@@ -39,6 +43,8 @@ Before we take a device let's check the device properties e.g. the name and warp
     :start-after: BEGIN-TUTORIAL-devProperties
     :end-before: END-TUTORIAL-devProperties
     :dedent:
+
+  Full example: :src-file:`snippets/example/05_device.cpp`
 
 Calling ``makeDevice()`` using the device index to obtain the device only succeeds if the device is available, else you will get a runtime exception.
 
@@ -48,6 +54,8 @@ Calling ``makeDevice()`` using the device index to obtain the device only succee
     :end-before: END-TUTORIAL-devHandleCount
     :dedent:
 
+  Full example: :src-file:`snippets/example/05_device.cpp`
+
 The device with the api ``host`` and the device kind ``cpu`` which represents your host system CPU is always available, therefore you have a shortcut interface function available.
 
   .. literalinclude:: ../../snippets/example/05_device.cpp
@@ -55,5 +63,7 @@ The device with the api ``host`` and the device kind ``cpu`` which represents yo
     :start-after: BEGIN-TUTORIAL-devHostDev
     :end-before: END-TUTORIAL-devHostDev
     :dedent:
+
+  Full example: :src-file:`snippets/example/05_device.cpp`
 
 If you want to see how to enumerate all enabled backends and executors instead of choosing one device manually, continue with :doc:`execution`.

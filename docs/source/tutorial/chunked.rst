@@ -24,6 +24,8 @@ The Kernel Structure
     :end-before: END-TUTORIAL-chunkedKernel
     :dedent:
 
+  Full example: :src-file:`snippets/example/28_chunkedFrames.cpp`
+
 There are a few moving parts in this pattern:
 
 - ``acc[frame::extent]`` is the current frame shape.
@@ -42,6 +44,8 @@ Launching a Chunked Kernel
     :start-after: BEGIN-TUTORIAL-chunkedLaunch
     :end-before: END-TUTORIAL-chunkedLaunch
     :dedent:
+
+  Full example: :src-file:`snippets/example/28_chunkedFrames.cpp`
 
 The example uses ``CVec`` for the frame extent because compile-time-known frame sizes work especially well with shared-memory tiles.
 

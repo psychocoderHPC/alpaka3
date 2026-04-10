@@ -13,6 +13,8 @@ The Kernel
     :end-before: END-TUTORIAL-portingKernel
     :dedent:
 
+  Full example: :src-file:`snippets/example/36_portingKernel.cpp`
+
 What changed compared to the usual CUDA-style beginner kernel:
 
 - there is no manual ``blockIdx * blockDim + threadIdx`` arithmetic
@@ -31,6 +33,8 @@ The Launch
     :start-after: BEGIN-TUTORIAL-portingLaunch
     :end-before: END-TUTORIAL-portingLaunch
     :dedent:
+
+  Full example: :src-file:`snippets/example/36_portingKernel.cpp`
 
 The launch still has the same ingredients migration users expect:
 

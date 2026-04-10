@@ -17,6 +17,8 @@ A ``DeviceSpec`` combines an API and a device kind, for example host CPU, CUDA N
     :end-before: END-TUTORIAL-enumerateDeviceSpec
     :dedent:
 
+  Full example: :src-file:`snippets/example/02_execution.cpp`
+
 From that selector you can get:
 
 - the number of visible devices for that backend,
@@ -33,6 +35,8 @@ Many alpaka examples are written so they run once for every enabled backend that
     :start-after: BEGIN-TUTORIAL-enumerateBackends
     :end-before: END-TUTORIAL-enumerateBackends
     :dedent:
+
+  Full example: :src-file:`snippets/example/02_execution.cpp`
 
 This pattern is especially useful when:
 

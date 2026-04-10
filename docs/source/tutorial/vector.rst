@@ -19,6 +19,8 @@ Vec
     :end-before: END-TUTORIAL-vectorCreation
     :dedent:
 
+  Full example: :src-file:`snippets/example/00_vector.cpp`
+
 A vector does not implicitly cast the value type except during initialization.
 
   .. literalinclude:: ../../snippets/example/00_vector.cpp
@@ -27,6 +29,8 @@ A vector does not implicitly cast the value type except during initialization.
     :end-before: END-TUTORIAL-vectorCreationCast
     :dedent:
 
+  Full example: :src-file:`snippets/example/00_vector.cpp`
+
 The dimension of the vector can be queried via ``dim()``.
 
   .. literalinclude:: ../../snippets/example/00_vector.cpp
@@ -34,6 +38,8 @@ The dimension of the vector can be queried via ``dim()``.
     :start-after: BEGIN-TUTORIAL-vectorDim
     :end-before: END-TUTORIAL-vectorDim
     :dedent:
+
+  Full example: :src-file:`snippets/example/00_vector.cpp`
 
 The dimensions in a muti-dimensional vector can be accessed via named functions or indices.
 If you are coming from CUDA/HIP you should take care that order of the named access to dimensions is ``w/z/y/x``.
@@ -44,6 +50,8 @@ If you are coming from CUDA/HIP you should take care that order of the named acc
     :end-before: END-TUTORIAL-vectorNamedAccess
     :dedent:
 
+  Full example: :src-file:`snippets/example/00_vector.cpp`
+
 The next example shows how to iterate over a C array where the size is defined by a vector.
 The slow moving index is the leftmost with the index ``0`` and the fast moving index is ``dim() - 1u``.
 In later tutorials we will show that you should use the rightmost index for the fast moving loop over *alpaka* allocated memory too.
@@ -53,6 +61,8 @@ In later tutorials we will show that you should use the rightmost index for the 
     :start-after: BEGIN-TUTORIAL-cArray
     :end-before: END-TUTORIAL-cArray
     :dedent:
+
+  Full example: :src-file:`snippets/example/00_vector.cpp`
 
 Output:
 
@@ -70,6 +80,8 @@ Operations on a vector work element wise, except for ``==`` and ``!=``.
     :end-before: END-TUTORIAL-vectorPlus
     :dedent:
 
+  Full example: :src-file:`snippets/example/00_vector.cpp`
+
 A very useful function is the element permutation called swizzle.
 It returns a permuted copy of the original vector.
 The swizzle operator is using :ref:`cvec`, which will be shown later.
@@ -79,6 +91,8 @@ The swizzle operator is using :ref:`cvec`, which will be shown later.
     :start-after: BEGIN-TUTORIAL-vectorSwizzle
     :end-before: END-TUTORIAL-vectorSwizzle
     :dedent:
+
+  Full example: :src-file:`snippets/example/00_vector.cpp`
 
 Sometimes it is useful to assign values only to a few components.
 The next example permutes the initial vector and broadcast-assigns a scalar to all selected components only.
@@ -90,6 +104,8 @@ Note that you can only assign vectors with the same dimensionality and value typ
     :end-before: END-TUTORIAL-vectorSwizzleRef
     :dedent:
 
+  Full example: :src-file:`snippets/example/00_vector.cpp`
+
 Since most vector operators work element wise, you need sometimes reduction methods like ``sum()`` or ``product()`` to accumulate all components to a single scalar value.
 
   .. literalinclude:: ../../snippets/example/00_vector.cpp
@@ -97,6 +113,8 @@ Since most vector operators work element wise, you need sometimes reduction meth
     :start-after: BEGIN-TUTORIAL-vectorReduction
     :end-before: END-TUTORIAL-vectorReduction
     :dedent:
+
+  Full example: :src-file:`snippets/example/00_vector.cpp`
 
 .. _cvec:
 
@@ -112,11 +130,15 @@ The next code will show you that you can use ``static_assert()`` which would not
     :end-before: END-TUTORIAL-CVec0
     :dedent:
 
+  Full example: :src-file:`snippets/example/00_vector.cpp`
+
   .. literalinclude:: ../../snippets/example/00_vector.cpp
     :language: cpp
     :start-after: BEGIN-TUTORIAL-CVec1
     :end-before: END-TUTORIAL-CVec1
     :dedent:
+
+  Full example: :src-file:`snippets/example/00_vector.cpp`
 
 If you call operators like ``+`` on a ``CVec`` variable, the result type will be ``Vec`` and it will not keep the results compile time available if you pass the result to a function.
 In this example it can only be validated with ``static_assert()`` because the operation is marked ``constexpr``.
@@ -126,3 +148,5 @@ In this example it can only be validated with ``static_assert()`` because the op
     :start-after: BEGIN-TUTORIAL-CVecOp
     :end-before: END-TUTORIAL-CVecOp
     :dedent:
+
+  Full example: :src-file:`snippets/example/00_vector.cpp`

@@ -10,7 +10,6 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
-#include <bit>
 #include <functional>
 
 using namespace alpaka;

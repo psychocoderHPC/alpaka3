@@ -17,6 +17,8 @@ When a ``Data Storage`` interface concept is used in a function's argument list,
   :end-before: END-DATASTORAGE-interface
   :dedent:
 
+Full example: :src-file:`snippets/dataStorage/datastorage_interface.cpp`
+
 Read-only access via const annotation
 -------------------------------------
 
@@ -34,6 +36,8 @@ However, there are valid cases where a function argument only requires ``alpaka:
   :start-after: BEGIN-DATASTORAGE-writeableDatasource
   :end-before: END-DATASTORAGE-writeableDatasource
   :dedent:
+
+Full example: :src-file:`snippets/dataStorage/datastorage_writeable_datasource.cpp`
 
 For example, `alpaka::onAcc::SimdAlgo.concurrent() <https://alpaka3.readthedocs.io/en/latest/doxygen/structalpaka_1_1onAcc_1_1SimdAlgo.html#a5face31ec9941f1eeb69fef9ea9fba01>`_ requires the ``IDataSource`` interface for the ``Data Storage`` object.
 The ``IDataSource`` interface only supports reading data. Depending on the user-defined functor, some of the ``Data Storage`` objects must be writable, so they must implement the ``IMdSpan`` interface.
@@ -90,6 +94,8 @@ Therefore, the size of a row is ``5 elements * 4 Byte/element + 2 Byte = 22 Byte
   :end-before: END-DATASTORAGE-pitch2D-example
   :dedent:
 
+Full example: :src-file:`snippets/dataStorage/datastorage_pitch.cpp`
+
 To manually calculate the address of a specific element in a ``Data Storage`` using a given memory pointer of element 0 and the ``Pitch``, use the following code:
 
 .. literalinclude:: ../../snippets/dataStorage/datastorage_pitch.cpp
@@ -97,6 +103,8 @@ To manually calculate the address of a specific element in a ``Data Storage`` us
   :start-after: BEGIN-DATASTORAGE-pitch-manual-calculation
   :end-before: END-DATASTORAGE-pitch-manual-calculation
   :dedent:
+
+Full example: :src-file:`snippets/dataStorage/datastorage_pitch.cpp`
 
 .. figure:: images/2D_padding_example_linearized.svg
 
@@ -114,6 +122,8 @@ The following example shows 3D memory and the corresponding values for the ``Ext
   :start-after: BEGIN-DATASTORAGE-pitch3D-example
   :end-before: END-DATASTORAGE-pitch3D-example
   :dedent:
+
+Full example: :src-file:`snippets/dataStorage/datastorage_pitch.cpp`
 
 Alignment
 `````````

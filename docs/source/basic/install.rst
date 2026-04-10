@@ -137,6 +137,8 @@ The following ``CMakeLists.txt`` demonstrates how to use ``FetchContent`` with *
 .. literalinclude:: ../../snippets/fetchContent/CMakeLists.txt
     :language: C++
     :caption: CMakeLists.txt
+
+Full example: :src-file:`snippets/fetchContent/CMakeLists.txt`
   
 Example Source Code
 ^^^^^^^^^^^^^^^^^^^
@@ -145,6 +147,8 @@ Create a ``main.cpp`` file that uses the device specification passed from CMake:
 .. literalinclude:: ../../snippets/fetchContent/main.cpp
     :language: C++
     :caption: main.cpp
+
+Full example: :src-file:`snippets/fetchContent/main.cpp`
 
   
 Building Your Application

@@ -47,6 +47,8 @@ Define in-kernel thread indexing type
     :end-before: END-CHEATSHEET-init
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Usage of multi-dimensional vectors required for extents or indexing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -54,6 +56,8 @@ Usage of multi-dimensional vectors required for extents or indexing
     :start-after: BEGIN-CHEATSHEET-vectorCreate
     :end-before: END-CHEATSHEET-vectorCreate
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Access components of and destructure multi-dimensional indices and extents
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -63,6 +67,8 @@ Access components of and destructure multi-dimensional indices and extents
     :end-before: END-CHEATSHEET-vectorAccess
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Linearize multi-dimensional vectors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -71,6 +77,8 @@ Linearize multi-dimensional vectors
     :end-before: END-CHEATSHEET-linearize
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Map linear index to multi-dimensional index
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -78,6 +86,8 @@ Map linear index to multi-dimensional index
     :start-after: BEGIN-CHEATSHEET-mapToMd
     :end-before: END-CHEATSHEET-mapToMd
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Available apis
 ~~~~~~~~~~~~~~
@@ -116,6 +126,8 @@ Create device selector and select a device by index
     :end-before: END-CHEATSHEET-makeDevice
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Queue and Events
 ----------------
 
@@ -127,6 +139,8 @@ Create a queue for a device
     :end-before: END-CHEATSHEET-makeQueue
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Put a task for execution
 ~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -134,6 +148,8 @@ Put a task for execution
     :start-after: BEGIN-CHEATSHEET-enqueueHostTask
     :end-before: END-CHEATSHEET-enqueueHostTask
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Wait for all operations in the queue
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -143,6 +159,8 @@ Wait for all operations in the queue
     :end-before: END-CHEATSHEET-waitQueue
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Create an event
 ~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -150,6 +168,8 @@ Create an event
     :start-after: BEGIN-CHEATSHEET-makeEvent
     :end-before: END-CHEATSHEET-makeEvent
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Put an event to the queue
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -159,6 +179,8 @@ Put an event to the queue
     :end-before: END-CHEATSHEET-enqueueEvent
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Check if the event is completed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -167,6 +189,8 @@ Check if the event is completed
     :end-before: END-CHEATSHEET-eventIsComplete
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Wait for the event (and all operations put to the same queue before it)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -174,6 +198,8 @@ Wait for the event (and all operations put to the same queue before it)
     :start-after: BEGIN-CHEATSHEET-waitEvent
     :end-before: END-CHEATSHEET-waitEvent
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Memory
 ------
@@ -188,6 +214,8 @@ Allocate a shared buffer in host memory
     :end-before: END-CHEATSHEET-allocHostBuffer
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Create a view to host memory represented by a pointer
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -195,6 +223,8 @@ Create a view to host memory represented by a pointer
     :start-after: BEGIN-CHEATSHEET-makeViewFromPtr
     :end-before: END-CHEATSHEET-makeViewFromPtr
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Create a view to host std::vector
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -204,6 +234,8 @@ Create a view to host std::vector
     :end-before: END-CHEATSHEET-makeViewFromStdVector
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Create a view to host std::array
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -211,6 +243,8 @@ Create a view to host std::array
     :start-after: BEGIN-CHEATSHEET-makeViewStdArray
     :end-before: END-CHEATSHEET-makeViewStdArray
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Get a raw pointer to a view initialization, etc.
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -220,6 +254,8 @@ Get a raw pointer to a view initialization, etc.
     :end-before: END-CHEATSHEET-dataPtr
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Get the pitches of a view
 ~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -227,6 +263,8 @@ Get the pitches of a view
     :start-after: BEGIN-CHEATSHEET-getPitches
     :end-before: END-CHEATSHEET-getPitches
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 View initialization, etc.
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -236,6 +274,8 @@ View initialization, etc.
     :end-before: END-CHEATSHEET-initView
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Allocate a buffer
 ~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -243,6 +283,8 @@ Allocate a buffer
     :start-after: BEGIN-CHEATSHEET-allocBuffer
     :end-before: END-CHEATSHEET-allocBuffer
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Copy multidimensional buffer/view or span data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -252,6 +294,8 @@ Copy multidimensional buffer/view or span data
     :end-before: END-CHEATSHEET-memcpy
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Allocate a buffer with the same extents from a std::vector or std::array
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -259,6 +303,8 @@ Allocate a buffer with the same extents from a std::vector or std::array
     :start-after: BEGIN-CHEATSHEET-allocLike
     :end-before: END-CHEATSHEET-allocLike
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Kernel Execution
 ----------------
@@ -271,6 +317,8 @@ Manually set a kernel launch configuration
     :end-before: END-CHEATSHEET-manualFrameSpec
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Automatically select a valid kernel launch configuration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -278,6 +326,8 @@ Automatically select a valid kernel launch configuration
     :start-after: BEGIN-CHEATSHEET-autoFrameSpec
     :end-before: END-CHEATSHEET-autoFrameSpec
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Kernel Implementation
 ---------------------
@@ -293,6 +343,8 @@ Define a kernel as a C++ functor
     :end-before: END-CHEATSHEET-myKernel
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Instantiate a kernel (does not launch it yet)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   acc parameter of the kernel is provided automatically, does not need to be specified here
@@ -303,6 +355,8 @@ Instantiate a kernel (does not launch it yet)
     :end-before: END-CHEATSHEET-createKernelWithArg
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Put the kernel for execution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -310,6 +364,8 @@ Put the kernel for execution
     :start-after: BEGIN-CHEATSHEET-enqueueKernel
     :end-before: END-CHEATSHEET-enqueueKernel
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Access multi-dimensional indices and extents of blocks, threads, and elements
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -328,6 +384,8 @@ Allocate static shared memory variable
     :end-before: END-CHEATSHEET-staticSharedMem
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Get dynamic shared memory pool, requires the kernel to have a data member with the size in bytes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -335,6 +393,8 @@ Get dynamic shared memory pool, requires the kernel to have a data member with t
     :start-after: BEGIN-CHEATSHEET-dynSharedMem
     :end-before: END-CHEATSHEET-dynSharedMem
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Or must specialize a trait for the kernel
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -344,6 +404,8 @@ Or must specialize a trait for the kernel
     :end-before: END-CHEATSHEET-dynSharedMemTrait
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Synchronize threads of the same block
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -351,6 +413,8 @@ Synchronize threads of the same block
     :start-after: BEGIN-CHEATSHEET-inKernelBlockWait
     :end-before: END-CHEATSHEET-inKernelBlockWait
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Atomic operations
 ~~~~~~~~~~~~~~~~~
@@ -360,6 +424,8 @@ Atomic operations
     :end-before: END-CHEATSHEET-atomicAdd
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Memory fences on block-, device- or system level (guarantees LoadLoad and StoreStore ordering)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -368,6 +434,8 @@ Memory fences on block-, device- or system level (guarantees LoadLoad and StoreS
     :end-before: END-CHEATSHEET-memFence
     :dedent:
 
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
+
 Math functions
 ~~~~~~~~~~~~~~
   .. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
@@ -375,5 +443,7 @@ Math functions
     :start-after: BEGIN-CHEATSHEET-math
     :end-before: END-CHEATSHEET-math
     :dedent:
+
+  Full example: :src-file:`snippets/cheatsheet/cheatsheet.cpp`
 
 Similar for other math functions.

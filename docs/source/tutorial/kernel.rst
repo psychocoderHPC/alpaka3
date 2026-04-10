@@ -29,6 +29,8 @@ Most first kernels in alpaka end up looking almost the same:
     :end-before: END-TUTORIAL-kernelStructure
     :dedent:
 
+  Full example: :src-file:`snippets/example/12_kernelIntro.cpp`
+
 This is the most important beginner rule in *alpaka*: write the kernel in terms of the data that needs to be processed.
 ``makeIdxMap`` distributes that work over the available workers for the chosen executor.
 That keeps the code portable across CPUs and GPUs and is usually a much better starting point than manual thread arithmetic.
@@ -49,6 +51,8 @@ On the host side, the pattern is straightforward:
     :start-after: BEGIN-TUTORIAL-kernelLaunch
     :end-before: END-TUTORIAL-kernelLaunch
     :dedent:
+
+  Full example: :src-file:`snippets/example/12_kernelIntro.cpp`
 
 The queue can be non-blocking, so ``alpaka::onHost::wait(queue)`` is the point where the host knows the device work is finished.
 Without that synchronization, reading the result on the host can race with the running kernel.
@@ -88,6 +92,8 @@ The host chooses how much work is grouped into one frame, and the kernel then it
     :start-after: BEGIN-TUTORIAL-kernelFrameSpec
     :end-before: END-TUTORIAL-kernelFrameSpec
     :dedent:
+
+  Full example: :src-file:`snippets/example/12_kernelIntro.cpp`
 
 Rules of thumb:
 

@@ -46,4 +46,4 @@ Default Advice for Migration Users
 - treat subgroup and shared-memory code as optimization tools, not as the default starting point
 
 If you need backend-specific functionality that alpaka does not wrap directly, the next step is usually a small interop layer around the vendor API, not a complete rewrite of the kernel structure.
-The dedicated vendor-interop chapter shows the pattern.
+The dedicated :doc:`vendorInterop` chapter shows the pattern.

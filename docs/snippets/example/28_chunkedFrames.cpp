@@ -77,7 +77,10 @@ TEMPLATE_LIST_TEST_CASE("tutorial chunked frames kernel", "[docs]", docs::test::
 
     // BEGIN-TUTORIAL-chunkedLaunch
     constexpr auto frameExtent = CVec<uint32_t, 4u>{};
-    auto numFrames = Vec{static_cast<uint32_t>(hostOut.size())} / frameExtent;
+    auto const totalElems = static_cast<uint32_t>(hostOut.size());
+    auto const frameElementCount = frameExtent.product();
+    REQUIRE(totalElems % frameElementCount == 0u);
+    auto numFrames = Vec{totalElems / frameElementCount};
     auto frameSpec = onHost::FrameSpec{numFrames, frameExtent};
 
     queue.enqueue(frameSpec, KernelBundle{ChunkedVectorAddKernel{}, outBuffer, in0Buffer, in1Buffer});

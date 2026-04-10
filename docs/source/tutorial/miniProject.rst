@@ -27,6 +27,8 @@ Each output pixel is written exactly once, so no atomics are needed.
     :end-before: END-TUTORIAL-imageThresholdKernel
     :dedent:
 
+  Full example: :src-file:`snippets/example/40_imagePipeline.cpp`
+
 This is the same beginner style introduced earlier:
 describe the valid image domain with ``IdxRange`` and let ``makeIdxMap`` yield the pixel indices.
 
@@ -41,6 +43,8 @@ Now several pixels may contribute to the same bin, so atomics are required.
     :start-after: BEGIN-TUTORIAL-imageHistogramKernel
     :end-before: END-TUTORIAL-imageHistogramKernel
     :dedent:
+
+  Full example: :src-file:`snippets/example/40_imagePipeline.cpp`
 
 This is a useful transition point in the tutorial:
 the first kernel was a plain per-pixel transform, the second kernel is a reduction-like accumulation pattern.
@@ -57,6 +61,8 @@ allocate buffers, copy the image to the device, clear the outputs, enqueue both 
     :end-before: END-TUTORIAL-imagePipelineLaunch
     :dedent:
 
+  Full example: :src-file:`snippets/example/40_imagePipeline.cpp`
+
 After that, the host can read the two histogram counts as the summary of the whole image.
 
   .. literalinclude:: ../../snippets/example/40_imagePipeline.cpp
@@ -64,6 +70,8 @@ After that, the host can read the two histogram counts as the summary of the who
     :start-after: BEGIN-TUTORIAL-imagePipelineResult
     :end-before: END-TUTORIAL-imagePipelineResult
     :dedent:
+
+  Full example: :src-file:`snippets/example/40_imagePipeline.cpp`
 
 Why This Is A Good Tutorial Example
 -----------------------------------

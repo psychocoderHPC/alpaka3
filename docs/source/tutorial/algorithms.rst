@@ -29,6 +29,8 @@ It fills one or more output buffers with a linear sequence and is useful for ini
     :end-before: END-TUTORIAL-iota
     :dedent:
 
+  Full example: :src-file:`snippets/example/14_algorithms.cpp`
+
 For multidimensional buffers, the linear value increases fastest in the last dimension.
 That is the same ordering used by ``LinearizedIdxGenerator`` and by the validation code in the unit tests.
 In practice, this is the algorithm you use when you want deterministic toy data before moving to something more realistic.
@@ -45,15 +47,20 @@ It applies a functor to one or more inputs and writes the result into an output 
     :end-before: END-TUTORIAL-transformCall
     :dedent:
 
+  Full example: :src-file:`snippets/example/14_algorithms.cpp`
+
 For simple scalar functors, wrapping the callable in ``ScalarFunc`` keeps the intent clear and matches the tested alpaka pattern.
 That wrapper is especially useful when you want scalar semantics even though the algorithm may vectorize loads and stores internally.
 Because CUDA/HIP-friendly tutorial code should not rely on local lambdas here, the example uses a tiny named functor instead.
+``onHost::transform`` still traverses the full input range itself, so the functor only describes the per-element operation.
 
   .. literalinclude:: ../../snippets/example/14_algorithms.cpp
     :language: cpp
     :start-after: BEGIN-TUTORIAL-transformFunctor
     :end-before: END-TUTORIAL-transformFunctor
     :dedent:
+
+  Full example: :src-file:`snippets/example/14_algorithms.cpp`
 
 The example squares every element, but the same pattern is what you would use for brightness scaling in an image row, converting Celsius to Kelvin, or applying a threshold to a signal.
 
@@ -68,6 +75,8 @@ That is different from ``std::reduce`` and also different from some CUDA helper 
     :start-after: BEGIN-TUTORIAL-reduce
     :end-before: END-TUTORIAL-reduce
     :dedent:
+
+  Full example: :src-file:`snippets/example/14_algorithms.cpp`
 
 There are three details worth noticing:
 
@@ -96,6 +105,8 @@ That fits common prefix-sum use cases such as offsets, compaction maps, and cumu
     :end-before: END-TUTORIAL-scan
     :dedent:
 
+  Full example: :src-file:`snippets/example/14_algorithms.cpp`
+
 This tutorial uses the explicit-buffer form because it makes the data flow easier to see:
 
 - allocate input and output buffers,
@@ -119,6 +130,8 @@ That is the natural tool for dot products, weighted sums, norms, and many “com
     :end-before: END-TUTORIAL-transformReduceCall
     :dedent:
 
+  Full example: :src-file:`snippets/example/14_algorithms.cpp`
+
 The first functor is the reduction operator and the second one is the element-wise transform.
 As in ``reduce``, you provide the neutral element explicitly and store the result in a one-element output buffer.
 This is the natural dot-product pattern:
@@ -130,6 +143,8 @@ The backend-compatible callable itself is still small enough to show directly:
     :start-after: BEGIN-TUTORIAL-transformReduceFunctor
     :end-before: END-TUTORIAL-transformReduceFunctor
     :dedent:
+
+  Full example: :src-file:`snippets/example/14_algorithms.cpp`
 
 Generators Instead of Input Buffers
 -----------------------------------
@@ -143,6 +158,8 @@ That is useful when one input is synthetic, such as a linear index, and you do n
     :end-before: END-TUTORIAL-generatorCall
     :dedent:
 
+  Full example: :src-file:`snippets/example/14_algorithms.cpp`
+
 ``LinearizedIdxGenerator`` is the simplest generator to learn first.
 It behaves like a virtual buffer whose value at each position is the corresponding linear index.
 The algorithm tests use the same pattern for ``reduce``, ``transform``, and ``transformReduce``.
@@ -155,6 +172,8 @@ The helper functor is again small enough to show directly:
     :start-after: BEGIN-TUTORIAL-generatorFunctor
     :end-before: END-TUTORIAL-generatorFunctor
     :dedent:
+
+  Full example: :src-file:`snippets/example/14_algorithms.cpp`
 
 How This Differs From STL and CUB-Style Expectations
 ----------------------------------------------------
