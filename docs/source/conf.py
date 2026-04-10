@@ -125,7 +125,11 @@ html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 
 html_logo = "../logo/alpaka.svg"
-html_theme_options = {"logo_only": True}
+html_theme_options = {
+    "logo_only": True,
+    "collapse_navigation": False,
+    "navigation_depth": 2,
+}
 
 # -- Options for HTMLHelp output ---------------------------------------------
 

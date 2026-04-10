@@ -37,3 +37,19 @@ If you do not pass ``queueKind`` as an argument, you will get a *non-blocking* q
 
 We will learn more about queue functions in later chapters.
 Before that, we need to deal with memory allocation, kernel writing, and events.
+
+Complete Source File
+--------------------
+
+.. raw:: html
+
+   <details class="full-source">
+   <summary>06_queue.cpp</summary>
+
+.. literalinclude:: ../../snippets/example/06_queue.cpp
+   :language: cpp
+   :linenos:
+
+.. raw:: html
+
+   </details>
