@@ -110,7 +110,7 @@ Complete Source File
    <details class="full-source">
    <summary>22_atomics.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/22_atomics.cpp
+.. filteredliteralinclude:: ../../snippets/example/22_atomics.cpp
    :language: cpp
    :linenos:
 

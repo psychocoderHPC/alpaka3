@@ -55,7 +55,7 @@ Complete Source File
    <details class="full-source">
    <summary>02_execution.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/02_execution.cpp
+.. filteredliteralinclude:: ../../snippets/example/02_execution.cpp
    :language: cpp
    :linenos:
 

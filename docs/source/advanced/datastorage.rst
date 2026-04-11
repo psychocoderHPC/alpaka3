@@ -125,7 +125,7 @@ Complete Source Files
    <details class="full-source">
    <summary>datastorage_interface.cpp</summary>
 
-.. literalinclude:: ../../snippets/dataStorage/datastorage_interface.cpp
+.. filteredliteralinclude:: ../../snippets/dataStorage/datastorage_interface.cpp
    :language: cpp
    :linenos:
 
@@ -138,7 +138,7 @@ Complete Source Files
    <details class="full-source">
    <summary>datastorage_writeable_datasource.cpp</summary>
 
-.. literalinclude:: ../../snippets/dataStorage/datastorage_writeable_datasource.cpp
+.. filteredliteralinclude:: ../../snippets/dataStorage/datastorage_writeable_datasource.cpp
    :language: cpp
    :linenos:
 
@@ -151,7 +151,7 @@ Complete Source Files
    <details class="full-source">
    <summary>datastorage_pitch.cpp</summary>
 
-.. literalinclude:: ../../snippets/dataStorage/datastorage_pitch.cpp
+.. filteredliteralinclude:: ../../snippets/dataStorage/datastorage_pitch.cpp
    :language: cpp
    :linenos:
 

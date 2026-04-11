@@ -73,7 +73,7 @@ Complete Source File
    <details class="full-source">
    <summary>30_elementWiseMultiplication.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/30_elementWiseMultiplication.cpp
+.. filteredliteralinclude:: ../../snippets/example/30_elementWiseMultiplication.cpp
    :language: cpp
    :linenos:
 

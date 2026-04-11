@@ -66,7 +66,7 @@ Complete Source File
    <details class="full-source">
    <summary>05_device.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/05_device.cpp
+.. filteredliteralinclude:: ../../snippets/example/05_device.cpp
    :language: cpp
    :linenos:
 

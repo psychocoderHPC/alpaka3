@@ -62,7 +62,7 @@ Complete Source File
    <details class="full-source">
    <summary>36_portingKernel.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/36_portingKernel.cpp
+.. filteredliteralinclude:: ../../snippets/example/36_portingKernel.cpp
    :language: cpp
    :linenos:
 

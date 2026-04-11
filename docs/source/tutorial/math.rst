@@ -104,7 +104,7 @@ Complete Source File
    <details class="full-source">
    <summary>24_math.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/24_math.cpp
+.. filteredliteralinclude:: ../../snippets/example/24_math.cpp
    :language: cpp
    :linenos:
 

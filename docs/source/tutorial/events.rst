@@ -53,7 +53,7 @@ Complete Source File
    <details class="full-source">
    <summary>08_events.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/08_events.cpp
+.. filteredliteralinclude:: ../../snippets/example/08_events.cpp
    :language: cpp
    :linenos:
 

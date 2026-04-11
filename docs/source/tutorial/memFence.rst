@@ -97,7 +97,7 @@ Complete Source File
    <details class="full-source">
    <summary>34_memFence.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/34_memFence.cpp
+.. filteredliteralinclude:: ../../snippets/example/34_memFence.cpp
    :language: cpp
    :linenos:
 

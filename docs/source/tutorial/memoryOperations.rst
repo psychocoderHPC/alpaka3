@@ -44,7 +44,7 @@ Complete Source File
    <details class="full-source">
    <summary>10_memory.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/10_memory.cpp
+.. filteredliteralinclude:: ../../snippets/example/10_memory.cpp
    :language: cpp
    :linenos:
 

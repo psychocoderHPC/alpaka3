@@ -63,7 +63,7 @@ Complete Source File
    <details class="full-source">
    <summary>28_chunkedFrames.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/28_chunkedFrames.cpp
+.. filteredliteralinclude:: ../../snippets/example/28_chunkedFrames.cpp
    :language: cpp
    :linenos:
 

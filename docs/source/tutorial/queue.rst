@@ -46,7 +46,7 @@ Complete Source File
    <details class="full-source">
    <summary>06_queue.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/06_queue.cpp
+.. filteredliteralinclude:: ../../snippets/example/06_queue.cpp
    :language: cpp
    :linenos:
 

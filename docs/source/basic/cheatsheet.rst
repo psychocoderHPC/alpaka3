@@ -386,7 +386,7 @@ Complete Source File
    <details class="full-source">
    <summary>cheatsheet.cpp</summary>
 
-.. literalinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
+.. filteredliteralinclude:: ../../snippets/cheatsheet/cheatsheet.cpp
    :language: cpp
    :linenos:
 

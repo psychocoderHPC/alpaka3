@@ -67,7 +67,7 @@ Complete Source File
    <details class="full-source">
    <summary>26_warp.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/26_warp.cpp
+.. filteredliteralinclude:: ../../snippets/example/26_warp.cpp
    :language: cpp
    :linenos:
 

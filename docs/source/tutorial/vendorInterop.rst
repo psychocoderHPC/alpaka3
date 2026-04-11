@@ -115,7 +115,7 @@ Complete Source File
    <details class="full-source">
    <summary>38_vendorInterop.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/38_vendorInterop.cpp
+.. filteredliteralinclude:: ../../snippets/example/38_vendorInterop.cpp
    :language: cpp
    :linenos:
 

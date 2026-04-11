@@ -94,7 +94,7 @@ Complete Source File
    <details class="full-source">
    <summary>40_imagePipeline.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/40_imagePipeline.cpp
+.. filteredliteralinclude:: ../../snippets/example/40_imagePipeline.cpp
    :language: cpp
    :linenos:
 

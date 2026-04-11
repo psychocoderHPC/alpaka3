@@ -59,7 +59,7 @@ Complete Source File
    <details class="full-source">
    <summary>11_views.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/11_views.cpp
+.. filteredliteralinclude:: ../../snippets/example/11_views.cpp
    :language: cpp
    :linenos:
 

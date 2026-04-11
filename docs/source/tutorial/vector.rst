@@ -135,7 +135,7 @@ Complete Source File
    <details class="full-source">
    <summary>00_vector.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/00_vector.cpp
+.. filteredliteralinclude:: ../../snippets/example/00_vector.cpp
    :language: cpp
    :linenos:
 

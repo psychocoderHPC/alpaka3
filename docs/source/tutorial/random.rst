@@ -196,7 +196,7 @@ Complete Source Files
    <details class="full-source">
    <summary>30_random.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/30_random.cpp
+.. filteredliteralinclude:: ../../snippets/example/30_random.cpp
    :language: cpp
    :linenos:
 
@@ -209,7 +209,7 @@ Complete Source Files
    <details class="full-source">
    <summary>31_monteCarloPi.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/31_monteCarloPi.cpp
+.. filteredliteralinclude:: ../../snippets/example/31_monteCarloPi.cpp
    :language: cpp
    :linenos:
 

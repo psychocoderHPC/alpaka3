@@ -155,7 +155,7 @@ Complete Source File
    <details class="full-source">
    <summary>terms_extents.cpp</summary>
 
-.. literalinclude:: ../../snippets/dataStorage/terms_extents.cpp
+.. filteredliteralinclude:: ../../snippets/dataStorage/terms_extents.cpp
    :language: cpp
    :linenos:
 

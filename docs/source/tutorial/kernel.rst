@@ -169,7 +169,7 @@ Complete Source File
    <details class="full-source">
    <summary>12_kernelIntro.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/12_kernelIntro.cpp
+.. filteredliteralinclude:: ../../snippets/example/12_kernelIntro.cpp
    :language: cpp
    :linenos:
 

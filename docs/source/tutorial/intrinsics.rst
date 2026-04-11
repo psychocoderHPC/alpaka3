@@ -72,7 +72,7 @@ Complete Source File
    <details class="full-source">
    <summary>32_intrinsics.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/32_intrinsics.cpp
+.. filteredliteralinclude:: ../../snippets/example/32_intrinsics.cpp
    :language: cpp
    :linenos:
 

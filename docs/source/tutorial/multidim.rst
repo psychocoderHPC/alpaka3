@@ -101,7 +101,7 @@ Complete Source File
    <details class="full-source">
    <summary>18_multidimKernel.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/18_multidimKernel.cpp
+.. filteredliteralinclude:: ../../snippets/example/18_multidimKernel.cpp
    :language: cpp
    :linenos:
 

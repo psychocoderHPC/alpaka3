@@ -181,7 +181,7 @@ Complete Source File
    <details class="full-source">
    <summary>16_sharedMemory.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/16_sharedMemory.cpp
+.. filteredliteralinclude:: ../../snippets/example/16_sharedMemory.cpp
    :language: cpp
    :linenos:
 

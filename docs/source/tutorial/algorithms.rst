@@ -188,7 +188,7 @@ Complete Source File
    <details class="full-source">
    <summary>14_algorithms.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/14_algorithms.cpp
+.. filteredliteralinclude:: ../../snippets/example/14_algorithms.cpp
    :language: cpp
    :linenos:
 

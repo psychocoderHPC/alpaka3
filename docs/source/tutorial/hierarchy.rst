@@ -84,7 +84,7 @@ Complete Source File
    <details class="full-source">
    <summary>13_hierarchy.cpp</summary>
 
-.. literalinclude:: ../../snippets/example/13_hierarchy.cpp
+.. filteredliteralinclude:: ../../snippets/example/13_hierarchy.cpp
    :language: cpp
    :linenos:
 
