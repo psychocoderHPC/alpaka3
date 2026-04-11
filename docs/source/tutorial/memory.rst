@@ -16,7 +16,7 @@ This chapter is easiest to picture with two recurring examples from the rest of 
 - A buffer is **not** initialized with default values.
 - The *extents*, which describe the number of elements per dimension, should be ``>=1``. The *extents* can have any dimensionality.
 - If the extent requires the ``alpaka::concepts::VectorOrScalar`` concept, it is permissible to use a scalar instead of an alpaka vector type to allocate a one-dimensional buffer.
-- Each buffer uses the data type of the *extent* object as value type for internal index calculation.
+- The extent object also determines the internal index type used for addressing the buffer.
 
 The following examples show how to create memory which is **only** visible on the device.
 
@@ -37,7 +37,7 @@ Accessing this type of memory from the device is usually associated with high la
     :end-before: END-TUTORIAL-allocBufferMapped
     :dedent:
 
-Unified memory largely equal to the mapped memory and does not require explicit memory copies.
+Unified memory is similar to mapped memory in that it does not require explicit memory copies.
 Depending on the API used, it is located on the host or device.
 It is transparently migrated page by page to the location from which it is accessed.
 You should not access unified memory in parallel from the host and the device.

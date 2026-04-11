@@ -71,7 +71,7 @@ Practical Advice
 - Move to ``blocksInGrid`` plus ``threadsInBlock`` when the work is tile-based.
 - Treat warps as one-dimensional helpers inside a block, not as a replacement for multidimensional block logic.
 - If the algorithm does not need warp-local cooperation, do not force warps into the first implementation.
-- When you do use warps in a 2D problem, map them to one row or one linear stripe and keep the outer tile structure block-based.
+- When you do use warps in a 2D problem, map them to one row or one linear stripe and keep the outer tile structure frame-based.
 
 The later :doc:`warp` chapter goes deeper into warp-local communication such as shuffle and voting operations.
 This chapter is only about understanding where that subgroup level fits into the overall hierarchy.
