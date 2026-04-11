@@ -45,6 +45,8 @@ Device-Scope Publication
 The second example shows the classic producer/consumer publication pattern in global memory.
 The producer writes the payload, issues a release fence, and only then atomically sets a ready flag.
 The consumer spins on the atomic ready flag, issues an acquire fence, and then reads the payload.
+This example intentionally uses ``ThreadSpec`` instead of ``FrameSpec`` because the algorithm needs an exact guarantee
+about how many thread blocks and threads are launched.
 
   .. literalinclude:: ../../snippets/example/34_memFence.cpp
     :language: cpp

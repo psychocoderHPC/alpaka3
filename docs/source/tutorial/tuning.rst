@@ -17,6 +17,7 @@ What to Tune First
 
 The first knob is almost always the frame or tile shape.
 That is why the tutorial introduces ``getFrameSpec``, chunked kernels, and hierarchical kernels early.
+That choice controls the logical parallelism exposed to the kernel, not an exact CUDA-style grid configuration.
 
 Good first questions are:
 

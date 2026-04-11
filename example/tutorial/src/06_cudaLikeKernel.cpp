@@ -110,10 +110,10 @@ void testVectorAddKernel(alpaka::onHost::concepts::Device auto device, auto comp
     // fill the output buffer with zeros; the size is known from the buffer objects
     alpaka::onHost::memset(queue, out_d, 0x00);
 
-    /* If you use thread specifications alpak is not automatically adjusting the umber of threads per block.
-     * The kernel will be called with the specification you configured.
-     * In contrast to frame specification where the number of threads and blocks will be adjusted by alpaka to be
-     * optimal.
+    /* If you use a thread specification alpaka does not automatically adjust the number of blocks or threads per
+     * block. The kernel is called with exactly the block/thread configuration you configure. In contrast, a frame
+     * specification only describes the logical parallelism exposed to the kernel; alpaka may map that to a different
+     * physical block/thread configuration.
      */
     auto threadSpec = alpaka::onHost::ThreadSpec{32u, 32u};
 
@@ -192,10 +192,10 @@ void testVectorAddKernel3D(alpaka::onHost::concepts::Device auto device, auto co
     // fill the output buffer with zeros; the size is known from the buffer objects
     alpaka::onHost::memset(queue, out_d, 0x00);
 
-    /* If you use thread specifications alpak is not automatically adjusting the umber of threads per block.
-     * The kernel will be called with the specification you configured.
-     * In contrast to frame specification where the number of threads and blocks will be adjusted by alpaka to be
-     * optimal.
+    /* If you use a thread specification alpaka does not automatically adjust the number of blocks or threads per
+     * block. The kernel is called with exactly the block/thread configuration you configure.
+     * In contrast, a frame specification only describes the logical parallelism exposed to the kernel; alpaka may map
+     * that to a different physical block/thread configuration.
      *
      * To simplify this example the number of elements per dimension must be a multiple of the number of threads of
      * this dimension.

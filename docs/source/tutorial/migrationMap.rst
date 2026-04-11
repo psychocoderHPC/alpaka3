@@ -6,7 +6,7 @@ Most migration questions are really mapping questions: "what is the alpaka equiv
 The short version is:
 
 - CUDA/HIP grid or SYCL global range -> the full data range you pass to ``makeIdxMap``
-- block / work-group -> one frame or tile
+- block / work-group -> the logical tile or frame shape seen by the kernel, or ``ThreadSpec`` when exact block control is required
 - thread / work-item -> one worker inside that frame
 - warp / wavefront / subgroup -> ``onAcc::warp``
 - shared memory / local memory -> ``declareSharedVar``, ``declareSharedMdArray``, ``getDynSharedMem``
@@ -37,8 +37,8 @@ alpaka is designed so that the same kernel structure still makes sense on CPU, C
 Useful Equivalents
 ------------------
 
-- block shape selection: ``onHost::FrameSpec`` or ``onHost::getFrameSpec``
-- strict block/thread control: ``onHost::ThreadSpec``
+- logical frame or tile selection: ``onHost::FrameSpec`` or ``onHost::getFrameSpec``
+- strict CUDA-style block/thread control: ``onHost::ThreadSpec``
 - block-local synchronization: ``onAcc::syncBlockThreads``
 - memory ordering without synchronization: ``onAcc::memFence``
 - block-local and device-wide atomics: ``onAcc::atomic*`` with ``onAcc::scope::block`` or ``onAcc::scope::device``

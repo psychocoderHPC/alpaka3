@@ -3,12 +3,13 @@ Start Your First Kernel
 
 After selecting a device, creating a queue, and allocating memory, the next step is to launch work on the device.
 In *alpaka*, the simplest useful kernel is usually just a small function object plus a host-side launch with a ``FrameSpec``.
-If you know CUDA, a frame is roughly a block-shaped chunk of work.
+If you know CUDA, a frame is best understood as a logical chunk of work, not as an exact block/grid launch description.
 If you know Kokkos, it plays a similar role to choosing the shape of a policy.
 
 What matters early is that a ``FrameSpec`` does not describe the whole problem size.
 It describes the launch-side parallel shape that alpaka makes available to the kernel at one time:
 how many frames exist and how large one frame is.
+It does not guarantee how many physical thread blocks the backend will use or how large those physical blocks are.
 The actual problem can be much larger.
 The kernel then uses ``makeIdxMap`` to walk over the complete data range.
 
@@ -65,6 +66,7 @@ It helps to separate three ideas clearly:
 Together, frame count and frame extent form the ``FrameSpec``.
 That is the maximum parallel structure exposed to the kernel.
 It is not a promise that the total problem size is exactly equal to ``frameCount * frameExtent``.
+It is also not a promise that the launch will use exactly ``frameCount`` thread blocks of size ``frameExtent``.
 
 This is the important beginner picture:
 
@@ -97,6 +99,7 @@ Rules of thumb:
 - Start with simple sizes. For 1D kernels, something around ``128`` to ``256`` elements per frame is usually a reasonable first try.
 - When you have multiple dimensions, prefer more work in the fastest varying dimension, which is usually ``x``.
 - Start with ``FrameSpec`` unless you have a concrete reason to control block and thread layout manually.
+- If you need exact CUDA-style control over the number of blocks and threads per block, use ``onHost::ThreadSpec`` instead.
 
 If you have seen CUDA-style beginner code, this is one of the major differences in style.
 You do not start by hand-writing a global-index formula and hoping the launch exactly matches the problem.
