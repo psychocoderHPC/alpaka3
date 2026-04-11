@@ -62,6 +62,7 @@ Registering a Backend-Specific Overload
 This example uses ``std::transform`` as a small stand-in for a third-party backend function.
 The pattern is the same when the backend-specific code comes from a GPU vendor library.
 On CUDA, for example, this is where you would pass ``queue.getNativeHandle()`` to a library that expects a CUDA stream and then call the vendor routine there.
+This host-specific overload is intentionally constrained to 1D spans because the example forwards to ``std::transform`` over a single contiguous range.
 
 The important part is the ``Spec<api, deviceKind>`` type:
 

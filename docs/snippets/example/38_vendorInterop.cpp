@@ -60,6 +60,7 @@ namespace vendorTutorial
 
     // BEGIN-TUTORIAL-vendorHost
     template<typename T_Queue, alpaka::concepts::IMdSpan T_Output, alpaka::concepts::IMdSpan T_Input>
+    requires(std::remove_reference_t<T_Output>::dim() == 1u && std::remove_reference_t<T_Input>::dim() == 1u)
     constexpr void fnDispatch(
         AffineTransform::Spec<alpaka::api::Host, alpaka::deviceKind::Cpu>,
         T_Queue&& queue,
