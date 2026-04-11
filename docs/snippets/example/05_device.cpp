@@ -53,7 +53,7 @@ TEST_CASE("host device", "[docs]")
     // BEGIN-TUTORIAL-devHostDev
     // Get a device to perform work on the host.
     // It is a shortcut compared to using the makeDeviceSelector(...) to get a host device.
-    auto hostDevice = onHost::makeHostDevice();
+    onHost::concepts::Device auto hostDevice = onHost::makeHostDevice();
     // END-TUTORIAL-devHostDev
 
     // Getting a queue to enqueue asynchronous work

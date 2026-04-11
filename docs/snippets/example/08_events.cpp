@@ -16,9 +16,9 @@ TEMPLATE_LIST_TEST_CASE("tutorial events and synchronization", "[docs]", docs::t
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue0 = device.makeQueue();
-    auto queue1 = device.makeQueue();
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue0 = device.makeQueue();
+    onHost::Queue queue1 = device.makeQueue();
     auto event = device.makeEvent();
     int value = 0;
 

@@ -18,8 +18,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial views and subviews", "[docs]", docs::test::Tes
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue();
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue();
 
     std::vector<int> hostData{0, 1, 2, 3, 4, 5, 6, 7};
 

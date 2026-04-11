@@ -55,8 +55,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial image pipeline", "[docs]", docs::test::TestBac
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     auto const imageExtents = Vec{4u, 4u};
     auto hostImage = onHost::allocHost<uint8_t>(imageExtents);
@@ -80,7 +80,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial image pipeline", "[docs]", docs::test::TestBac
     onHost::memset(queue, binsBuffer, 0x00);
 
     // BEGIN-TUTORIAL-imagePipelineLaunch
-    auto frameSpec = onHost::getFrameSpec<uint8_t>(device, imageExtents);
+    onHost::concepts::FrameSpec auto frameSpec = onHost::getFrameSpec<uint8_t>(device, imageExtents);
     queue.enqueue(frameSpec, KernelBundle{ThresholdKernel{}, binaryBuffer, imageBuffer, uint8_t{128}});
     queue.enqueue(frameSpec, KernelBundle{BinaryHistogramKernel{}, binsBuffer, binaryBuffer});
     // END-TUTORIAL-imagePipelineLaunch

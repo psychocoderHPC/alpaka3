@@ -195,7 +195,8 @@ void testVectorAddKernel(alpaka::onHost::concepts::Device auto device, auto comp
     // The kernel assumes that the problem size is a multiple of the frame size.
     verify((numFrames * frameExtent) == size);
 
-    auto frameSpec = alpaka::onHost::FrameSpec{numFrames, alpaka::CVec<uint32_t, frameExtent>{}};
+    alpaka::onHost::concepts::FrameSpec auto frameSpec
+        = alpaka::onHost::FrameSpec{numFrames, alpaka::CVec<uint32_t, frameExtent>{}};
 
     // fill the output buffer with zeros; the size is known from the buffer objects
     alpaka::onHost::memset(queue, out_d, 0x00);
@@ -269,7 +270,7 @@ void testVectorAddKernel3D(alpaka::onHost::concepts::Device auto device, auto co
     // The kernel assumes that the problem size is a multiple of the frame size.
     verify((numFrames * frameExtent).product() == size);
 
-    auto frameSpec = alpaka::onHost::FrameSpec{numFrames, frameExtent};
+    alpaka::onHost::concepts::FrameSpec auto frameSpec = alpaka::onHost::FrameSpec{numFrames, frameExtent};
 
     std::cout << "Testing VectorAddKernel3D with vector indices with a grid of " << frameSpec << "\n";
 

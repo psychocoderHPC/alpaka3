@@ -66,8 +66,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial hierarchy blocks threads warps", "[docs]", doc
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     auto const warpSize = device.getDeviceProperties().warpSize;
     auto const imageExtent = Vec{4u, 2u * warpSize};
@@ -105,7 +105,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial hierarchy blocks threads warps", "[docs]", doc
     onHost::fill(queue, rowCountsBuffer, 0u);
 
     // BEGIN-TUTORIAL-hierarchyLaunch
-    auto frameSpec = onHost::FrameSpec{divExZero(imageExtent, tileExtent), tileExtent};
+    onHost::concepts::FrameSpec auto frameSpec = onHost::FrameSpec{divExZero(imageExtent, tileExtent), tileExtent};
     queue.enqueue(frameSpec, KernelBundle{ImageTileHierarchyKernel{}, inputBuffer, maskBuffer, rowCountsBuffer, 5});
     // END-TUTORIAL-hierarchyLaunch
 

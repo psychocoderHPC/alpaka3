@@ -40,8 +40,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial kernel intro vector add", "[docs]", docs::test
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue();
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue();
 
     std::vector<int> lhs(257u);
     std::vector<int> rhs(257u);
@@ -58,7 +58,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial kernel intro vector add", "[docs]", docs::test
     onHost::memset(queue, resultBuffer, 0x00);
 
     // BEGIN-TUTORIAL-kernelFrameSpec
-    auto frameSpec = onHost::getFrameSpec<int>(device, Vec{static_cast<uint32_t>(result.size())});
+    onHost::concepts::FrameSpec auto frameSpec
+        = onHost::getFrameSpec<int>(device, Vec{static_cast<uint32_t>(result.size())});
     // END-TUTORIAL-kernelFrameSpec
 
     // BEGIN-TUTORIAL-kernelLaunch

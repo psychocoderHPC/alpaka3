@@ -88,8 +88,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial vendor interop dispatch", "[docs]", docs::test
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 5u> hostInput{1.f, 2.f, 3.f, 4.f, 5.f};
     std::array<float, 5u> hostOutput{};

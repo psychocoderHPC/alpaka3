@@ -18,7 +18,7 @@ TEST_CASE("tutorial enumerate backends and executors", "[docs]")
     REQUIRE(numDevices >= 1u);
 
     auto properties = selector.getDeviceProperties(0u);
-    auto device = selector.makeDevice(0u);
+    onHost::concepts::Device auto device = selector.makeDevice(0u);
     // END-TUTORIAL-enumerateDeviceSpec
 
     CHECK(properties.warpSize >= 1u);
@@ -34,8 +34,8 @@ TEST_CASE("tutorial enumerate backends and executors", "[docs]")
             auto backendDeviceSpec = backend[object::deviceSpec];
             auto backendExec = backend[object::exec];
             auto backendSelector = onHost::makeDeviceSelector(backendDeviceSpec);
-            auto backendDevice = backendSelector.makeDevice(0u);
-            auto backendQueue = backendDevice.makeQueue();
+            onHost::concepts::Device auto backendDevice = backendSelector.makeDevice(0u);
+            onHost::Queue backendQueue = backendDevice.makeQueue();
 
             backendQueue.enqueueHostFn([]() noexcept {});
             onHost::wait(backendQueue);

@@ -37,8 +37,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial porting saxpy kernel", "[docs]", docs::test::T
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 8u> hostX{1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f, 8.f};
     std::array<float, 8u> hostY{10.f, 10.f, 10.f, 10.f, 10.f, 10.f, 10.f, 10.f};
@@ -52,7 +52,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial porting saxpy kernel", "[docs]", docs::test::T
     onHost::memcpy(queue, yBuffer, hostY);
 
     // BEGIN-TUTORIAL-portingLaunch
-    auto frameSpec = onHost::getFrameSpec<float>(device, outBuffer.getExtents());
+    onHost::concepts::FrameSpec auto frameSpec = onHost::getFrameSpec<float>(device, outBuffer.getExtents());
     queue.enqueue(frameSpec, KernelBundle{SaxpyKernel{}, outBuffer, xBuffer, yBuffer, 2.0f});
     // END-TUTORIAL-portingLaunch
 

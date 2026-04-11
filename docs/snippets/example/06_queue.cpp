@@ -18,7 +18,7 @@ TEMPLATE_LIST_TEST_CASE("non blocking queue", "[docs]", docs::test::TestBackends
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
 
     // BEGIN-TUTORIAL-nonBlockingQueue
     // Creating a non-blocking queue
@@ -35,7 +35,7 @@ TEMPLATE_LIST_TEST_CASE("blocking queue", "[docs]", docs::test::TestBackends)
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
 
     // BEGIN-TUTORIAL-blockingQueue
     // Creating a blocking queue

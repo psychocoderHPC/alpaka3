@@ -61,8 +61,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial chunked frames kernel", "[docs]", docs::test::
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostIn0{0, 1, 2, 3, 4, 5, 6, 7};
     std::array<int, 8u> hostIn1{10, 10, 10, 10, 10, 10, 10, 10};
@@ -81,7 +81,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial chunked frames kernel", "[docs]", docs::test::
     auto const frameElementCount = frameExtent.product();
     REQUIRE(totalElems % frameElementCount == 0u);
     auto numFrames = Vec{totalElems / frameElementCount};
-    auto frameSpec = onHost::FrameSpec{numFrames, frameExtent};
+    onHost::concepts::FrameSpec auto frameSpec = onHost::FrameSpec{numFrames, frameExtent};
 
     queue.enqueue(frameSpec, KernelBundle{ChunkedVectorAddKernel{}, outBuffer, in0Buffer, in1Buffer});
     // END-TUTORIAL-chunkedLaunch

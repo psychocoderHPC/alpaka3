@@ -58,8 +58,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial math functions on device", "[docs]", docs::tes
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue();
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue();
 
     std::array<float, 4u> hostAngles{0.0f, 0.5f, 1.0f, 1.5f};
     std::array<float, 4u> hostTrig{};
@@ -71,7 +71,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial math functions on device", "[docs]", docs::tes
 
     onHost::memcpy(queue, angleBuffer, hostAngles);
 
-    auto frameSpec = onHost::FrameSpec{1u, 64u};
+    onHost::concepts::FrameSpec auto frameSpec = onHost::FrameSpec{1u, 64u};
     queue.enqueue(frameSpec, KernelBundle{TrigIdentityKernel{}, trigBuffer, angleBuffer});
     queue.enqueue(frameSpec, KernelBundle{DistanceKernel{}, invLenBuffer, angleBuffer});
 

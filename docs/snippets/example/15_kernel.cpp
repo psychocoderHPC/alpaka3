@@ -48,7 +48,8 @@ TEMPLATE_LIST_TEST_CASE("first kernel", "[docs]", docs::test::TestBackends)
 
     // The frame extent is randomly chosen
     constexpr auto frameExtents = Vec{256};
-    auto frameSpec = onHost::FrameSpec{divExZero(computeBuffer.getExtents(), frameExtents), frameExtents};
+    onHost::concepts::FrameSpec auto frameSpec
+        = onHost::FrameSpec{divExZero(computeBuffer.getExtents(), frameExtents), frameExtents};
     // If no executor is given as first argument to enqueue than the default executor is used.
     // The default is the fastest for the corresponding device.
     // For deviceKind::cpu the default is exec::cpuOmpBlocks if omp is enabled, else exec::cpuTbbBlocks if available
@@ -112,7 +113,7 @@ TEMPLATE_LIST_TEST_CASE("MD vector add kernel", "[docs]", docs::test::TestBacken
     // The frame extent is randomly chosen, the dimensionality of the kernel is defined by the FrameSpec dimsions.
     constexpr auto frameExtents = Vec{8, 8, 8};
     concepts::Vector auto numFrames = divExZero(computeBufferOut.getExtents(), frameExtents);
-    auto frameSpec = onHost::FrameSpec{numFrames, frameExtents};
+    onHost::concepts::FrameSpec auto frameSpec = onHost::FrameSpec{numFrames, frameExtents};
 
     onHost::wait(computeQueue);
     auto const beginT = std::chrono::high_resolution_clock::now();

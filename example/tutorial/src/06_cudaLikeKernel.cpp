@@ -115,7 +115,7 @@ void testVectorAddKernel(alpaka::onHost::concepts::Device auto device, auto comp
      * specification only describes the logical parallelism exposed to the kernel; alpaka may map that to a different
      * physical block/thread configuration.
      */
-    auto threadSpec = alpaka::onHost::ThreadSpec{32u, 32u};
+    alpaka::onHost::concepts::ThreadSpec auto threadSpec = alpaka::onHost::ThreadSpec{32u, 32u};
 
     // launch the 1-dimensional kernel with scalar size
     if constexpr(alpaka::isSeqExecutor(computeExec))
@@ -200,7 +200,7 @@ void testVectorAddKernel3D(alpaka::onHost::concepts::Device auto device, auto co
      * To simplify this example the number of elements per dimension must be a multiple of the number of threads of
      * this dimension.
      */
-    auto threadSpec = alpaka::onHost::ThreadSpec{Vec3D{1, 2, 4}, Vec3D{4, 4, 4}};
+    alpaka::onHost::concepts::ThreadSpec auto threadSpec = alpaka::onHost::ThreadSpec{Vec3D{1, 2, 4}, Vec3D{4, 4, 4}};
 
     // launch the 1-dimensional kernel with scalar size
     if constexpr(alpaka::isSeqExecutor(computeExec))

@@ -168,8 +168,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial shared memory tile", "[docs]", docs::test::Tes
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostInput{0, 1, 2, 3, 4, 5, 6, 7};
     std::array<int, 8u> hostOutput{};
@@ -180,7 +180,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial shared memory tile", "[docs]", docs::test::Tes
     onHost::memcpy(queue, inputBuffer, hostInput);
 
     // BEGIN-TUTORIAL-sharedLaunch
-    auto frameSpec = onHost::FrameSpec{1u, CVec<uint32_t, 8u>{}};
+    onHost::concepts::FrameSpec auto frameSpec = onHost::FrameSpec{1u, CVec<uint32_t, 8u>{}};
     queue.enqueue(frameSpec, KernelBundle{ReverseFrameKernel{}, outputBuffer, inputBuffer});
     // END-TUTORIAL-sharedLaunch
 
@@ -202,8 +202,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial shared memory scalar value", "[docs]", docs::t
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostInput{1, 2, 3, 4, 5, 6, 7, 8};
     std::array<int, 1u> hostOutput{};
@@ -213,7 +213,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial shared memory scalar value", "[docs]", docs::t
 
     onHost::memcpy(queue, inputBuffer, hostInput);
 
-    auto frameSpec = onHost::FrameSpec{1u, CVec<uint32_t, 8u>{}};
+    onHost::concepts::FrameSpec auto frameSpec = onHost::FrameSpec{1u, CVec<uint32_t, 8u>{}};
     queue.enqueue(frameSpec, KernelBundle{BlockSumKernel{}, outputBuffer, inputBuffer});
 
     onHost::memcpy(queue, hostOutput, outputBuffer);
@@ -227,8 +227,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial dynamic shared memory via member", "[docs]", d
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostInput{0, 1, 2, 3, 4, 5, 6, 7};
     std::array<int, 8u> hostOutput{};
@@ -238,7 +238,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial dynamic shared memory via member", "[docs]", d
 
     onHost::memcpy(queue, inputBuffer, hostInput);
 
-    auto frameSpec = onHost::FrameSpec{1u, CVec<uint32_t, 8u>{}};
+    onHost::concepts::FrameSpec auto frameSpec = onHost::FrameSpec{1u, CVec<uint32_t, 8u>{}};
     queue.enqueue(
         frameSpec,
         KernelBundle{
@@ -264,8 +264,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial dynamic shared memory via trait", "[docs]", do
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<int, 8u> hostInput{0, 1, 2, 3, 4, 5, 6, 7};
     std::array<int, 8u> hostOutput{};
@@ -275,7 +275,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial dynamic shared memory via trait", "[docs]", do
 
     onHost::memcpy(queue, inputBuffer, hostInput);
 
-    auto frameSpec = onHost::FrameSpec{1u, CVec<uint32_t, 8u>{}};
+    onHost::concepts::FrameSpec auto frameSpec = onHost::FrameSpec{1u, CVec<uint32_t, 8u>{}};
     queue.enqueue(frameSpec, KernelBundle{DynamicScaleKernel{}, outputBuffer, inputBuffer, 3});
 
     onHost::memcpy(queue, hostOutput, outputBuffer);

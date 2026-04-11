@@ -96,8 +96,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial memFence block scope", "[docs]", docs::test::T
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     auto successFlag = onHost::allocUnified<uint32_t>(device, Vec{1u});
     successFlag[0u] = 1u;
@@ -115,8 +115,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial memFence device scope", "[docs]", docs::test::
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     auto payload = onHost::alloc<uint32_t>(device, Vec{1u});
     auto readyFlag = onHost::alloc<uint32_t>(device, Vec{1u});

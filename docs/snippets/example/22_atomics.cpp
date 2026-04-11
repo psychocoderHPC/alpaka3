@@ -36,8 +36,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial atomics histogram", "[docs]", docs::test::Test
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue();
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue();
 
     std::array<uint32_t, 12u> hostInput{0u, 1u, 0u, 2u, 3u, 0u, 1u, 2u, 2u, 3u, 3u, 3u};
     std::array<uint32_t, 4u> hostBins{};
@@ -49,7 +49,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial atomics histogram", "[docs]", docs::test::Test
     onHost::memset(queue, binsBuffer, 0x00);
 
     // BEGIN-TUTORIAL-atomicLaunch
-    auto frameSpec = onHost::FrameSpec{divExZero(static_cast<uint32_t>(hostInput.size()), 64u), 64u};
+    onHost::concepts::FrameSpec auto frameSpec
+        = onHost::FrameSpec{divExZero(static_cast<uint32_t>(hostInput.size()), 64u), 64u};
     queue.enqueue(frameSpec, KernelBundle{HistogramKernel{}, inputBuffer, binsBuffer});
     // END-TUTORIAL-atomicLaunch
 

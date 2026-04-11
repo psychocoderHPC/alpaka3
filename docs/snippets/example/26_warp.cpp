@@ -46,8 +46,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial warp shuffle reduction", "[docs]", docs::test:
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
     auto const warpSize = device.getDeviceProperties().warpSize;
 
     auto const blocks = 2u;
@@ -73,7 +73,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial warp shuffle reduction", "[docs]", docs::test:
     onHost::memset(queue, outputBuffer, 0x00);
 
     // BEGIN-TUTORIAL-warpLaunch
-    auto frameSpec = onHost::FrameSpec{Vec{blocks}, Vec{warpSize}};
+    onHost::concepts::FrameSpec auto frameSpec = onHost::FrameSpec{Vec{blocks}, Vec{warpSize}};
     queue.enqueue(frameSpec, KernelBundle{WarpSumKernel{}, inputBuffer, outputBuffer});
     // END-TUTORIAL-warpLaunch
 

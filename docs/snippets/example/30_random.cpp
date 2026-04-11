@@ -82,14 +82,14 @@ TEMPLATE_LIST_TEST_CASE("tutorial random numbers", "[docs]", docs::test::TestBac
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 8u> hostValues{};
     auto randomBuffer = onHost::allocLike(device, hostValues);
 
     // BEGIN-TUTORIAL-randomLaunch
-    auto frameSpec = onHost::getFrameSpec<float>(device, randomBuffer.getExtents());
+    onHost::concepts::FrameSpec auto frameSpec = onHost::getFrameSpec<float>(device, randomBuffer.getExtents());
     queue.enqueue(frameSpec, KernelBundle{UniformRandomKernel{}, randomBuffer, 1234u});
     // END-TUTORIAL-randomLaunch
 
@@ -113,8 +113,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial random intervals", "[docs]", docs::test::TestB
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 16u> hostCo{};
     std::array<float, 16u> hostOc{};
@@ -126,7 +126,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial random intervals", "[docs]", docs::test::TestB
     auto ccBuffer = onHost::allocLike(device, hostCc);
     auto ooBuffer = onHost::allocLike(device, hostOo);
 
-    auto frameSpec = onHost::getFrameSpec<float>(device, coBuffer.getExtents());
+    onHost::concepts::FrameSpec auto frameSpec = onHost::getFrameSpec<float>(device, coBuffer.getExtents());
     queue.enqueue(frameSpec, KernelBundle{IntervalExamplesKernel{}, coBuffer, ocBuffer, ccBuffer, ooBuffer, 999u});
 
     onHost::memcpy(queue, hostCo, coBuffer);
@@ -153,14 +153,14 @@ TEMPLATE_LIST_TEST_CASE("tutorial random normal distribution", "[docs]", docs::t
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<float, 64u> hostValues{};
     auto randomBuffer = onHost::allocLike(device, hostValues);
 
     // BEGIN-TUTORIAL-randomNormalLaunch
-    auto frameSpec = onHost::getFrameSpec<float>(device, randomBuffer.getExtents());
+    onHost::concepts::FrameSpec auto frameSpec = onHost::getFrameSpec<float>(device, randomBuffer.getExtents());
     queue.enqueue(frameSpec, KernelBundle{NormalNoiseKernel{}, randomBuffer, 2025u, 5.0f, 2.0f});
     // END-TUTORIAL-randomNormalLaunch
 

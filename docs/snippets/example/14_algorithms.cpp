@@ -53,8 +53,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial onHost algorithms", "[docs]", docs::test::Test
     auto selector = onHost::makeDeviceSelector(cfg[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
     auto exec = cfg[object::exec];
 
     std::array<int, 8u> hostInput{1, 2, 3, 4, 5, 6, 7, 8};

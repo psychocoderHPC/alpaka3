@@ -44,8 +44,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial multidimensional stencil kernel", "[docs]", do
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue();
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue();
 
     auto const problemExtents = Vec{5u, 5u};
     auto hostInput = onHost::allocHost<int>(problemExtents);
@@ -62,7 +62,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial multidimensional stencil kernel", "[docs]", do
     onHost::memset(queue, outBuffer, 0x00);
 
     // BEGIN-TUTORIAL-multidimFrameSpec
-    auto frameSpec = onHost::getFrameSpec<int>(device, problemExtents);
+    onHost::concepts::FrameSpec auto frameSpec = onHost::getFrameSpec<int>(device, problemExtents);
     // END-TUTORIAL-multidimFrameSpec
 
     // BEGIN-TUTORIAL-multidimKernelLaunch

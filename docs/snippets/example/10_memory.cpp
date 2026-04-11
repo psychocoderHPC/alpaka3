@@ -17,7 +17,7 @@ using namespace alpaka;
 
 TEST_CASE("memory allocations", "[docs]")
 {
-    auto device = onHost::makeHostDevice();
+    onHost::concepts::Device auto device = onHost::makeHostDevice();
     {
         // BEGIN-TUTORIAL-allocBufferDev
         concepts::Vector auto extents = Vec{2u, 3u};
@@ -52,8 +52,8 @@ void callKernel([[maybe_unused]] auto dummyMemory)
 
 TEST_CASE("memory allocations deferred", "[docs]")
 {
-    auto device = onHost::makeHostDevice();
-    auto queue = device.makeQueue();
+    onHost::concepts::Device auto device = onHost::makeHostDevice();
+    onHost::Queue queue = device.makeQueue();
     // BEGIN-TUTORIAL-allocBufferDeferred
     concepts::Vector auto extents = Vec{2u, 3u};
     {
@@ -71,7 +71,7 @@ TEST_CASE("memory allocations deferred", "[docs]")
 
 TEST_CASE("memory allocations like", "[docs]")
 {
-    auto computeDevice = onHost::makeHostDevice();
+    onHost::concepts::Device auto computeDevice = onHost::makeHostDevice();
     // BEGIN-TUTORIAL-allocLike
     concepts::Vector auto extents = Vec{2u, 3u};
     // short notation to allocate memory on the host without a host device as first argument

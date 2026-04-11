@@ -42,8 +42,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial intrinsics", "[docs]", docs::test::TestBackend
     auto selector = onHost::makeDeviceSelector(TestType::makeDict()[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
 
     std::array<uint32_t, 4u> hostInput{0u, 1u, 0b1011'0000u, 0xFFFF'0000u};
     std::array<int32_t, 4u> hostPopCount{};
@@ -58,7 +58,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial intrinsics", "[docs]", docs::test::TestBackend
     onHost::memcpy(queue, inputBuffer, hostInput);
 
     // BEGIN-TUTORIAL-intrinsicLaunch
-    auto frameSpec = onHost::getFrameSpec<uint32_t>(device, inputBuffer.getExtents());
+    onHost::concepts::FrameSpec auto frameSpec = onHost::getFrameSpec<uint32_t>(device, inputBuffer.getExtents());
     queue.enqueue(frameSpec, KernelBundle{BitIntrinsicKernel{}, popCountBuffer, ffsBuffer, clzBuffer, inputBuffer});
     // END-TUTORIAL-intrinsicLaunch
 

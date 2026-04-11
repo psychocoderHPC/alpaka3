@@ -39,8 +39,8 @@ TEMPLATE_LIST_TEST_CASE("tutorial monte carlo pi", "[docs]", docs::test::TestBac
     auto selector = onHost::makeDeviceSelector(cfg[object::deviceSpec]);
     if(!selector.isAvailable())
         return;
-    auto device = selector.makeDevice(0);
-    auto queue = device.makeQueue(queueKind::blocking);
+    onHost::concepts::Device auto device = selector.makeDevice(0);
+    onHost::Queue queue = device.makeQueue(queueKind::blocking);
     auto exec = cfg[object::exec];
 
     constexpr uint32_t numSamples = 16384u;
@@ -48,7 +48,7 @@ TEMPLATE_LIST_TEST_CASE("tutorial monte carlo pi", "[docs]", docs::test::TestBac
     auto hitCountBuffer = onHost::alloc<uint32_t>(device, Vec{1u});
     auto hostHitCount = onHost::allocHostLike(hitCountBuffer);
 
-    auto frameSpec = onHost::getFrameSpec<uint32_t>(device, hitBuffer.getExtents());
+    onHost::concepts::FrameSpec auto frameSpec = onHost::getFrameSpec<uint32_t>(device, hitBuffer.getExtents());
 
     // BEGIN-TUTORIAL-piLaunch
     queue.enqueue(frameSpec, KernelBundle{MonteCarloPiKernel{}, hitBuffer, 2026u});
