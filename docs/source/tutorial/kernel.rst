@@ -47,6 +47,12 @@ On the host side, the pattern is straightforward:
 
   .. literalinclude:: ../../snippets/example/12_kernelIntro.cpp
     :language: cpp
+    :start-after: BEGIN-TUTORIAL-kernelFrameSpec
+    :end-before: END-TUTORIAL-kernelFrameSpec
+    :dedent:
+
+  .. literalinclude:: ../../snippets/example/12_kernelIntro.cpp
+    :language: cpp
     :start-after: BEGIN-TUTORIAL-kernelLaunch
     :end-before: END-TUTORIAL-kernelLaunch
     :dedent:

@@ -57,11 +57,11 @@ TEMPLATE_LIST_TEST_CASE("tutorial kernel intro vector add", "[docs]", docs::test
     onHost::memcpy(queue, rhsBuffer, rhs);
     onHost::memset(queue, resultBuffer, 0x00);
 
-    // BEGIN-TUTORIAL-kernelLaunch
     // BEGIN-TUTORIAL-kernelFrameSpec
     auto frameSpec = onHost::getFrameSpec<int>(device, Vec{static_cast<uint32_t>(result.size())});
     // END-TUTORIAL-kernelFrameSpec
 
+    // BEGIN-TUTORIAL-kernelLaunch
     queue.enqueue(frameSpec, KernelBundle{VectorAddKernel{}, resultBuffer, lhsBuffer, rhsBuffer});
 
     onHost::memcpy(queue, result, resultBuffer);
