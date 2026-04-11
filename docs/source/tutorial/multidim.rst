@@ -57,7 +57,8 @@ neighbors with vector offsets instead of splitting ``x`` and ``y`` into separate
 Launching the 2D Kernel
 -----------------------
 
-The host-side launch is unchanged except that both the problem extents and the frame extents are vectors now.
+The host-side launch is unchanged except that the problem extents are vectors now, and the chosen ``FrameSpec`` is
+multidimensional as well.
 
   .. literalinclude:: ../../snippets/example/18_multidimKernel.cpp
     :language: cpp

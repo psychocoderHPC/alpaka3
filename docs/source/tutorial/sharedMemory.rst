@@ -1,7 +1,7 @@
 Shared Memory
 =============
 
-Shared memory is memory local to a thread block or frame.
+Shared memory is memory local to a thread block.
 It is useful when several threads in the same block need to reuse the same data or communicate through a fast local tile.
 In alpaka there are three common forms:
 
@@ -39,7 +39,8 @@ You can think of this as the smallest useful shared-memory example behind a hist
 A Small Tiled Example
 ---------------------
 
-The following kernel loads one frame into shared memory, synchronizes the block, and then writes the frame in reverse order.
+The following kernel loads one frame-shaped tile into shared memory, synchronizes the block, and then writes that tile in
+reverse order.
 
   .. literalinclude:: ../../snippets/example/16_sharedMemory.cpp
     :language: cpp

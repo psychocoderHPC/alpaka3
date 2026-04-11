@@ -18,7 +18,8 @@ A Small 2D Tile Example
 -----------------------
 
 The following kernel uses a tiny image-style example.
-Each block owns one 2D row stripe of the image, each thread classifies one pixel of that stripe, and one warp walks the same stripe to count how many pixels in that row pass a threshold.
+Each frame-shaped tile covers one 2D row stripe of the image, each thread classifies one pixel of that stripe, and one
+warp walks the same stripe to count how many pixels in that row pass a threshold.
 
   .. literalinclude:: ../../snippets/example/13_hierarchy.cpp
     :language: cpp
@@ -46,10 +47,10 @@ Launching a Hierarchical Kernel
     :end-before: END-TUTORIAL-hierarchyLaunch
     :dedent:
 
-This launch shape deliberately makes that mapping easy to see:
+This frame extent deliberately makes that mapping easy to see:
 
-- the block shape is ``{1, warpSize}``
-- so each block owns one row stripe of the 2D image
+- the frame extent is ``{1, warpSize}``
+- so each frame-shaped tile covers one row stripe of the 2D image
 - and the warp naturally maps to the one-dimensional x direction of that stripe
 
 How to Think About the Hierarchy
@@ -57,7 +58,7 @@ How to Think About the Hierarchy
 
 For beginner kernels, this mental model usually works well:
 
-1. pick the block shape from the tile shape you want in the data
+1. pick the frame extent from the tile shape you want in the data
 2. use threads to cover the elements inside that tile
 3. only use warps when there is a naturally one-dimensional inner direction
 

@@ -27,6 +27,7 @@ Available Parallelism: ``FrameSpec``
 
 ``FrameSpec`` describes the launch-side structure.
 It tells alpaka how many frames are available and how large one frame is.
+It describes the logical parallelism exposed to the kernel, not an exact backend block/thread configuration.
 
 This is the answer to the question:
 "How much parallel structure do I want to make available in this launch?"
