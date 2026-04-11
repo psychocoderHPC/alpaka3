@@ -43,7 +43,9 @@ Launching a Chunked Kernel
     :end-before: END-TUTORIAL-chunkedLaunch
     :dedent:
 
-The example uses ``CVec`` for the frame extent because compile-time-known frame sizes work especially well with shared-memory tiles.
+The example uses ``CVec`` for the frame extent because compile-time-known frame sizes work especially well with
+shared-memory tiles. When the frame extent is a compile-time ``CVec``, that extent is also available as compile-time
+information inside the kernel.
 
 Practical Advice
 ----------------

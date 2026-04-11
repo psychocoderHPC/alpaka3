@@ -73,6 +73,8 @@ Together, frame count and frame extent form the ``FrameSpec``.
 That is the maximum parallel structure exposed to the kernel.
 It is not a promise that the total problem size is exactly equal to ``frameCount * frameExtent``.
 It is also not a promise that the launch will use exactly ``frameCount`` thread blocks of size ``frameExtent``.
+If the frame extent is given as a compile-time ``CVec``, that extent is also available as compile-time information
+inside the kernel.
 
 This is the important beginner picture:
 
@@ -104,6 +106,7 @@ Rules of thumb:
 - ``onHost::getFrameSpec<T>(device, extents)`` is the easiest way to get a reasonable first frame specification.
 - Start with simple sizes. For 1D kernels, something around ``128`` to ``256`` elements per frame is usually a reasonable first try.
 - When you have multiple dimensions, prefer more work in the fastest varying dimension, which is usually ``x``.
+- Use a compile-time ``CVec`` frame extent when the kernel benefits from knowing the frame size at compile time.
 - Start with ``FrameSpec`` unless you have a concrete reason to control block and thread layout manually.
 - If you need exact CUDA-style control over the number of blocks and threads per block, use ``onHost::ThreadSpec`` instead.
 
