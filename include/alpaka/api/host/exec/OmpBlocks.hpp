@@ -43,7 +43,9 @@ namespace alpaka::onHost
 
                 if(m_threadBlocking.getNumThreads().product() != 1u)
                     throw std::runtime_error("Thread block extent must be 1.");
-#    pragma omp parallel
+
+                // uint32_t cores = internal::hwloc::getNumCores(m_numaIdx);
+#    pragma omp parallel /* num_threads(cores)*/
                 {
                     if(m_setThreadAffinity)
                         internal::hwloc::setThreadAffinity(m_numaIdx);
