@@ -19,9 +19,33 @@
 #include <cstdint>
 #include <new>
 
+namespace alpaka
+{
+    // Scalar -> SIMD, SIMD -> SIMD
+    template<class T, uint32_t SimdSize>
+    struct simdized_type
+    {
+        using type = alpaka::Simd<T, SimdSize>;
+    };
+
+    template<class T, uint32_t SimdSize>
+    using simdized_type_t = typename simdized_type<std::remove_cvref_t<T>, SimdSize>::type;
+
+    template<class T, uint32_t SimdSize>
+    auto simdized_value(T const&) -> simdized_type_t<T, SimdSize>
+    {
+        return {};
+    }
+
+    template<class F, class... Ts>
+    void simd_members(F&& f, Ts&&... xs)
+    {
+        std::forward<F>(f)(std::forward<Ts>(xs)...);
+    }
+} // namespace alpaka
+
 namespace alpaka::onAcc::internal
 {
-
     /** concurrent reduce implementation */
     template<typename T_Parent>
     struct SimdTransformReduce
@@ -75,7 +99,9 @@ namespace alpaka::onAcc::internal
                 SimdPtr{data0, *(traverse.begin()), T_MemAlignment{}, CVec<uint32_t, 1u>{}},
                 SimdPtr{dataN, *(traverse.begin()), T_MemAlignment{}, CVec<uint32_t, 1u>{}}...));
 
-            auto retValue = ReturnType::fill(neutralElement);
+            ReturnType retValue;
+            simd_members([](auto& a, auto const& b) { a = b; }, retValue, neutralElement);
+
             for(auto idx : traverse)
             {
                 retValue = reduceFunc(
@@ -87,7 +113,9 @@ namespace alpaka::onAcc::internal
             }
             // std simd operator[] is returning a smart reference, therefore we need to std::as_const to enforce that
             // the operator[] is returning the value_type
-            return std::as_const(retValue)[0];
+            ALPAKA_TYPEOF(neutralElement) result;
+            simd_members([](auto& out, auto const& res) { out = res[0]; }, result, retValue);
+            return result;
         }
 
     private:
@@ -272,7 +300,9 @@ namespace alpaka::onAcc::internal
                 ALPAKA_FORWARD(data0),
                 ALPAKA_FORWARD(dataN)...));
 
-            alpaka::concepts::Simd auto tmpReturn = SimdReturn::fill(neutralElement);
+
+            SimdReturn tmpReturn;
+            simd_members([](auto& a, auto const& b) { a = b; }, tmpReturn, neutralElement);
 
             if constexpr(
                 domainSize.dim() > 1u && std::is_same_v<ALPAKA_TYPEOF(asParent().getTraversePolicy()), traverse::Flat>)
@@ -355,15 +385,24 @@ namespace alpaka::onAcc::internal
             {
                 // std simd non-const operator[] is returning a smart reference, therefore we need std::as_const to
                 // enforce returning a copy of the value.
-                alpaka::concepts::Simd auto funcResult = func(
+                auto funcResult = func(
                     acc,
                     SimdPtr{data0, idx, T_MemAlignment{}, CVec<uint32_t, 1u>{}},
                     SimdPtr{dataN, idx, T_MemAlignment{}, CVec<uint32_t, 1u>{}}...);
 
-                tmpReturn[0] = reduceFunc(std::as_const(tmpReturn)[0], std::as_const(funcResult)[0]);
+                simd_members(
+                    [reduceFunc](auto& out, auto const& value)
+                    { out[0] = reduceFunc(std::as_const(out)[0], value[0]); },
+                    tmpReturn,
+                    funcResult);
             }
 
-            return tmpReturn.reduce(ALPAKA_FORWARD(reduceFunc));
+            ALPAKA_TYPEOF(neutralElement) result;
+            simd_members(
+                [reduceFunc](auto& out, auto const& res) { out = res.reduce(reduceFunc); },
+                result,
+                tmpReturn);
+            return result;
         }
     };
 } // namespace alpaka::onAcc::internal

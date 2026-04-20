@@ -11,6 +11,45 @@
 #define NC 16'777'216
 #define ETOL 1.e-4 /* Tolerance for correctness */
 
+namespace alpaka
+{
+    template<typename T>
+    struct Force
+    {
+        T x;
+        T y;
+        T z;
+
+        Force operator+(Force const& other)
+        {
+            return Force{x + other.x, y + other.y, z + other.z};
+        }
+    };
+
+    template<class F, typename T, class... Rest>
+    void simd_members(F&& f, Force<T>& p, Rest&&... rest)
+    {
+        simd_members(f, p.x, std::forward<Rest>(rest).x...);
+        simd_members(f, p.y, std::forward<Rest>(rest).y...);
+        simd_members(f, p.z, std::forward<Rest>(rest).z...);
+    }
+
+    template<class F, typename T, class... Rest>
+    void simd_members(F&& f, Force<T> const& p, Rest&&... rest)
+    {
+        simd_members(f, p.x, std::forward<Rest>(rest).x...);
+        simd_members(f, p.y, std::forward<Rest>(rest).y...);
+        simd_members(f, p.z, std::forward<Rest>(rest).z...);
+    }
+
+    template<typename T, uint32_t SimdSize>
+    struct simdized_type<Force<T>, SimdSize>
+    {
+        using type = Force<alpaka::Simd<T, SimdSize>>;
+    };
+
+} // namespace alpaka
+
 struct Kernel
 {
     template<typename T_Type, uint32_t T_maxConcurrencyInByte, uint32_t T_cacheLineInByte>
@@ -52,12 +91,14 @@ struct Kernel
 
         constexpr uint32_t width = std::min(maxArchSimdWidth, calcSimdWidth<float, maxConcurrecy, cachelineBytes>());
 
-        auto force = Vec<Simd<float, width>, 3u>::fill(Simd<float, width>::fill(0.));
+        auto force = Force<float>{0, 0, 0};
 
         auto simdGrid = onAcc::SimdAlgo{onAcc::WorkerGroup{Vec{0}, Vec{1}}};
-        simdGrid.concurrent(
+        force = simdGrid.transformReduce(
             acc,
             Vec{count1},
+            force,
+            std::plus{},
             [&](auto const&, auto&& simd_xx1, auto&& simd_yy1, auto&& simd_zz1, auto&& simd_mass1) constexpr
             {
                 auto dxc = simd_xx1.load() - xxi;
@@ -80,27 +121,16 @@ struct Kernel
                 auto fac = SimdType::fill(0.f);
                 where(r2 > 0.0f, fac) = m * f;
 
-                if constexpr(SimdType::width() == 1)
-                {
-                    force.x()[0] += (fac * dxc)[0];
-                    force.y()[0] += (fac * dyc)[0];
-                    force.z()[0] += (fac * dzc)[0];
-                }
-                else
-                {
-                    force.x() += (fac * dxc);
-                    force.y() += (fac * dyc);
-                    force.z() += (fac * dzc);
-                }
+                return Force<SimdType>{(fac * dxc), (fac * dyc), (fac * dzc)};
             },
             xx1,
             yy1,
             zz1,
             mass1);
 
-        *dxi = force.x().sum();
-        *dyi = force.y().sum();
-        *dzi = force.z().sum();
+        *dxi = force.x;
+        *dyi = force.y;
+        *dzi = force.z;
     }
 
     ALPAKA_FN_ACC auto operator()(

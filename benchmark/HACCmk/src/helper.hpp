@@ -18,7 +18,7 @@ namespace hacc
     {
         numElements = defaultProblemSize;
         numberOfRuns = 1;
-
+#if 0
         int opt;
         while((opt = getopt(argc, argv, "hn:r:")) != -1)
         {
@@ -71,6 +71,7 @@ namespace hacc
                 return EXIT_FAILURE;
             }
         }
+#endif
 
         return EXIT_SUCCESS;
     }
