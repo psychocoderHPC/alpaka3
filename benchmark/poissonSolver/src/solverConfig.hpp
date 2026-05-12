@@ -10,8 +10,8 @@
 #include <cstdint>
 #include <string_view>
 
-#ifndef POISSON_SOLVER_DIMENSIONS
-#    define POISSON_SOLVER_DIMENSIONS 2u
+#ifndef ALPAKA_BENCHMARK_POISSON_SOLVER_DIMS
+#    define ALPAKA_BENCHMARK_POISSON_SOLVER_DIMS 2u
 #endif
 
 namespace poisson
@@ -19,7 +19,7 @@ namespace poisson
     using IdxType = uint32_t;
     using Real = double;
 
-    inline constexpr uint32_t dimensions = static_cast<uint32_t>(POISSON_SOLVER_DIMENSIONS);
+    inline constexpr uint32_t dimensions = static_cast<uint32_t>(ALPAKA_BENCHMARK_POISSON_SOLVER_DIMS);
     static_assert(dimensions >= 1u && dimensions <= 4u, "Poisson solver dimensions must be in [1, 4].");
 
     using Extent = alpaka::Vec<IdxType, dimensions>;

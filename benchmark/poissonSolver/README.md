@@ -24,13 +24,13 @@ https://arxiv.org/abs/2503.08935
   - solver time
   - preconditioner time
 
-The compile-time dimension is configured with the CMake cache variable `POISSON_SOLVER_DIMENSIONS`.
+The compile-time dimension is configured with the CMake cache variable `alpaka_BENCHMARK_POISSON_SOLVER_DIMS`.
 The default checked-in value is `2`.
 
 ## Build
 
 ```bash
-cmake -S /workspace -B build-poisson-2d -Dalpaka_BENCHMARKS=ON -DPOISSON_SOLVER_DIMENSIONS=2
+cmake -S /workspace -B build-poisson-2d -Dalpaka_BENCHMARKS=ON -Dalpaka_BENCHMARK_POISSON_SOLVER_DIMS=2
 cmake --build build-poisson-2d --target poissonSolver -j 4
 ```
 
@@ -61,7 +61,7 @@ Dimension-dependent size parameters:
 ### 1D
 
 ```bash
-cmake -S /workspace -B build-poisson-1d -Dalpaka_BENCHMARKS=ON -DPOISSON_SOLVER_DIMENSIONS=1
+cmake -S /workspace -B build-poisson-1d -Dalpaka_BENCHMARKS=ON -Dalpaka_BENCHMARK_POISSON_SOLVER_DIMS=1
 cmake --build build-poisson-1d --target poissonSolver -j 4
 ./build-poisson-1d/benchmark/poissonSolver/poissonSolver \
   --size-x 10001 \
@@ -74,7 +74,7 @@ cmake --build build-poisson-1d --target poissonSolver -j 4
 ### 2D
 
 ```bash
-cmake -S /workspace -B build-poisson-2d -Dalpaka_BENCHMARKS=ON -DPOISSON_SOLVER_DIMENSIONS=2
+cmake -S /workspace -B build-poisson-2d -Dalpaka_BENCHMARKS=ON -Dalpaka_BENCHMARK_POISSON_SOLVER_DIMS=2
 cmake --build build-poisson-2d --target poissonSolver -j 4
 ./build-poisson-2d/benchmark/poissonSolver/poissonSolver \
   --size-x 257 \
@@ -88,7 +88,7 @@ cmake --build build-poisson-2d --target poissonSolver -j 4
 ### 3D
 
 ```bash
-cmake -S /workspace -B build-poisson-3d -Dalpaka_BENCHMARKS=ON -DPOISSON_SOLVER_DIMENSIONS=3
+cmake -S /workspace -B build-poisson-3d -Dalpaka_BENCHMARKS=ON -Dalpaka_BENCHMARK_POISSON_SOLVER_DIMS=3
 cmake --build build-poisson-3d --target poissonSolver -j 4
 ./build-poisson-3d/benchmark/poissonSolver/poissonSolver \
   --size-x 33 \
@@ -103,7 +103,7 @@ cmake --build build-poisson-3d --target poissonSolver -j 4
 ### 4D
 
 ```bash
-cmake -S /workspace -B build-poisson-4d -Dalpaka_BENCHMARKS=ON -DPOISSON_SOLVER_DIMENSIONS=4
+cmake -S /workspace -B build-poisson-4d -Dalpaka_BENCHMARKS=ON -Dalpaka_BENCHMARK_POISSON_SOLVER_DIMS=4
 cmake --build build-poisson-4d --target poissonSolver -j 4
 ./build-poisson-4d/benchmark/poissonSolver/poissonSolver \
   --size-x 17 \
