@@ -27,6 +27,10 @@ if(EXISTS "${_POISSON_SOLVER_MAIN}")
     set_target_properties(poissonSolver PROPERTIES FOLDER benchmarks/poissonSolver)
 
     add_test(NAME poissonSolver COMMAND "poissonSolver")
+    add_test(
+        NAME poissonSolver_jacobi
+        COMMAND "poissonSolver" --size-x 41 --size-y 29 --preconditioner jacobi --preconditioner-max-steps 4
+    )
 else()
     message(STATUS "Skipping benchmark target poissonSolver because src/main.cpp is not present yet.")
 endif()

@@ -52,7 +52,7 @@ namespace poisson
                    | Opt(options.maxSteps, "maxSteps")["--max-steps"]("Maximum number of solver iterations")
                    | Opt(options.epsilon, "epsilon")["--epsilon"]("Convergence threshold")
                    | Opt(options.preconditioner, "preconditioner")["--preconditioner"](
-                       "Preconditioner to use: none/off or jacobi")
+                       "Preconditioner to use: none/off, jacobi, or chebyshev")
                    | Opt(options.preconditionerMaxSteps, "preconditionerMaxSteps")["--preconditioner-max-steps"](
                        "Maximum number of preconditioner iterations");
 
@@ -116,9 +116,11 @@ namespace poisson
             options.preconditioner = "none";
         }
 
-        if(options.preconditioner != "none" && options.preconditioner != "jacobi")
+        if(
+            options.preconditioner != "none" && options.preconditioner != "jacobi"
+            && options.preconditioner != "chebyshev")
         {
-            std::cerr << "Error: preconditioner must be one of: none, off, jacobi.\n";
+            std::cerr << "Error: preconditioner must be one of: none, off, jacobi, chebyshev.\n";
             return EXIT_FAILURE;
         }
 

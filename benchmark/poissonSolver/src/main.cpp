@@ -182,6 +182,31 @@ namespace poisson
         return preconditioner == "jacobi";
     }
 
+    auto isChebyshevEnabled(std::string_view const preconditioner) -> bool
+    {
+        return preconditioner == "chebyshev";
+    }
+
+    auto dirichletEigenvalueBounds(Extent2D const extent, Real const invHx2, Real const invHy2) -> std::pair<Real, Real>
+    {
+        constexpr Real pi = alpaka::math::constants::pi;
+
+        auto eigenvalue1d = [](IdxType const interiorPoints, Real const invH2, IdxType const mode) -> Real
+        {
+            Real const angle
+                = static_cast<Real>(mode) * alpaka::math::constants::pi / static_cast<Real>(interiorPoints + 1u);
+            return 2.0 * (1.0 - std::cos(angle)) * invH2;
+        };
+
+        IdxType const interiorX = extent.x() - 2u;
+        IdxType const interiorY = extent.y() - 2u;
+
+        Real const lambdaMin = eigenvalue1d(interiorX, invHx2, 1u) + eigenvalue1d(interiorY, invHy2, 1u);
+        Real const lambdaMax
+            = eigenvalue1d(interiorX, invHx2, interiorX) + eigenvalue1d(interiorY, invHy2, interiorY);
+        return {lambdaMin, lambdaMax};
+    }
+
     auto applyOperator(
         auto const& queue,
         auto const exec,
@@ -232,9 +257,9 @@ namespace poisson
 
         Real maxError = 0.0;
         auto const extent = solutionHost.getExtents();
-        for(IdxType y = 1u; y + 1u < extent.y(); ++y)
+        for(IdxType y = 0u; y < extent.y(); ++y)
         {
-            for(IdxType x = 1u; x + 1u < extent.x(); ++x)
+            for(IdxType x = 0u; x < extent.x(); ++x)
             {
                 maxError = std::max(maxError, std::abs(solutionHost[Extent2D{y, x}] - referenceHost[Extent2D{y, x}]));
             }
@@ -281,6 +306,45 @@ namespace poisson
         preconditionerSeconds += std::chrono::duration<double>(end - start).count();
     }
 
+    auto applyChebyshevPreconditioner(
+        auto const& queue,
+        auto const exec,
+        auto& z,
+        auto& residual,
+        auto& direction,
+        auto const& rhs,
+        Extent2D const extent,
+        Real const invHx2,
+        Real const invHy2,
+        uint32_t const steps,
+        double& preconditionerSeconds) -> void
+    {
+        using namespace alpaka;
+
+        auto const [lambdaMin, lambdaMax] = dirichletEigenvalueBounds(extent, invHx2, invHy2);
+        Real const d = 0.5 * (lambdaMax + lambdaMin);
+        Real const c = 0.5 * (lambdaMax - lambdaMin);
+
+        auto const start = std::chrono::steady_clock::now();
+        onHost::fill(queue, z, Real{0.0});
+        onHost::transform(queue, exec, direction, Scale{1.0 / d}, rhs);
+        onHost::transform(queue, exec, z, std::plus{}, z, direction);
+
+        Real alpha = 1.0 / d;
+        for(uint32_t iteration = 1u; iteration < steps; ++iteration)
+        {
+            applyOperator(queue, exec, residual, z, extent, invHx2, invHy2);
+            onHost::transform(queue, exec, residual, std::minus{}, rhs, residual);
+            Real const beta = std::pow(0.5 * c * alpha, 2);
+            alpha = 1.0 / (d - beta);
+            onHost::transform(queue, exec, direction, ChebyshevStep{alpha, beta}, residual, direction);
+            onHost::transform(queue, exec, z, std::plus{}, z, direction);
+        }
+        onHost::wait(queue);
+        auto const end = std::chrono::steady_clock::now();
+        preconditionerSeconds += std::chrono::duration<double>(end - start).count();
+    }
+
     auto solve(
         auto const& queue,
         auto const exec,
@@ -302,6 +366,7 @@ namespace poisson
         auto y = onHost::allocLikeDeferred(queue, solution);
         auto z = onHost::allocLikeDeferred(queue, solution);
         auto tmp = onHost::allocLikeDeferred(queue, solution);
+        auto preconditionerDirection = onHost::allocLikeDeferred(queue, solution);
         auto scalar = onHost::allocDeferred<Real>(queue, 1u);
 
         onHost::fill(queue, solution, Real{0.0});
@@ -353,6 +418,19 @@ namespace poisson
                     invHy2,
                     options.preconditionerMaxSteps,
                     stats.preconditionerSeconds);
+            else if(isChebyshevEnabled(options.preconditioner))
+                applyChebyshevPreconditioner(
+                    queue,
+                    exec,
+                    y,
+                    tmp,
+                    preconditionerDirection,
+                    p,
+                    extent,
+                    invHx2,
+                    invHy2,
+                    options.preconditionerMaxSteps,
+                    stats.preconditionerSeconds);
             else
                 onHost::memcpy(queue, y, p);
 
@@ -379,6 +457,19 @@ namespace poisson
                     exec,
                     z,
                     tmp,
+                    s,
+                    extent,
+                    invHx2,
+                    invHy2,
+                    options.preconditionerMaxSteps,
+                    stats.preconditionerSeconds);
+            else if(isChebyshevEnabled(options.preconditioner))
+                applyChebyshevPreconditioner(
+                    queue,
+                    exec,
+                    z,
+                    tmp,
+                    preconditionerDirection,
                     s,
                     extent,
                     invHx2,
@@ -438,8 +529,8 @@ namespace poisson
 
         onHost::Queue queue = device.makeQueue(queueKind::blocking);
         Extent2D const extent{options.sizeY, options.sizeX};
-        Real const hx = 1.0 / static_cast<Real>(extent.x() - 1u);
-        Real const hy = 1.0 / static_cast<Real>(extent.y() - 1u);
+        Real const hx = 1.0 / static_cast<Real>(options.sizeX - 1u);
+        Real const hy = 1.0 / static_cast<Real>(options.sizeY - 1u);
         Real const invHx2 = 1.0 / (hx * hx);
         Real const invHy2 = 1.0 / (hy * hy);
 
@@ -464,7 +555,8 @@ namespace poisson
 
         std::cout << "==============================" << '\n';
         printDeviceInfo(deviceSpec, exec, device);
-        std::cout << "matrix size: " << extent.x() << " x " << extent.y() << " (" << squareExtent(extent) << " cells)\n";
+        std::cout << "matrix size: " << options.sizeX << " x " << options.sizeY << " (" << squareExtent(extent)
+                  << " cells)\n";
         std::cout << "preconditioner: " << options.preconditioner << '\n';
         std::cout << "max steps: " << options.maxSteps << '\n';
         std::cout << "preconditioner max steps: " << options.preconditionerMaxSteps << '\n';
