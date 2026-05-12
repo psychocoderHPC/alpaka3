@@ -6,6 +6,9 @@ cmake_minimum_required(VERSION 3.25)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 project(poissonSolver LANGUAGES CXX)
 
+set(POISSON_SOLVER_DIMENSIONS "2" CACHE STRING "Compile-time number of dimensions for the Poisson solver benchmark")
+set_property(CACHE POISSON_SOLVER_DIMENSIONS PROPERTY STRINGS 1 2 3 4)
+
 if(NOT TARGET alpaka::alpaka)
     option(alpaka_USE_SOURCE_TREE "Use alpaka's source tree instead of an alpaka installation" OFF)
     if(alpaka_USE_SOURCE_TREE)
@@ -22,15 +25,35 @@ set(_POISSON_SOLVER_MAIN "${CMAKE_CURRENT_LIST_DIR}/src/main.cpp")
 if(EXISTS "${_POISSON_SOLVER_MAIN}")
     add_executable(poissonSolver "${_POISSON_SOLVER_MAIN}")
     target_include_directories(poissonSolver PRIVATE "src")
+    target_compile_definitions(poissonSolver PRIVATE POISSON_SOLVER_DIMENSIONS=${POISSON_SOLVER_DIMENSIONS})
     target_link_libraries(poissonSolver PRIVATE alpaka::alpaka Catch2::Catch2)
     alpaka_finalize(poissonSolver)
     set_target_properties(poissonSolver PROPERTIES FOLDER benchmarks/poissonSolver)
 
-    add_test(NAME poissonSolver COMMAND "poissonSolver")
-    add_test(
-        NAME poissonSolver_jacobi
-        COMMAND "poissonSolver" --size-x 41 --size-y 29 --preconditioner jacobi --preconditioner-max-steps 4
-    )
+    if(POISSON_SOLVER_DIMENSIONS STREQUAL "1")
+        add_test(
+            NAME poissonSolver
+            COMMAND "poissonSolver" --size-x 10001 --max-steps 400 --epsilon 1e-7 --preconditioner jacobi
+                    --preconditioner-max-steps 4
+        )
+    elseif(POISSON_SOLVER_DIMENSIONS STREQUAL "2")
+        add_test(NAME poissonSolver COMMAND "poissonSolver" --size-x 321 --size-y 321 --max-steps 200 --epsilon 1e-8)
+        add_test(
+            NAME poissonSolver_jacobi
+            COMMAND "poissonSolver" --size-x 257 --size-y 193 --max-steps 200 --epsilon 1e-8 --preconditioner jacobi
+                    --preconditioner-max-steps 4
+        )
+    elseif(POISSON_SOLVER_DIMENSIONS STREQUAL "3")
+        add_test(
+            NAME poissonSolver
+            COMMAND "poissonSolver" --size-x 65 --size-y 49 --size-z 33 --max-steps 200 --epsilon 1e-8
+        )
+    elseif(POISSON_SOLVER_DIMENSIONS STREQUAL "4")
+        add_test(
+            NAME poissonSolver
+            COMMAND "poissonSolver" --size-x 33 --size-y 25 --size-z 17 --size-w 9 --max-steps 200 --epsilon 1e-8
+        )
+    endif()
 else()
     message(STATUS "Skipping benchmark target poissonSolver because src/main.cpp is not present yet.")
 endif()

@@ -1,0 +1,29 @@
+/* Copyright 2026 OpenAI
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
+#pragma once
+
+#include <alpaka/alpaka.hpp>
+
+#include <array>
+#include <cstdint>
+#include <string_view>
+
+#ifndef POISSON_SOLVER_DIMENSIONS
+#    define POISSON_SOLVER_DIMENSIONS 2u
+#endif
+
+namespace poisson
+{
+    using IdxType = uint32_t;
+    using Real = double;
+
+    inline constexpr uint32_t dimensions = static_cast<uint32_t>(POISSON_SOLVER_DIMENSIONS);
+    static_assert(dimensions >= 1u && dimensions <= 4u, "Poisson solver dimensions must be in [1, 4].");
+
+    using Extent = alpaka::Vec<IdxType, dimensions>;
+    using RealVec = alpaka::Vec<Real, dimensions>;
+
+    inline constexpr std::array<std::string_view, 4u> dimensionLabels{"x", "y", "z", "w"};
+} // namespace poisson
