@@ -26,4 +26,9 @@ namespace poisson
     using RealVec = alpaka::Vec<Real, dimensions>;
 
     inline constexpr std::array<std::string_view, 4u> dimensionLabels{"x", "y", "z", "w"};
+
+    ALPAKA_FN_HOST_ACC constexpr auto alpakaDimFromUserDim(uint32_t const userDim) -> uint32_t
+    {
+        return dimensions - 1u - userDim;
+    }
 } // namespace poisson

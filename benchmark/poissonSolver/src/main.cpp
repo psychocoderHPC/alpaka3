@@ -124,10 +124,10 @@ namespace poisson
         for(uint32_t term = 0u; term < 2u; ++term)
         {
             Real termValue = term == 0u ? 1.0 : 0.5;
-            for(uint32_t dim = 0u; dim < dimensions; ++dim)
+            for(uint32_t userDim = 0u; userDim < dimensions; ++userDim)
             {
-                Real const mode = static_cast<Real>(((dim + term) % dimensions) + 1u);
-                termValue *= alpaka::math::sin(mode * pi * position[dim]);
+                Real const mode = static_cast<Real>(((userDim + term) % dimensions) + 1u);
+                termValue *= alpaka::math::sin(mode * pi * position[alpakaDimFromUserDim(userDim)]);
             }
             value += termValue;
         }
@@ -193,11 +193,11 @@ namespace poisson
     auto formatExtent(Extent const extent) -> std::string
     {
         std::ostringstream stream;
-        for(uint32_t dim = 0u; dim < dimensions; ++dim)
+        for(uint32_t userDim = 0u; userDim < dimensions; ++userDim)
         {
-            if(dim != 0u)
+            if(userDim != 0u)
                 stream << " x ";
-            stream << extent[dim];
+            stream << extent[alpakaDimFromUserDim(userDim)];
         }
         return stream.str();
     }
@@ -215,16 +215,16 @@ namespace poisson
     auto makeExtent(std::array<IdxType, dimensions> const& sizes) -> Extent
     {
         auto extent = Extent::fill(0u);
-        for(uint32_t dim = 0u; dim < dimensions; ++dim)
-            extent[dim] = sizes[dim];
+        for(uint32_t userDim = 0u; userDim < dimensions; ++userDim)
+            extent[alpakaDimFromUserDim(userDim)] = sizes[userDim];
         return extent;
     }
 
     auto makeSpacing(std::array<IdxType, dimensions> const& sizes) -> RealVec
     {
         auto spacing = RealVec::fill(0.0);
-        for(uint32_t dim = 0u; dim < dimensions; ++dim)
-            spacing[dim] = 1.0 / static_cast<Real>(sizes[dim] - 1u);
+        for(uint32_t userDim = 0u; userDim < dimensions; ++userDim)
+            spacing[alpakaDimFromUserDim(userDim)] = 1.0 / static_cast<Real>(sizes[userDim] - 1u);
         return spacing;
     }
 
