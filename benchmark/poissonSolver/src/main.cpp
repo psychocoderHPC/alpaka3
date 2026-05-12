@@ -134,6 +134,11 @@ namespace poisson
         return value;
     }
 
+    ALPAKA_FN_HOST_ACC auto interiorOffset() -> Extent
+    {
+        return Extent::fill(1u);
+    }
+
     struct ApplyOperatorKernel
     {
         template<typename TAcc>
@@ -146,26 +151,16 @@ namespace poisson
         {
             using namespace alpaka;
 
-            for(uint32_t dim = 0u; dim < dimensions; ++dim)
-            {
-                if(extent[dim] < 3u)
-                    return;
-            }
-
-            Real diagonal = 0.0;
-            for(uint32_t dim = 0u; dim < dimensions; ++dim)
-                diagonal += 2.0 * invH2[dim];
-
-            auto const interiorBegin = Extent::fill(1u);
+            auto const interiorBegin = interiorOffset();
             auto const interiorEnd = extent - Extent::fill(1u);
             for(auto idx :
                 onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{interiorBegin, interiorEnd}))
             {
-                Real value = diagonal * in[idx];
+                Real value = 0.0;
                 for(uint32_t dim = 0u; dim < dimensions; ++dim)
                 {
                     auto const direction = unitDirection(dim);
-                    value -= invH2[dim] * (in[idx - direction] + in[idx + direction]);
+                    value += invH2[dim] * (2.0 * in[idx] - in[idx - direction] - in[idx + direction]);
                 }
                 out[idx] = value;
             }
@@ -202,9 +197,9 @@ namespace poisson
         return stream.str();
     }
 
-    auto isJacobiEnabled(std::string_view const preconditioner) -> bool
+    auto isJacobiIterationEnabled(std::string_view const preconditioner) -> bool
     {
-        return preconditioner == "jacobi";
+        return preconditioner == "jacobi-iter";
     }
 
     auto isChebyshevEnabled(std::string_view const preconditioner) -> bool
@@ -340,7 +335,15 @@ namespace poisson
         return {lambdaMin, lambdaMax};
     }
 
-    auto applyJacobiPreconditioner(
+    auto chebyshevEigenvalueBounds(Extent const extent, RealVec const invH2) -> std::pair<Real, Real>
+    {
+        auto [lambdaMin, lambdaMax] = dirichletEigenvalueBounds(extent, invH2);
+        lambdaMin *= 1.0 - 1.0e-4;
+        lambdaMax *= 10.0;
+        return {lambdaMin, lambdaMax};
+    }
+
+    auto applyJacobiIterationPreconditioner(
         auto const& queue,
         auto const exec,
         auto& z,
@@ -383,7 +386,7 @@ namespace poisson
     {
         using namespace alpaka;
 
-        auto const [lambdaMin, lambdaMax] = dirichletEigenvalueBounds(extent, invH2);
+        auto const [lambdaMin, lambdaMax] = chebyshevEigenvalueBounds(extent, invH2);
         Real const d = 0.5 * (lambdaMax + lambdaMin);
         Real const c = 0.5 * (lambdaMax - lambdaMin);
 
@@ -425,6 +428,7 @@ namespace poisson
         auto scalar = onHost::allocDeferred<Real>(queue, 1u);
 
         onHost::fill(queue, solution, Real{0.0});
+        onHost::fill(queue, r, Real{0.0});
         onHost::fill(queue, p, Real{0.0});
         onHost::fill(queue, v, Real{0.0});
 
@@ -461,8 +465,8 @@ namespace poisson
                 onHost::memcpy(queue, p, r);
             }
 
-            if(isJacobiEnabled(options.preconditioner))
-                applyJacobiPreconditioner(
+            if(isJacobiIterationEnabled(options.preconditioner))
+                applyJacobiIterationPreconditioner(
                     queue,
                     exec,
                     y,
@@ -504,8 +508,8 @@ namespace poisson
                 break;
             }
 
-            if(isJacobiEnabled(options.preconditioner))
-                applyJacobiPreconditioner(
+            if(isJacobiIterationEnabled(options.preconditioner))
+                applyJacobiIterationPreconditioner(
                     queue,
                     exec,
                     z,
@@ -550,6 +554,7 @@ namespace poisson
         auto const solveEnd = std::chrono::steady_clock::now();
         stats.solverSeconds = std::chrono::duration<double>(solveEnd - solveStart).count();
         applyOperator(queue, exec, tmp, solution, extent, invH2);
+        onHost::fill(queue, r, Real{0.0});
         onHost::transform(queue, exec, r, std::minus{}, rhs, tmp);
         stats.finalResidual = l2Norm(queue, exec, scalar, r) / rhsNorm;
         return stats;

@@ -1,22 +1,30 @@
 # Poisson Solver Benchmark
 
 This benchmark implements a matrix-free Poisson solver in `alpaka3` using a preconditioned BiCGStab iteration.
-The current implementation targets structured Cartesian grids with Dirichlet boundary conditions and supports
-compile-time selection of `1`, `2`, `3`, or `4` dimensions.
+It targets structured Cartesian grids with homogeneous Dirichlet boundaries and supports compile-time selection
+of `1`, `2`, `3`, or `4` dimensions.
 
-The implementation is based on the ideas described in:
+The implementation is derived from the solver ideas described in:
 
 Luca Pennati, Måns I. Andersson, Klaus Steiniger, Rene Widera, Tapish Narwal, Michael Bussmann, Stefano Markidis,
 "A Parallel and Highly-Portable HPC Poisson Solver: Preconditioned Bi-CGSTAB with alpaka",
 arXiv:2503.08935, 2025.
 https://arxiv.org/abs/2503.08935
 
+This benchmark is not a paper-equivalent reproduction. The current code runs on a single selected alpaka device,
+uses a manufactured analytical solution on the unit box for validation, and builds the right-hand side from
+`rhs = A * exact` with the same matrix-free operator used by the solver. It does not model the paper's distributed
+block-Jacobi setup or its full benchmark problem.
+
 ## Solver Overview
 
 - Solver: BiCGStab
-- Preconditioners: `none`, `jacobi`, `chebyshev`
+- Preconditioners:
+  - `none`: no preconditioning
+  - `jacobi-iter` (alias: `jacobi`): repeated diagonal Jacobi relaxation steps applied as a preconditioner
+  - `chebyshev`: Chebyshev-style polynomial preconditioner using heuristically widened Dirichlet Laplacian eigenvalue bounds
 - Operator: matrix-free N-dimensional Laplacian / Poisson stencil
-- Validation: manufactured analytical solution
+- Validation: manufactured analytical solution with homogeneous Dirichlet boundaries
 - Runtime reporting:
   - device information
   - matrix size
@@ -49,6 +57,9 @@ Common runtime parameters:
 - `--preconditioner`
 - `--preconditioner-max-steps`
 
+The default `--preconditioner-max-steps` is `24`. This aligns the default Chebyshev iteration count more closely with
+the paper-inspired setup, and it also affects `jacobi-iter` because both preconditioners use the same CLI parameter.
+
 Dimension-dependent size parameters:
 
 - 1D: `--size-x`
@@ -67,8 +78,8 @@ cmake --build build-poisson-1d --target poissonSolver -j 4
   --size-x 10001 \
   --max-steps 400 \
   --epsilon 1e-7 \
-  --preconditioner jacobi \
-  --preconditioner-max-steps 4
+  --preconditioner chebyshev \
+  --preconditioner-max-steps 24
 ```
 
 ### 2D

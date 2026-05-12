@@ -40,8 +40,8 @@ if(EXISTS "${_POISSON_SOLVER_MAIN}")
     if(alpaka_BENCHMARK_POISSON_SOLVER_DIMS STREQUAL "1")
         add_test(
             NAME poissonSolver
-            COMMAND "poissonSolver" --size-x 10001 --max-steps 400 --epsilon 1e-7 --preconditioner jacobi
-                    --preconditioner-max-steps 4
+            COMMAND "poissonSolver" --size-x 10001 --max-steps 400 --epsilon 1e-7 --preconditioner chebyshev
+                    --preconditioner-max-steps 24
         )
     elseif(alpaka_BENCHMARK_POISSON_SOLVER_DIMS STREQUAL "2")
         add_test(NAME poissonSolver COMMAND "poissonSolver" --size-x 321 --size-y 321 --max-steps 200 --epsilon 1e-8)
