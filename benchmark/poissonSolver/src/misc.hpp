@@ -29,7 +29,7 @@ namespace poisson
 
     inline constexpr uint32_t defaultMaxSteps = 50u;
     inline constexpr uint32_t defaultPreconditionerMaxSteps = 24u;
-    inline constexpr double defaultEpsilon = 1.0e-8;
+    inline constexpr double defaultEpsilon = 1.0e-10;
     inline constexpr char defaultPreconditioner[] = "none";
 
     inline constexpr auto defaultSizes()
@@ -70,7 +70,8 @@ namespace poisson
                    | Opt(options.maxSteps, "maxSteps")["--max-steps"]("Maximum number of solver iterations")
                    | Opt(options.epsilon, "epsilon")["--epsilon"]("Convergence threshold")
                    | Opt(options.preconditioner, "preconditioner")["--preconditioner"](
-                       "Preconditioner to use: none/off, jacobi-iter (alias: jacobi), or chebyshev")
+                       "Preconditioner to use: none/off, jacobi-iter (alias: jacobi), or chebyshev "
+                       "(aliases: g-ci, g-nocomm-ci)")
                    | Opt(options.preconditionerMaxSteps, "preconditionerMaxSteps")["--preconditioner-max-steps"](
                        "Maximum number of preconditioner iterations");
 
@@ -132,12 +133,18 @@ namespace poisson
         {
             options.preconditioner = "jacobi-iter";
         }
+        else if(options.preconditioner == "g-ci" || options.preconditioner == "g-nocomm-ci")
+        {
+            options.preconditioner = "chebyshev";
+        }
 
         if(
             options.preconditioner != "none" && options.preconditioner != "jacobi-iter"
             && options.preconditioner != "chebyshev")
         {
-            std::cerr << "Error: preconditioner must be one of: none, off, jacobi-iter, jacobi, diagonal-jacobi, chebyshev.\n";
+            std::cerr
+                << "Error: preconditioner must be one of: none, off, jacobi-iter, jacobi, diagonal-jacobi,"
+                   " chebyshev, g-ci, g-nocomm-ci.\n";
             return EXIT_FAILURE;
         }
 

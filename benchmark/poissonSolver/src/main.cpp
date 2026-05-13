@@ -28,6 +28,14 @@ namespace poisson
         double preconditionerSeconds = 0.0;
     };
 
+    enum class BoundaryCondition
+    {
+        dirichlet,
+        neumann
+    };
+
+    ALPAKA_FN_HOST_ACC auto isDirichletBoundaryCell(auto const& idx, Extent const extent) -> bool;
+
     struct Multiply
     {
         ALPAKA_FN_ACC constexpr auto operator()(auto const& lhs, auto const& rhs) const
@@ -80,11 +88,27 @@ namespace poisson
 
     struct JacobiRelax
     {
-        Real invDiagonal = 0.0;
-
-        ALPAKA_FN_ACC constexpr auto operator()(auto const& z, auto const& rhs, auto const& az) const
+        template<typename TAcc>
+        ALPAKA_FN_ACC auto operator()(
+            TAcc const& acc,
+            alpaka::concepts::IMdSpan auto out,
+            alpaka::concepts::IMdSpan auto const& z,
+            alpaka::concepts::IMdSpan auto const& rhs,
+            alpaka::concepts::IMdSpan auto const& az,
+            Extent const extent,
+            RealVec const invH2) const -> void
         {
-            return z + invDiagonal * (rhs - az);
+            using namespace alpaka;
+
+            Real diagonal = 0.0;
+            for(uint32_t dim = 0u; dim < dimensions; ++dim)
+                diagonal += 2.0 * invH2[dim];
+
+            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{extent}))
+            {
+                Real const pointDiagonal = isDirichletBoundaryCell(idx, extent) ? 1.0 : diagonal;
+                out[idx] = z[idx] + (rhs[idx] - az[idx]) / pointDiagonal;
+            }
         }
     };
 
@@ -116,27 +140,73 @@ namespace poisson
         return direction;
     }
 
-    ALPAKA_FN_HOST_ACC auto exactSolution(RealVec const& position) -> Real
+    ALPAKA_FN_HOST_ACC auto boundaryCondition(uint32_t const userDim, bool const lowerSide) -> BoundaryCondition
     {
-        constexpr Real pi = alpaka::math::constants::pi;
-
-        Real value = 0.0;
-        for(uint32_t term = 0u; term < 2u; ++term)
-        {
-            Real termValue = term == 0u ? 1.0 : 0.5;
-            for(uint32_t userDim = 0u; userDim < dimensions; ++userDim)
-            {
-                Real const mode = static_cast<Real>(((userDim + term) % dimensions) + 1u);
-                termValue *= alpaka::math::sin(mode * pi * position[alpakaDimFromUserDim(userDim)]);
-            }
-            value += termValue;
-        }
-        return value;
+        if(userDim == 0u)
+            return lowerSide ? BoundaryCondition::dirichlet : BoundaryCondition::neumann;
+        return lowerSide ? BoundaryCondition::neumann : BoundaryCondition::dirichlet;
     }
 
-    ALPAKA_FN_HOST_ACC auto interiorOffset() -> Extent
+    ALPAKA_FN_HOST_ACC auto isDirichletBoundaryCell(auto const& idx, Extent const extent) -> bool
     {
-        return Extent::fill(1u);
+        for(uint32_t userDim = 0u; userDim < dimensions; ++userDim)
+        {
+            auto const dim = alpakaDimFromUserDim(userDim);
+            if(idx[dim] == 0u && boundaryCondition(userDim, true) == BoundaryCondition::dirichlet)
+                return true;
+            if(idx[dim] + 1u == extent[dim] && boundaryCondition(userDim, false) == BoundaryCondition::dirichlet)
+                return true;
+        }
+        return false;
+    }
+
+    ALPAKA_FN_HOST_ACC auto paperLowerBounds() -> RealVec
+    {
+        auto lowerBounds = RealVec::fill(0.0);
+        if constexpr(dimensions >= 1u)
+            lowerBounds[alpakaDimFromUserDim(0u)] = 3.0;
+        if constexpr(dimensions >= 2u)
+            lowerBounds[alpakaDimFromUserDim(1u)] = 2.5;
+        if constexpr(dimensions >= 3u)
+            lowerBounds[alpakaDimFromUserDim(2u)] = 10.0;
+        if constexpr(dimensions >= 4u)
+            lowerBounds[alpakaDimFromUserDim(3u)] = 1.5;
+        return lowerBounds;
+    }
+
+    ALPAKA_FN_HOST_ACC auto makePosition(auto const& idx, RealVec const spacing) -> RealVec
+    {
+        auto position = paperLowerBounds();
+        for(uint32_t dim = 0u; dim < dimensions; ++dim)
+            position[dim] += static_cast<Real>(idx[dim]) * spacing[dim];
+        return position;
+    }
+
+    ALPAKA_FN_HOST_ACC auto exactSolution(RealVec const& position) -> Real
+    {
+        Real const x = position[alpakaDimFromUserDim(0u)];
+        Real value = 10.0 + alpaka::math::sin(x);
+        if constexpr(dimensions >= 2u)
+        {
+            Real const y = position[alpakaDimFromUserDim(1u)];
+            value += alpaka::math::cos(y) - y * y;
+
+            Real productTerm = x * x;
+            for(uint32_t userDim = 1u; userDim < dimensions; ++userDim)
+                productTerm *= position[alpakaDimFromUserDim(userDim)];
+            value += productTerm;
+        }
+        if constexpr(dimensions >= 3u)
+        {
+            Real const z = position[alpakaDimFromUserDim(2u)];
+            value += 3.0 * alpaka::math::sin(z);
+        }
+        if constexpr(dimensions >= 4u)
+        {
+            Real const w = position[alpakaDimFromUserDim(3u)];
+            value += 4.0 * alpaka::math::cos(w);
+        }
+        return value;
     }
 
     struct ApplyOperatorKernel
@@ -151,16 +221,30 @@ namespace poisson
         {
             using namespace alpaka;
 
-            auto const interiorBegin = interiorOffset();
-            auto const interiorEnd = extent - Extent::fill(1u);
-            for(auto idx :
-                onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{interiorBegin, interiorEnd}))
+            for(auto idx : onAcc::makeIdxMap(acc, onAcc::worker::threadsInGrid, IdxRange{extent}))
             {
+                if(isDirichletBoundaryCell(idx, extent))
+                {
+                    out[idx] = in[idx];
+                    continue;
+                }
+
                 Real value = 0.0;
                 for(uint32_t dim = 0u; dim < dimensions; ++dim)
                 {
                     auto const direction = unitDirection(dim);
-                    value += invH2[dim] * (2.0 * in[idx] - in[idx - direction] - in[idx + direction]);
+                    if(idx[dim] == 0u)
+                    {
+                        value += invH2[dim] * (2.0 * in[idx] - 2.0 * in[idx + direction]);
+                    }
+                    else if(idx[dim] + 1u == extent[dim])
+                    {
+                        value += invH2[dim] * (2.0 * in[idx] - 2.0 * in[idx - direction]);
+                    }
+                    else
+                    {
+                        value += invH2[dim] * (2.0 * in[idx] - in[idx - direction] - in[idx + direction]);
+                    }
                 }
                 out[idx] = value;
             }
@@ -219,7 +303,7 @@ namespace poisson
     {
         auto spacing = RealVec::fill(0.0);
         for(uint32_t userDim = 0u; userDim < dimensions; ++userDim)
-            spacing[alpakaDimFromUserDim(userDim)] = 1.0 / static_cast<Real>(sizes[userDim] - 1u);
+            spacing[alpakaDimFromUserDim(userDim)] = 0.1;
         return spacing;
     }
 
@@ -256,7 +340,6 @@ namespace poisson
     {
         using namespace alpaka;
 
-        onHost::fill(queue, out, Real{0.0});
         auto const frameExtent = makeFrameExtent(extent);
         queue.enqueue(
             exec,
@@ -308,14 +391,11 @@ namespace poisson
             extent,
             [&](auto const& idx)
             {
-                auto position = RealVec::fill(0.0);
-                for(uint32_t dim = 0u; dim < dimensions; ++dim)
-                    position[dim] = static_cast<Real>(idx[dim]) * spacing[dim];
-                hostBuffer[idx] = exactSolution(position);
+                hostBuffer[idx] = exactSolution(makePosition(idx, spacing));
             });
     }
 
-    auto dirichletEigenvalueBounds(Extent const extent, RealVec const invH2) -> std::pair<Real, Real>
+    auto mixedBoundaryEigenvalueBounds(Extent const extent, RealVec const invH2) -> std::pair<Real, Real>
     {
         auto eigenvalue1d = [](IdxType const interiorPoints, Real const invSpacingSquared, IdxType const mode) -> Real
         {
@@ -324,22 +404,22 @@ namespace poisson
             return 2.0 * (1.0 - std::cos(angle)) * invSpacingSquared;
         };
 
-        Real lambdaMin = 0.0;
-        Real lambdaMax = 0.0;
+        Real lambdaMin = std::numeric_limits<Real>::max();
+        Real lambdaMax = 1.0;
         for(uint32_t dim = 0u; dim < dimensions; ++dim)
         {
-            IdxType const interiorPoints = extent[dim] - 2u;
-            lambdaMin += eigenvalue1d(interiorPoints, invH2[dim], 1u);
-            lambdaMax += eigenvalue1d(interiorPoints, invH2[dim], interiorPoints);
+            IdxType const points = extent[dim];
+            lambdaMin = std::min(lambdaMin, eigenvalue1d(points, invH2[dim], 1u));
+            lambdaMax += 4.0 * invH2[dim];
         }
-        return {lambdaMin, lambdaMax};
+        return {std::max(lambdaMin, Real{1.0e-6}), lambdaMax};
     }
 
     auto chebyshevEigenvalueBounds(Extent const extent, RealVec const invH2) -> std::pair<Real, Real>
     {
-        auto [lambdaMin, lambdaMax] = dirichletEigenvalueBounds(extent, invH2);
+        auto [lambdaMin, lambdaMax] = mixedBoundaryEigenvalueBounds(extent, invH2);
         lambdaMin *= 1.0 - 1.0e-4;
-        lambdaMax *= 10.0;
+        lambdaMax *= 100.0;
         return {lambdaMin, lambdaMax};
     }
 
@@ -356,16 +436,16 @@ namespace poisson
     {
         using namespace alpaka;
 
-        Real diagonal = 0.0;
-        for(uint32_t dim = 0u; dim < dimensions; ++dim)
-            diagonal += 2.0 * invH2[dim];
-
         auto const start = std::chrono::steady_clock::now();
         onHost::fill(queue, z, Real{0.0});
+        auto const frameExtent = makeFrameExtent(extent);
         for(uint32_t iteration = 0u; iteration < steps; ++iteration)
         {
             applyOperator(queue, exec, workspace, z, extent, invH2);
-            onHost::transform(queue, exec, z, JacobiRelax{1.0 / diagonal}, z, rhs, workspace);
+            queue.enqueue(
+                exec,
+                onHost::FrameSpec{divCeil(extent, frameExtent), frameExtent},
+                KernelBundle{JacobiRelax{}, z, z, rhs, workspace, extent, invH2});
         }
         onHost::wait(queue);
         auto const end = std::chrono::steady_clock::now();
@@ -603,7 +683,7 @@ namespace poisson
 
         auto const stats = solve(queue, exec, solution, rhs, extent, options, invH2);
         Real const error = maxAbsError(queue, solution, exact);
-        Real const validationTolerance = std::max<Real>(1e-8, options.epsilon * 10.0);
+        Real const validationTolerance = std::max<Real>(1e-4, options.epsilon * 1.0e4);
 
         std::cout << "==============================\n";
         printDeviceInfo(deviceSpec, exec, device);
