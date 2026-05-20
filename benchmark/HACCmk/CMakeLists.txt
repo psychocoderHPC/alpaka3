@@ -23,13 +23,19 @@ target_include_directories(HACCmk_orig PRIVATE "src")
 # alpaka is taking care that Catch2 is available, so we can link it directly here.
 target_link_libraries(HACCmk_orig PRIVATE Catch2::Catch2WithMain)
 
+add_executable(HACCmk_sa "src/main_sa.cpp")
+target_link_libraries(HACCmk_sa PRIVATE Catch2::Catch2WithMain)
+target_include_directories(HACCmk_sa PRIVATE "src")
+
 # alpaka is searching for OpenMP, if the target is available use it, else build without OpenMP support.
 if(TARGET OpenMP::OpenMP_CXX)
     target_link_libraries(HACCmk_orig PRIVATE OpenMP::OpenMP_CXX)
+    target_link_libraries(HACCmk_sa PRIVATE OpenMP::OpenMP_CXX)
 else()
-    message(STATUS "HACCmk_orig is built without OpenMP support.")
+    message(STATUS "HACCmk_orig and HACKmk_sa is built without OpenMP support.")
 endif()
 add_test(NAME HACCmk_orig COMMAND "HACCmk_orig")
+add_test(NAME HACCmk_sa COMMAND "HACCmk_sa")
 
 # alpaka version of HACCmk
 add_executable(HACCmk_alpaka "src/main_alpaka.cpp")

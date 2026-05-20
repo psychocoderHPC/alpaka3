@@ -17,6 +17,7 @@
 #include "alpaka/Simd.hpp"
 #include "alpaka/math/internal/math.hpp"
 #include "alpaka/simd/concepts.hpp"
+#include "alpaka/simd/simdized.hpp"
 
 #include <concepts>
 #include <type_traits>
