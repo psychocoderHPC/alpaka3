@@ -26,7 +26,7 @@ namespace alpaka::onAcc
         template<uint32_t T_width, typename T_Arg, typename T_IdxVec>
         constexpr auto bindArg(T_Arg& arg, uint32_t slotBegin, std::array<T_IdxVec, T_width> const& idx)
         {
-            if constexpr(isLockstepVar_v<T_Arg>)
+            if constexpr(requires { arg.template bind<T_width>(slotBegin, idx); })
                 return arg.template bind<T_width>(slotBegin, idx);
             else
                 return IndexedDataSimdRef<T_Arg, T_IdxVec, T_width>{&arg, idx};

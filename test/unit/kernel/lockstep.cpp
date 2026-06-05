@@ -72,7 +72,7 @@ namespace
                     outRef = tmpRef.load() * int32_t{2} - linearValue(idx.linear());
                 },
                 tmp,
-                out);
+                onAcc::map(out));
         }
     };
 
