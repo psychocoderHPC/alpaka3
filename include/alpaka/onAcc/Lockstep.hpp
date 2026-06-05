@@ -310,6 +310,24 @@ namespace alpaka::onAcc
             constexpr uint32_t maxOwnedElements = divCeil(T_LogicalExtent{}.product(), T_WorkerExtent{}.product());
             return std::max(std::min(baseWidth, std::bit_floor(maxOwnedElements)), 1u);
         }
+
+        template<typename T_Acc, typename T_WorkGroup>
+        struct WorkerSpaceType
+        {
+            using type = decltype(ThreadSpace{
+                std::declval<T_WorkGroup const&>().idx(std::declval<T_Acc const&>()),
+                std::declval<T_WorkGroup const&>().size(std::declval<T_Acc const&>())});
+        };
+
+        template<typename T_Acc, typename T_WorkGroup>
+        requires(requires { std::declval<T_WorkGroup const&>().getThreadSpace(std::declval<T_Acc const&>()); })
+        struct WorkerSpaceType<T_Acc, T_WorkGroup>
+        {
+            using type = decltype(std::declval<T_WorkGroup const&>().getThreadSpace(std::declval<T_Acc const&>()));
+        };
+
+        template<typename T_Acc, typename T_WorkGroup>
+        using WorkerSpace_t = typename WorkerSpaceType<T_Acc, T_WorkGroup>::type;
     } // namespace internal
 
     template<typename T_Acc, typename T_LogicalExtent, typename T_WorkGroup>
@@ -317,6 +335,8 @@ namespace alpaka::onAcc
     {
         using LogicalExtent = T_LogicalExtent;
         using IdxType = typename T_LogicalExtent::type;
+        using WorkerSpace = internal::WorkerSpace_t<T_Acc, T_WorkGroup>;
+        using WorkerExtent = decltype(std::declval<WorkerSpace const&>().size());
         static constexpr bool hasLazyGetThreadSpace
             = requires(T_WorkGroup const& workGroup, T_Acc const& acc) { workGroup.getThreadSpace(acc); };
 
@@ -351,11 +371,9 @@ namespace alpaka::onAcc
 
         template<typename T>
         constexpr auto var() const
-            requires(
-                alpaka::concepts::CVector<T_LogicalExtent>
-                && alpaka::concepts::CVector<decltype(std::declval<LockstepScope const&>().getWorkerSpace().size())>)
+            requires(alpaka::concepts::CVector<T_LogicalExtent> && alpaka::concepts::CVector<WorkerExtent>)
         {
-            return internal::LockstepVar<T, T_LogicalExtent, std::decay_t<decltype(getWorkerSpace().size())>>{};
+            return internal::LockstepVar<T, T_LogicalExtent, std::decay_t<WorkerExtent>>{};
         }
 
         template<typename T_ValueType = void, typename T_Fn>
@@ -382,10 +400,8 @@ namespace alpaka::onAcc
         template<typename T_ValueType>
         static consteval uint32_t calcSimdWidth()
         {
-            if constexpr(alpaka::concepts::CVector<decltype(std::declval<LockstepScope const&>().getWorkerSpace().size())>)
-                return internal::getLockstepSimdWidth<T_Acc, T_ValueType>(
-                    T_LogicalExtent{},
-                    decltype(std::declval<LockstepScope const&>().getWorkerSpace().size()){});
+            if constexpr(alpaka::concepts::CVector<WorkerExtent>)
+                return internal::getLockstepSimdWidth<T_Acc, T_ValueType>(T_LogicalExtent{}, WorkerExtent{});
             else
                 return internal::getLockstepSimdWidth<T_Acc, T_ValueType>(T_LogicalExtent{});
         }

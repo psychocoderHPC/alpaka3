@@ -60,14 +60,14 @@ namespace
             auto tmp = scope.template var<int32_t>();
 
             scope.concurrent(
-                [] ALPAKA_FN_ACC(auto const& idx, auto tmpRef)
+                [](auto const& idx, auto tmpRef)
                 {
                     tmpRef = linearValue(idx.linear()) + int32_t{1};
                 },
                 tmp);
 
             scope.concurrent(
-                [] ALPAKA_FN_ACC(auto const& idx, auto tmpRef, auto outRef)
+                [](auto const& idx, auto tmpRef, auto outRef)
                 {
                     outRef = tmpRef.load() * int32_t{2} - linearValue(idx.linear());
                 },
