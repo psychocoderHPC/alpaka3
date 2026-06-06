@@ -119,23 +119,39 @@ namespace alpaka
 
             constexpr void copyFrom(T_Type const* data, alpaka::concepts::Alignment auto alignment)
             {
-                if constexpr((alignment.template get<T_Type>() % alignof(ALPAKA_TYPEOF(*this))) == 0u)
+                constexpr auto simdAlignment = alignof(ALPAKA_TYPEOF(*this));
+                if constexpr((alignment.template get<T_Type>() % simdAlignment) == 0u)
                     *(this) = *reinterpret_cast<ALPAKA_TYPEOF(*this) const*>(data);
                 else
                 {
-                    for(uint32_t i = 0u; i < T_width; ++i)
-                        asNativeType()[i] = data[i];
+                    if(isAlignedPtr(data, simdAlignment))
+                    {
+                        *(this) = *reinterpret_cast<ALPAKA_TYPEOF(*this) const*>(data);
+                    }
+                    else
+                    {
+                        for(uint32_t i = 0u; i < T_width; ++i)
+                            asNativeType()[i] = data[i];
+                    }
                 }
             }
 
             constexpr void copyTo(auto* data, alpaka::concepts::Alignment auto alignment) const
             {
-                if constexpr((alignment.template get<T_Type>() % alignof(ALPAKA_TYPEOF(*this))) == 0u)
+                constexpr auto simdAlignment = alignof(ALPAKA_TYPEOF(*this));
+                if constexpr((alignment.template get<T_Type>() % simdAlignment) == 0u)
                     *reinterpret_cast<ALPAKA_TYPEOF(*this) const*>(data) = (*this);
                 else
                 {
-                    for(uint32_t i = 0u; i < T_width; ++i)
-                        data[i] = asNativeType()[i];
+                    if(isAlignedPtr(data, simdAlignment))
+                    {
+                        *reinterpret_cast<ALPAKA_TYPEOF(*this) const*>(data) = (*this);
+                    }
+                    else
+                    {
+                        for(uint32_t i = 0u; i < T_width; ++i)
+                            data[i] = asNativeType()[i];
+                    }
                 }
             }
 

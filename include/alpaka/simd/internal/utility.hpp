@@ -32,4 +32,15 @@ namespace alpaka::internal
         // if condition is true value will be 1 and negated to set all bits
         return -static_cast<ValueMaskType>(condition);
     }
+
+    /** Check if a pointer is aligned to a specific byte boundary.
+     *
+     * @param alignment alignemnt in bytes
+     * @return true if the pointer is aligned to aligment or larger, else false.
+     */
+    template<typename T>
+    constexpr bool isAlignedPtr(T const* ptr, std::size_t alignment)
+    {
+        return (reinterpret_cast<std::uintptr_t>(ptr) % alignment) == 0u;
+    }
 } // namespace alpaka::internal

@@ -17,10 +17,12 @@
 #include "alpaka/api/api.hpp"
 #include "alpaka/mem/Alignment.hpp"
 #include "alpaka/simd/concepts.hpp"
+#include "alpaka/simd/internal/utility.hpp"
 #include "alpaka/simd/simdConfig.hpp"
 #include "alpaka/simd/trait.hpp"
 #include "alpaka/vecConcepts.hpp"
 
+#include <iostream>
 #include <type_traits>
 
 #if ALPAKA_HAS_STD_SIMD
@@ -99,18 +101,38 @@ namespace alpaka
 
             constexpr void copyFrom(T_Type const* data, alpaka::concepts::Alignment auto alignment)
             {
-                if constexpr((alignment.template get<T_Type>() % alpakaStdSimd::memory_alignment_v<BaseType>) == 0u)
+                constexpr auto simdAlignment = alpakaStdSimd::memory_alignment_v<BaseType>;
+                if constexpr((alignment.template get<T_Type>() % simdAlignment) == 0u)
                     this->asNativeType().copy_from(data, alpakaStdSimd::vector_aligned);
                 else
-                    this->asNativeType().copy_from(data, alpakaStdSimd::element_aligned);
+                {
+                    if(isAlignedPtr(data, simdAlignment))
+                    {
+                        this->asNativeType().copy_from(data, alpakaStdSimd::vector_aligned);
+                    }
+                    else
+                    {
+                        this->asNativeType().copy_from(data, alpakaStdSimd::element_aligned);
+                    }
+                }
             }
 
             constexpr void copyTo(auto* data, alpaka::concepts::Alignment auto alignment) const
             {
-                if constexpr((alignment.template get<T_Type>() % alpakaStdSimd::memory_alignment_v<BaseType>) == 0u)
+                constexpr auto simdAlignment = alpakaStdSimd::memory_alignment_v<BaseType>;
+                if constexpr((alignment.template get<T_Type>() % simdAlignment) == 0u)
                     this->asNativeType().copy_to(data, alpakaStdSimd::vector_aligned);
                 else
-                    this->asNativeType().copy_to(data, alpakaStdSimd::element_aligned);
+                {
+                    if(isAlignedPtr(data, simdAlignment))
+                    {
+                        this->asNativeType().copy_to(data, alpakaStdSimd::vector_aligned);
+                    }
+                    else
+                    {
+                        this->asNativeType().copy_to(data, alpakaStdSimd::element_aligned);
+                    }
+                }
             }
 
             /** assign operator
