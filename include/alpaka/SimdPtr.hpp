@@ -72,6 +72,8 @@ namespace alpaka
             : T_MdSpan(mdSpan)
             , m_idx(idx)
         {
+            if constexpr(std::is_signed_v<typename T_MdSpan::index_type>)
+                std::cerr << m_idx << std::endl;
         }
 
         /** Shift the element the pointer is pointing to by idx
@@ -87,14 +89,26 @@ namespace alpaka
              * segfaults during compile.
              */
             static_assert(
-                alpaka::concepts::IndexVec<ALPAKA_TYPEOF(idx), typename IdxType::type, T_MdSpan::dim()>,
+                alpaka::concepts::IndexVec<ALPAKA_TYPEOF(idx), typename IdxType::type, T_MdSpan::dim()>
+                    || alpaka::concepts::
+                        IndexVec<ALPAKA_TYPEOF(idx), std::make_signed_t<typename IdxType::type>, T_MdSpan::dim()>,
                 "The dimension of idx must match the encapsulated MdSpan dimension and the index type of idx must be "
                 "lossless castable to the MdSpan index type");
+            using ArgIdxScalarType = typename ALPAKA_TYPEOF(idx)::type;
+            using IdxScalarResultType = std::conditional_t<
+                std::is_signed_v<ArgIdxScalarType> && !std::is_signed_v<typename IdxType::type>,
+                std::make_signed_t<typename IdxType::type>,
+                typename IdxType::type>;
+
             constexpr uint32_t valueAlignment = static_cast<uint32_t>(alignof(value_type));
             constexpr auto align = Alignment<valueAlignment>{};
-            return SimdPtr<T_MdSpan, IdxType, ALPAKA_TYPEOF(align), T_SimdWidth>{
+            return SimdPtr<
+                T_MdSpan,
+                ALPAKA_TYPEOF(pCast<IdxScalarResultType>(m_idx)),
+                ALPAKA_TYPEOF(align),
+                T_SimdWidth>{
                 static_cast<T_MdSpan>(*this),
-                idx + m_idx,
+                idx + pCast<IdxScalarResultType>(m_idx),
                 align,
                 T_SimdWidth{}};
         }
@@ -105,14 +119,26 @@ namespace alpaka
              * segfaults during compile.
              */
             static_assert(
-                alpaka::concepts::IndexVec<ALPAKA_TYPEOF(idx), typename IdxType::type, T_MdSpan::dim()>,
+                alpaka::concepts::IndexVec<ALPAKA_TYPEOF(idx), typename IdxType::type, T_MdSpan::dim()>
+                    || alpaka::concepts::
+                        IndexVec<ALPAKA_TYPEOF(idx), std::make_signed_t<typename IdxType::type>, T_MdSpan::dim()>,
                 "The dimension of idx must match the encapsulated MdSpan dimension and the index type of idx must be "
                 "lossless castable to the MdSpan index type");
+            using ArgIdxScalarType = typename ALPAKA_TYPEOF(idx)::type;
+            using IdxScalarResultType = std::conditional_t<
+                std::is_signed_v<ArgIdxScalarType> && !std::is_signed_v<typename IdxType::type>,
+                std::make_signed_t<typename IdxType::type>,
+                typename IdxType::type>;
+
             constexpr uint32_t valueAlignment = static_cast<uint32_t>(alignof(value_type));
             constexpr auto align = Alignment<valueAlignment>{};
-            return SimdPtr<T_MdSpan, IdxType, ALPAKA_TYPEOF(align), T_SimdWidth>{
+            return SimdPtr<
+                T_MdSpan,
+                ALPAKA_TYPEOF(pCast<IdxScalarResultType>(m_idx)),
+                ALPAKA_TYPEOF(align),
+                T_SimdWidth>{
                 static_cast<T_MdSpan>(*this),
-                idx + m_idx,
+                idx + pCast<IdxScalarResultType>(m_idx),
                 align,
                 T_SimdWidth{}};
         }
@@ -213,7 +239,12 @@ namespace alpaka
                 static_assert(
                     std::is_same_v<T_MdSpan, ALPAKA_TYPEOF(dataSource)>,
                     "Data source type must match the class template signature.");
-                auto&& d = dataSource[idx];
+                if constexpr(std::is_signed_v<typename ALPAKA_TYPEOF(idx)::type>)
+                    std::cerr << idx << " " << pCast<typename T_MdSpan::index_type>(idx) << std::endl;
+                std::cout << "ptr" << &dataSource[pCast<typename T_MdSpan::index_type>(idx).fill(0)]
+                          << &dataSource[pCast<typename T_MdSpan::index_type>(idx)] << std::endl;
+                auto foo = pCast<typename T_MdSpan::index_type>(idx);
+                auto&& d = dataSource[foo];
                 using DataTypeType = std::remove_reference_t<decltype(d)>;
                 using DstType = std::conditional_t<
                     std::is_const_v<DataTypeType>,
