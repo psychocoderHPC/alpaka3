@@ -131,7 +131,7 @@ namespace alpaka
             constexpr void copyTo(auto* data, alpaka::concepts::Alignment auto alignment) const
             {
                 if constexpr((alignment.template get<T_Type>() % alignof(ALPAKA_TYPEOF(*this))) == 0u)
-                    *reinterpret_cast<ALPAKA_TYPEOF(*this) const*>(data) = (*this);
+                    *reinterpret_cast<std::remove_const_t<ALPAKA_TYPEOF(*this)>*>(data) = (*this);
                 else
                 {
                     for(uint32_t i = 0u; i < T_width; ++i)
