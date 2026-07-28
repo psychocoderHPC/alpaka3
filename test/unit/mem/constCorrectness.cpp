@@ -465,6 +465,7 @@ TEST_CASE("buffer const correctness MD", "[mem][sharedBuffer][correctness]")
     auto buffer0 = onHost::allocHost<int>(Vec{10, 10});
     requiresMutableBufferMd(buffer0);
     static_assert(!std::is_const_v<std::remove_pointer_t<decltype(buffer0.data())>>);
+    auto boundaryDir = alpaka::makeCoreBoundaryDirection<2u>(alpaka::Vec{1u, 2u}, alpaka::Vec{3u, 4u});
 
     SECTION("getSubView/getSubBuffer from mutable DataStorage object")
     {
@@ -491,6 +492,12 @@ TEST_CASE("buffer const correctness MD", "[mem][sharedBuffer][correctness]")
         [[maybe_unused]] MdSpan mdSpan = buffer0.getMdSpan();
         static_assert(!std::is_const_v<std::remove_pointer_t<decltype(mdSpan.data())>>);
         static_assert(!std::is_const_v<std::remove_reference_t<decltype(mdSpan[Vec{0, 0}])>>);
+
+        // BoundaryDirection subviews from mutable views must preserve writable element access.
+        [[maybe_unused]] View boundaryView = buffer0.getView();
+        [[maybe_unused]] auto boundarySubView = boundaryView.getSubView(boundaryDir);
+        static_assert(!std::is_const_v<std::remove_pointer_t<decltype(boundarySubView.data())>>);
+        static_assert(!std::is_const_v<std::remove_reference_t<decltype(boundarySubView[Vec{0, 0}])>>);
     }
 
     SECTION("getSubView/getSubBuffer from non-mutable DataStorage object (inner const)")
@@ -520,6 +527,12 @@ TEST_CASE("buffer const correctness MD", "[mem][sharedBuffer][correctness]")
         [[maybe_unused]] MdSpan mdSpan = innerConstBuffer0.getMdSpan();
         static_assert(std::is_const_v<std::remove_pointer_t<decltype(mdSpan.data())>>);
         static_assert(std::is_const_v<std::remove_reference_t<decltype(mdSpan[Vec{0, 0}])>>);
+
+        // BoundaryDirection subviews from inner-const views must stay read-only.
+        [[maybe_unused]] View boundaryView = innerConstBuffer0.getView();
+        [[maybe_unused]] auto boundarySubView = boundaryView.getSubView(boundaryDir);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(boundarySubView.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(boundarySubView[Vec{0, 0}])>>);
     }
 
     SECTION("getSubView/getSubBuffer from non-mutable DataStorage object (outer const)")
@@ -550,5 +563,11 @@ TEST_CASE("buffer const correctness MD", "[mem][sharedBuffer][correctness]")
         [[maybe_unused]] MdSpan mdSpan = outerConstBuffer0.getMdSpan();
         static_assert(std::is_const_v<std::remove_pointer_t<decltype(mdSpan.data())>>);
         static_assert(std::is_const_v<std::remove_reference_t<decltype(mdSpan[Vec{0, 0}])>>);
+
+        // BoundaryDirection subviews from outer-const views must also stay read-only.
+        [[maybe_unused]] View boundaryView = outerConstBuffer0.getView();
+        [[maybe_unused]] auto boundarySubView = boundaryView.getSubView(boundaryDir);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(boundarySubView.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(boundarySubView[Vec{0, 0}])>>);
     }
 }
