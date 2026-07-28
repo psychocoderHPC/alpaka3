@@ -66,6 +66,16 @@ namespace alpaka
             return T_dim;
         }
 
+        [[nodiscard]] constexpr bool isOutOfBounds() const
+        {
+            for(uint32_t i = 0; i < T_dim; ++i)
+            {
+                if(data[i] == BoundaryType::OOB)
+                    return true;
+            }
+            return false;
+        }
+
         /** @brief The dimensionality of the boundary direction. For example, a vertex (corner) of a 3D-volume (cube)
          * is 0-dimensional. See also the functions isVertex(), isEdge(), etc.
          */
@@ -84,21 +94,21 @@ namespace alpaka
          */
         [[nodiscard]] constexpr bool isVertex() const
         {
-            return boundaryDimensionality() == 0;
+            return !isOutOfBounds() && boundaryDimensionality() == 0;
         }
 
         /** @brief Return true if this boundary direction describes an edge, for example any of the 12 edges of a cube.
          */
         [[nodiscard]] constexpr bool isEdge() const
         {
-            return boundaryDimensionality() == 1;
+            return !isOutOfBounds() && boundaryDimensionality() == 1;
         }
 
         /** @brief Return true if this boundary direction describes a face, for example any of the 6 sides of a cube.
          */
         [[nodiscard]] constexpr bool isFace() const
         {
-            return boundaryDimensionality() == 2;
+            return !isOutOfBounds() && boundaryDimensionality() == 2;
         }
 
         /** @brief Return true if this boundary direction describes a cell, for example the interior of a cube or one
@@ -106,7 +116,7 @@ namespace alpaka
          */
         [[nodiscard]] constexpr bool isCell() const
         {
-            return boundaryDimensionality() == 3;
+            return !isOutOfBounds() && boundaryDimensionality() == 3;
         }
 
         /** @brief Return true if this boundary direction describes the interior of a volume, like the 2D interior of a
@@ -114,7 +124,7 @@ namespace alpaka
          */
         [[nodiscard]] constexpr bool isInterior() const
         {
-            return boundaryDimensionality() == dim();
+            return !isOutOfBounds() && boundaryDimensionality() == dim();
         }
 
         [[nodiscard]] constexpr auto operator<=>(BoundaryDirection const&) const = default;
