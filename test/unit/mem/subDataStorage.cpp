@@ -220,3 +220,151 @@ TEST_CASE("alpaka::View::getSubView keeps pitches, pointer, and alignment contra
         STATIC_REQUIRE(subView0.getAlignment().get<int>() == alpaka::Alignment<32>::get<int>());
     }
 }
+
+TEST_CASE(
+    "alpaka::View::getSubView(BoundaryDirection) covers host lower upper core and const aliasing",
+    "[mem][view][SubDataStorage]")
+{
+    alpaka::Vec totalExtents{4, 5, 6};
+    auto buffer0 = alpaka::onHost::allocHost<int>(totalExtents);
+
+    for(auto idx : alpaka::IdxRange{totalExtents})
+    {
+        buffer0[idx] = idx.z() * 100 + idx.y() * 10 + idx.x();
+    }
+
+    auto view0 = buffer0.getView();
+    auto const lowerHalos = alpaka::Vec{1u, 2u, 1u};
+    auto const upperHalos = alpaka::Vec{2u, 1u, 3u};
+    using HaloVec = std::remove_cvref_t<decltype(lowerHalos)>;
+    auto const makeBoundary = [&](auto const& boundaries)
+    {
+        return alpaka::BoundaryDirection<3, HaloVec, HaloVec>{
+            boundaries,
+            lowerHalos,
+            upperHalos};
+    };
+
+    SECTION("lower boundary keeps the origin region")
+    {
+        // LOWER should select the leading halo without shifting the origin in any chosen dimension.
+        auto subView = view0.getSubView(
+            makeBoundary(alpaka::Vec{alpaka::BoundaryType::LOWER, alpaka::BoundaryType::MIDDLE, alpaka::BoundaryType::LOWER}));
+
+        auto const expectedExtents = alpaka::Vec{1, 2, 1};
+        auto const expectedOffset = alpaka::Vec{0, static_cast<int>(lowerHalos.y()), 0};
+
+        REQUIRE(subView.getExtents() == expectedExtents);
+
+        for(auto idx : alpaka::IdxRange{expectedExtents})
+        {
+            REQUIRE(subView[idx] == view0[expectedOffset + idx]);
+        }
+    }
+
+    SECTION("upper boundary maps to the shifted tail region")
+    {
+        // UPPER should start from the tail extents minus the upper halo sizes.
+        auto subView = view0.getSubView(
+            makeBoundary(alpaka::Vec{alpaka::BoundaryType::UPPER, alpaka::BoundaryType::UPPER, alpaka::BoundaryType::MIDDLE}));
+
+        auto const expectedExtents = alpaka::Vec{2, 1, 2};
+        auto const expectedOffset = alpaka::Vec{
+            totalExtents.z() - static_cast<int>(upperHalos.z()),
+            totalExtents.y() - static_cast<int>(upperHalos.y()),
+            static_cast<int>(lowerHalos.x())};
+
+        REQUIRE(subView.getExtents() == expectedExtents);
+
+        for(auto idx : alpaka::IdxRange{expectedExtents})
+        {
+            REQUIRE(subView[idx] == view0[expectedOffset + idx]);
+        }
+    }
+
+    SECTION("middle boundary returns the asymmetric interior")
+    {
+        // MIDDLE should crop by the lower and upper halos independently in each dimension.
+        auto subView = view0.getSubView(alpaka::makeCoreBoundaryDirection<3>(lowerHalos, upperHalos));
+
+        auto const expectedOffset = alpaka::Vec{
+            static_cast<int>(lowerHalos.z()),
+            static_cast<int>(lowerHalos.y()),
+            static_cast<int>(lowerHalos.x())};
+        auto const expectedExtents = alpaka::Vec{
+            totalExtents.z() - static_cast<int>(lowerHalos.z()) - static_cast<int>(upperHalos.z()),
+            totalExtents.y() - static_cast<int>(lowerHalos.y()) - static_cast<int>(upperHalos.y()),
+            totalExtents.x() - static_cast<int>(lowerHalos.x()) - static_cast<int>(upperHalos.x())};
+
+        REQUIRE(subView.getExtents() == expectedExtents);
+
+        for(auto idx : alpaka::IdxRange{expectedExtents})
+        {
+            REQUIRE(subView[idx] == view0[expectedOffset + idx]);
+        }
+    }
+
+    SECTION("degenerate middle boundary with a consumed dimension stays empty")
+    {
+        // If halos consume a dimension completely, the middle region should be a valid zero-extent subview.
+        auto subView = view0.getSubView(alpaka::makeCoreBoundaryDirection<3>(alpaka::Vec{1u, 2u, 3u}, alpaka::Vec{2u, 3u, 3u}));
+
+        REQUIRE(subView.getExtents() == alpaka::Vec{1, 0, 0});
+
+        auto count = 0;
+        for([[maybe_unused]] auto&& value : subView)
+        {
+            alpaka::unused(value);
+            ++count;
+        }
+        REQUIRE(count == 0);
+    }
+
+    SECTION("const boundary subviews stay read-only and still read shifted values")
+    {
+        // The boundary-direction overload must propagate constness just like the offset overload does.
+        auto const& constView0 = view0;
+        auto subView = constView0.getSubView(
+            makeBoundary(alpaka::Vec{alpaka::BoundaryType::UPPER, alpaka::BoundaryType::MIDDLE, alpaka::BoundaryType::UPPER}));
+
+        auto const expectedOffset = alpaka::Vec{
+            totalExtents.z() - static_cast<int>(upperHalos.z()),
+            static_cast<int>(lowerHalos.y()),
+            totalExtents.x() - static_cast<int>(upperHalos.x())};
+        auto const expectedExtents = alpaka::Vec{2, 2, 3};
+
+        REQUIRE(subView.getExtents() == expectedExtents);
+        static_assert(std::is_const_v<std::remove_pointer_t<decltype(subView.data())>>);
+        static_assert(std::is_const_v<std::remove_reference_t<decltype(subView[alpaka::Vec{0, 0, 0}])>>);
+
+        for(auto idx : alpaka::IdxRange{expectedExtents})
+        {
+            REQUIRE(subView[idx] == view0[expectedOffset + idx]);
+        }
+    }
+
+    SECTION("non-const boundary subviews preserve mutability and alias the parent")
+    {
+        // Non-const parents should keep writable element access so boundary views can update the original storage.
+        auto subView = view0.getSubView(
+            makeBoundary(alpaka::Vec{alpaka::BoundaryType::LOWER, alpaka::BoundaryType::UPPER, alpaka::BoundaryType::MIDDLE}));
+
+        auto const expectedOffset
+            = alpaka::Vec{0, totalExtents.y() - static_cast<int>(upperHalos.y()), static_cast<int>(lowerHalos.x())};
+        auto const expectedExtents = alpaka::Vec{1, 1, 2};
+
+        REQUIRE(subView.getExtents() == expectedExtents);
+        static_assert(!std::is_const_v<std::remove_pointer_t<decltype(subView.data())>>);
+        static_assert(!std::is_const_v<std::remove_reference_t<decltype(subView[alpaka::Vec{0, 0, 0}])>>);
+
+        for(auto idx : alpaka::IdxRange{expectedExtents})
+        {
+            subView[idx] = 700 + static_cast<int>(alpaka::linearize(expectedExtents, idx));
+        }
+
+        for(auto idx : alpaka::IdxRange{expectedExtents})
+        {
+            REQUIRE(view0[expectedOffset + idx] == 700 + static_cast<int>(alpaka::linearize(expectedExtents, idx)));
+        }
+    }
+}

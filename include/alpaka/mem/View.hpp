@@ -233,11 +233,39 @@ namespace alpaka
         constexpr auto getSubView(
             alpaka::BoundaryDirection<View::dim(), LowHaloVecType, UpHaloVecType> boundaryDir) const
         {
-            constexpr uint32_t dim = View::dim();
-            auto offset = alpaka::Vec<uint32_t, dim>{};
-            auto extents = alpaka::Vec<uint32_t, dim>{};
+            auto offset = typename T_Extents::UniVec{};
+            auto extents = typename T_Extents::UniVec{};
 
-            for(uint32_t i = 0; i < dim; ++i)
+            for(uint32_t i = 0; i < View::dim(); ++i)
+            {
+                switch(boundaryDir.data[i])
+                {
+                case BoundaryType::LOWER:
+                    offset[i] = 0;
+                    extents[i] = boundaryDir.lowerHaloSize[i];
+                    break;
+                case BoundaryType::UPPER:
+                    offset[i] = this->getExtents()[i] - boundaryDir.upperHaloSize[i];
+                    extents[i] = boundaryDir.upperHaloSize[i];
+                    break;
+                case BoundaryType::MIDDLE:
+                    offset[i] = boundaryDir.lowerHaloSize[i];
+                    extents[i] = this->getExtents()[i] - boundaryDir.lowerHaloSize[i] - boundaryDir.upperHaloSize[i];
+                    break;
+                default:
+                    throw std::invalid_argument("invalid direction");
+                }
+            }
+            return getSubView(offset, extents);
+        }
+
+        template<alpaka::concepts::Vector LowHaloVecType, alpaka::concepts::Vector UpHaloVecType>
+        constexpr auto getSubView(alpaka::BoundaryDirection<View::dim(), LowHaloVecType, UpHaloVecType> boundaryDir)
+        {
+            auto offset = typename T_Extents::UniVec{};
+            auto extents = typename T_Extents::UniVec{};
+
+            for(uint32_t i = 0; i < View::dim(); ++i)
             {
                 switch(boundaryDir.data[i])
                 {
