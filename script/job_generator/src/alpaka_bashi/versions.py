@@ -36,7 +36,7 @@ from bashi.version.dependencies.hipcc import HIPCC_CLANG_VERSION
 from alpaka_bashi.globals import BUILD_TYPE, BUILD_TYPES, HWLOC
 
 ALPAKA_VERSIONS: dict[str, list[str | int | float]] = {
-    GCC: [12, 13, 14, 15],
+    GCC: [12, 13, 14, 15, 16],
     CLANG: [17, 18, 19, 20, 21],
     NVCC: [12.5, 12.6, 12.8, 12.9, 13.0, 13.1, 13.2, 13.3],
     HIPCC: [6.3, 6.4, 7.0, 7.1, 7.2, 7.14],
