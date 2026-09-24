@@ -6,10 +6,23 @@ Custom filter for alpaka specific filter rules.
 
 import bashi
 import packaging.version
-from bashi.globals import ALPAKA_ACC_GPU_CUDA_ENABLE, CLANG, CLANG_CUDA, CMAKE, DEVICE_COMPILER, HOST_COMPILER, NVCC
+from bashi.globals import (
+    ALPAKA_ACC_CPU_B_SEQ_T_SEQ_ENABLE,
+    ALPAKA_ACC_GPU_CUDA_ENABLE,
+    CLANG,
+    CLANG_CUDA,
+    CMAKE,
+    DEVICE_COMPILER,
+    HOST_COMPILER,
+    NVCC,
+)
 from bashi.results import OFF_VER
 
-from alpaka_bashi.versions import get_allowed_backend_combinations, get_used_backends
+from alpaka_bashi.versions import (
+    ALPAKA_NVCC_CLANG_MAX_VERSION,
+    get_allowed_backend_combinations,
+    get_used_backends,
+)
 
 
 def check_only_valid_backend_combinations_a1(row: bashi.BashiRow, alpaka_filter: "AlpakaFilter") -> bool:
@@ -118,6 +131,37 @@ def check_clang_cuda_cmake_support_a4(row: bashi.BashiRow, alpaka_filter: "Alpak
     return True
 
 
+def check_clang_host_compiler_requires_serial_backend_a5(row: bashi.BashiRow, alpaka_filter: "AlpakaFilter") -> bool:
+    """
+    If clang is the host compiler and its version is newer than any nvcc supported clang version,
+    it can never be used together with nvcc/CUDA. In this case only CPU back-ends are possible, so
+    the serial backend must be enabled. Cancelling such a parameter-value-tuple as early as possible
+    avoids a `covertable.exceptions.InvalidCondition` error (see bashi docs: "Cancel a
+    parameter-value-tuple early as possible").
+
+    Args:
+        row (bashi.BashiRow): parameter-value-tuple to verify.
+        alpaka_filter (AlpakaFilter): alpaka filter
+
+    Returns:
+        bool: True if passed.
+    """
+    if row[HOST_COMPILER].name == CLANG:
+        max_supported_clang = max(support.host for support in ALPAKA_NVCC_CLANG_MAX_VERSION)
+        if (
+            row[HOST_COMPILER].version > max_supported_clang
+            and ALPAKA_ACC_CPU_B_SEQ_T_SEQ_ENABLE in row
+            and row[ALPAKA_ACC_CPU_B_SEQ_T_SEQ_ENABLE].version <= OFF_VER
+        ):
+            alpaka_filter.reason(
+                f"Clang {row[HOST_COMPILER].version} is not supported by any nvcc version, "
+                "therefore the serial backend must be enabled."
+            )
+            return False
+
+    return True
+
+
 # pylint: disable=too-few-public-methods
 class AlpakaFilter(bashi.FilterBase):
     """Alpaka specific filter rules."""
@@ -140,4 +184,5 @@ class AlpakaFilter(bashi.FilterBase):
             and check_clang_host_compiler_supported_cuda_sdk_a2(row, self)
             and check_clang_host_compiler_supported_nvcc_a3(row, self)
             and check_clang_cuda_cmake_support_a4(row, self)
+            and check_clang_host_compiler_requires_serial_backend_a5(row, self)
         )
