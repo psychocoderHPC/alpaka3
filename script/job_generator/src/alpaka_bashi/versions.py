@@ -49,6 +49,15 @@ ALPAKA_VERSIONS: dict[str, list[str | int | float]] = {
     HWLOC: [ON, OFF],
 }
 
+# Maximum supported clang version as nvcc host compiler per CUDA SDK/nvcc version.
+# The newest nvcc version must always be present, even if the supported clang version does not
+# increase.
+# https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#host-compiler-support-policy
+ALPAKA_NVCC_CLANG_MAX_VERSION: list[NvccHostSupport] = NVCC_CLANG_MAX_VERSION + [
+    NvccHostSupport("13.3", "21"),
+    NvccHostSupport("13.4", "22"),
+]
+
 
 def _get_clang_cuda_versions() -> list[str | int | float]:
     """Return a list of Clang-CUDA versions. If there is no CUDA version
@@ -169,9 +178,9 @@ def get_alpaka_version_relation() -> bashi.VersionRelation:
         NvccHostSupport("13.4", "16"),
     ]
 
-    nvcc_clang_max_version = NVCC_CLANG_MAX_VERSION + [
-        NvccHostSupport("13.4", "22"),
-    ]
+    # Maximum supported clang version as nvcc host compiler per CUDA SDK version.
+    # https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html#host-compiler-support-policy
+    nvcc_clang_max_version = ALPAKA_NVCC_CLANG_MAX_VERSION
 
     hipcc_clang_version = HIPCC_CLANG_VERSION + [
         ClangBase("7.14", "23"),

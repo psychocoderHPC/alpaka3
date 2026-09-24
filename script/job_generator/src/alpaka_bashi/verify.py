@@ -22,7 +22,12 @@ from bashi.globals import (
     ON,
 )
 
-from alpaka_bashi.versions import get_allowed_backend_combinations, get_used_backends, get_used_compiler_versions
+from alpaka_bashi.versions import (
+    ALPAKA_NVCC_CLANG_MAX_VERSION,
+    get_allowed_backend_combinations,
+    get_used_backends,
+    get_used_compiler_versions,
+)
 
 
 def remove_disabled_serial_backend_for_gcc_and_clang(
@@ -106,6 +111,27 @@ def remove_unsupported_cmake_versions_for_clang_host_compiler(
         )
 
 
+def remove_clang_unsupported_by_nvcc_without_serial_backend(
+    parameter_value_pairs: list[bashi.ParameterValuePair],
+    removed_parameter_value_pairs: list[bashi.ParameterValuePair],
+):
+    """A clang version newer than any nvcc supported clang version can only be used to compile for
+    the CPU. It is always used with the serial backend, therefore remove all combinations where the
+    serial backend is disabled."""
+    max_supported_clang = max(support.host for support in ALPAKA_NVCC_CLANG_MAX_VERSION)
+    bashi.remove_parameter_value_pairs_ranges(
+        parameter_value_pairs,
+        removed_parameter_value_pairs,
+        parameter1=HOST_COMPILER,
+        value_name1=CLANG,
+        value_min_version1=str(max_supported_clang),
+        value_min_version1_inclusive=False,
+        parameter2=ALPAKA_ACC_CPU_B_SEQ_T_SEQ_ENABLE,
+        value_max_version2=OFF,
+        value_max_version2_inclusive=True,
+    )
+
+
 def verify(
     combination_list: bashi.CombinationList,
     param_value_matrix: bashi.ParameterValueMatrix,
@@ -145,6 +171,7 @@ def verify(
     remove_disabled_serial_and_openmp_backend(expected_param_val_tuple, unexpected_param_val_tuple)
     remove_unsupported_cuda_sdk_for_clang_host_compiler(expected_param_val_tuple, unexpected_param_val_tuple)
     remove_unsupported_cmake_versions_for_clang_host_compiler(expected_param_val_tuple, unexpected_param_val_tuple)
+    remove_clang_unsupported_by_nvcc_without_serial_backend(expected_param_val_tuple, unexpected_param_val_tuple)
 
     expected_param_val_okay = bashi.check_parameter_value_pair_in_combination_list(
         combination_list, expected_param_val_tuple
