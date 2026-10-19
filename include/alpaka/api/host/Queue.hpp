@@ -96,11 +96,23 @@ namespace alpaka::onHost
              */
             mutable std::recursive_mutex m_mutex;
 
+            /** State shared with deferred callback bookkeeping.
+             *
+             * The error slot lives outside the queue object so a deferred task can record or read it without
+             * keeping the queue alive. It is declared before @c m_sharedCallbackThread so it outlives the
+             * callback thread that references it.
+             */
+            struct CallbackError
+            {
+                std::mutex mutex;
+                std::exception_ptr exception;
+            };
+
             /** First exception thrown by a callback of a non-blocking queue.
              *
-             * It is consumed by the next queue synchronization. The slot is guarded by @c m_mutex.
+             * It is consumed by the next queue synchronization. The slot is guarded by @c CallbackError::mutex.
              */
-            std::exception_ptr m_callbackException;
+            std::shared_ptr<CallbackError> m_callbackError = std::make_shared<CallbackError>();
 
             std::shared_ptr<core::CallbackThread> m_sharedCallbackThread;
             uint32_t m_idx = 0u;
@@ -197,12 +209,12 @@ namespace alpaka::onHost
                     return f;
                 }
                 // enqueue the task into the worker thread, callers can wait/chain later.
-                /* Keep the queue alive for the wrapper and its bookkeeping. A task may release the last queue
-                 * handle from within the callback thread, so a raw `this` capture could dangle by the time the
-                 * wrapper touches the mutex or the exception slot. */
-                auto self = this->getSharedPtr();
+                /* Capture only the shared error slot, never the queue. A task may release the last queue handle
+                 * from within the callback thread; keeping a queue handle here would move the queue destruction
+                 * onto the callback thread and change OpenMP runtime teardown. */
+                auto callbackError = m_callbackError;
                 return m_sharedCallbackThread->submit(
-                    [self = std::move(self), fn = std::forward<T_Fn>(fn)]() mutable
+                    [callbackError = std::move(callbackError), fn = std::forward<T_Fn>(fn)]() mutable
                     {
                         try
                         {
@@ -211,9 +223,9 @@ namespace alpaka::onHost
                         catch(...)
                         {
                             // Store only the first failure; later callbacks still run.
-                            std::lock_guard<std::recursive_mutex> lock{self->m_mutex};
-                            if(!self->m_callbackException)
-                                self->m_callbackException = std::current_exception();
+                            std::lock_guard<std::mutex> lock{callbackError->mutex};
+                            if(!callbackError->exception)
+                                callbackError->exception = std::current_exception();
                             throw;
                         }
                     });
@@ -409,8 +421,8 @@ namespace alpaka::onHost
                     // Report the first recorded callback failure once.
                     std::exception_ptr callbackException;
                     {
-                        std::lock_guard<std::recursive_mutex> lock{queue.m_mutex};
-                        callbackException = std::exchange(queue.m_callbackException, nullptr);
+                        std::lock_guard<std::mutex> lock{queue.m_callbackError->mutex};
+                        callbackException = std::exchange(queue.m_callbackError->exception, nullptr);
                     }
                     if(callbackException)
                         std::rethrow_exception(callbackException);
@@ -425,14 +437,17 @@ namespace alpaka::onHost
             {
                 ALPAKA_LOG_FUNCTION(onHost::logger::event + onHost::logger::queue);
                 /* A blocking queue must acquire this lock to ensure that all pending host tasks have finished.
-                 * A non-blocking queue takes it to read the recorded callback failure without racing a callback.
                  *
                  * Acquire the queue lock before the event lock. A pending queue dependency may need the event
                  * lock to complete, so holding it while waiting for the queue lock would create a deadlock.
                  */
                 std::lock_guard<std::recursive_mutex> queueLock(queue.m_mutex);
                 // Failure that was already recorded when the event is recorded.
-                auto const recordedException = queue.m_callbackException;
+                std::exception_ptr recordedException;
+                {
+                    std::lock_guard<std::mutex> errorLock(queue.m_callbackError->mutex);
+                    recordedException = queue.m_callbackError->exception;
+                }
                 // open a scope to avoid logging during we hold the lock for this class
                 {
                     // Setting the event state (e.g. the future) and enqueuing it has to be atomic.
@@ -466,17 +481,17 @@ namespace alpaka::onHost
                     else
                     {
                         auto sharedEvent = event.getSharedPtr();
-                        /* The finalize task runs after this recording returns and may be the last owner of the
-                         * queue, e.g. when a preceding callback released the last queue handle. Capture a shared
-                         * handle instead of a reference so its bookkeeping never touches a destroyed queue.
+                        /* The finalize task runs after this recording returns and may outlive the queue, e.g.
+                         * when a preceding callback released the last queue handle. Capture the shared error slot
+                         * instead of the queue so the bookkeeping never touches a destroyed queue.
                          */
-                        auto sharedQueue = queue.getSharedPtr();
+                        auto callbackError = queue.m_callbackError;
                         /* Enqueue a task that only resets the events flag if it is completed. It runs after all
                          * previously enqueued callbacks, so a recorded failure belongs to a callback that precedes
                          * the event. Later callbacks can not have failed yet.
                          */
                         event.m_future = queue.m_sharedCallbackThread->submit(
-                            [sharedQueue = std::move(sharedQueue),
+                            [callbackError = std::move(callbackError),
                              sharedEvent,
                              enqueueCount,
                              recordedException]() mutable
@@ -484,11 +499,11 @@ namespace alpaka::onHost
                                 auto const timestamp = std::chrono::steady_clock::now();
                                 std::exception_ptr callbackException = recordedException;
                                 {
-                                    // Keep the queue-before-event lock order of the recording path.
-                                    std::lock_guard<std::recursive_mutex> queueGuard(sharedQueue->m_mutex);
+                                    // Keep the error-before-event lock order of the recording path.
+                                    std::lock_guard<std::mutex> errorLock(callbackError->mutex);
                                     // Catch a failure whose callback only completed after the event was enqueued.
                                     if(!callbackException)
-                                        callbackException = sharedQueue->m_callbackException;
+                                        callbackException = callbackError->exception;
                                     std::unique_lock<std::mutex> lk2(sharedEvent->m_mutex);
 
                                     // Nothing to do if it has been re-enqueued to a later position in the queue.
