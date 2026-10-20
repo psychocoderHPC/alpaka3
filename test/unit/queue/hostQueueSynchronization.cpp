@@ -11,7 +11,6 @@
 #include <cstdint>
 #include <future>
 #include <memory>
-#include <stdexcept>
 #include <thread>
 #include <utility>
 
@@ -341,30 +340,6 @@ TEST_CASE("host blocking event wait lets the event producer enter the queue", "[
     }
 }
 
-TEST_CASE("host nonblocking queue wait propagates callback failures", "[queue]")
-{
-    auto device = onHost::makeHostDevice();
-    auto queue = device.makeQueue(queueKind::nonBlocking);
-    queue.enqueueHostFn([] { throw std::runtime_error{"host task failure"}; });
-
-    // The first callback failure is reported once; a repeated wait observes a clean queue.
-    CHECK_THROWS_AS(onHost::wait(queue), std::runtime_error);
-    CHECK_NOTHROW(onHost::wait(queue));
-}
-
-TEST_CASE("host event wait propagates preceding callback failures", "[queue]")
-{
-    // Queue: throwing callback -> event. The event must carry the failure that precedes it.
-    auto device = onHost::makeHostDevice();
-    auto queue = device.makeQueue(queueKind::nonBlocking);
-    auto event = queue.makeEvent();
-    queue.enqueueHostFn([] { throw std::runtime_error{"host task failure"}; });
-    queue.enqueue(event);
-
-    CHECK_THROWS_AS(onHost::wait(event), std::runtime_error);
-    CHECK(event.isComplete());
-}
-
 TEST_CASE("host nonblocking queue state outlives a deferred finalize", "[queue]")
 {
     auto platform = onHost::internal::makePlatform(api::Host{}, deviceKind::Cpu{});
@@ -393,6 +368,6 @@ TEST_CASE("host nonblocking queue state outlives a deferred finalize", "[queue]"
         });
 
     REQUIRE(started.wait_for(startupTimeout) == std::future_status::ready);
-    // Draining the finalize task must not touch a destroyed queue mutex or exception slot.
+    // Draining the finalize task must not touch a destroyed queue mutex.
     CHECK_NOTHROW(onHost::wait(event));
 }

@@ -27,11 +27,9 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
-#include <exception>
 #include <future>
 #include <mutex>
 #include <thread>
-#include <utility>
 
 namespace alpaka::onHost
 {
@@ -95,24 +93,6 @@ namespace alpaka::onHost
              * thread drains pending tasks during destruction.
              */
             mutable std::recursive_mutex m_mutex;
-
-            /** State shared with deferred callback bookkeeping.
-             *
-             * The error slot lives outside the queue object so a deferred task can record or read it without
-             * keeping the queue alive. It is declared before @c m_sharedCallbackThread so it outlives the
-             * callback thread that references it.
-             */
-            struct CallbackError
-            {
-                std::mutex mutex;
-                std::exception_ptr exception;
-            };
-
-            /** First exception thrown by a callback of a non-blocking queue.
-             *
-             * It is consumed by the next queue synchronization. The slot is guarded by @c CallbackError::mutex.
-             */
-            std::shared_ptr<CallbackError> m_callbackError = std::make_shared<CallbackError>();
 
             std::shared_ptr<core::CallbackThread> m_sharedCallbackThread;
             uint32_t m_idx = 0u;
@@ -209,26 +189,7 @@ namespace alpaka::onHost
                     return f;
                 }
                 // enqueue the task into the worker thread, callers can wait/chain later.
-                /* Capture only the shared error slot, never the queue. A task may release the last queue handle
-                 * from within the callback thread; keeping a queue handle here would move the queue destruction
-                 * onto the callback thread and change OpenMP runtime teardown. */
-                auto callbackError = m_callbackError;
-                return m_sharedCallbackThread->submit(
-                    [callbackError = std::move(callbackError), fn = std::forward<T_Fn>(fn)]() mutable
-                    {
-                        try
-                        {
-                            fn();
-                        }
-                        catch(...)
-                        {
-                            // Store only the first failure; later callbacks still run.
-                            std::lock_guard<std::mutex> lock{callbackError->mutex};
-                            if(!callbackError->exception)
-                                callbackError->exception = std::current_exception();
-                            throw;
-                        }
-                    });
+                return m_sharedCallbackThread->submit(std::forward<T_Fn>(fn));
             }
 
             friend struct alpaka::internal::GetName;
@@ -302,9 +263,8 @@ namespace alpaka::onHost
 
             /** execute a task in the queue
              *
-             * @attention A task which captures the queue keeps it alive. With a shared capture the queue is
-             * destroyed after the task's captures are released on the thread executing the task. A blocking
-             * callback runs before the submission returns, so the caller still holds the queue.
+             * @attention Do NOT enqueue a task which captures the queue internally to keep the queue alive as
+             * dependency. In this case the destructure of the queue is not called.
              */
             void enqueueHostFn(auto const& task)
             {
@@ -323,7 +283,7 @@ namespace alpaka::onHost
                 }
                 else
                 {
-                    submit(task);
+                    m_sharedCallbackThread->submit(task);
                 }
             }
 
@@ -365,10 +325,7 @@ namespace alpaka::onHost
                 ALPAKA_LOG_FUNCTION(onHost::logger::queue);
                 if(m_isBlocking)
                 {
-                    /* Read the depth under the mutex which publishes it, so a concurrent increment is
-                     * observed consistently with the waiter's bookkeeping. The mutex is recursive because
-                     * isQueueEmpty() can be called from within a blocking task. */
-                    std::lock_guard<std::recursive_mutex> lk(m_mutex);
+                    // check if the queue is currently executing a blocking task
                     return m_blockingTaskExecutionDepth.load() == 0u;
                 }
                 else
@@ -417,15 +374,6 @@ namespace alpaka::onHost
                 {
                     if(queue.isQueueEmpty() == false)
                         queue.submit([]() {}).wait();
-
-                    // Report the first recorded callback failure once.
-                    std::exception_ptr callbackException;
-                    {
-                        std::lock_guard<std::mutex> lock{queue.m_callbackError->mutex};
-                        callbackException = std::exchange(queue.m_callbackError->exception, nullptr);
-                    }
-                    if(callbackException)
-                        std::rethrow_exception(callbackException);
                 }
             }
         };
@@ -441,13 +389,9 @@ namespace alpaka::onHost
                  * Acquire the queue lock before the event lock. A pending queue dependency may need the event
                  * lock to complete, so holding it while waiting for the queue lock would create a deadlock.
                  */
-                std::lock_guard<std::recursive_mutex> queueLock(queue.m_mutex);
-                // Failure that was already recorded when the event is recorded.
-                std::exception_ptr recordedException;
-                {
-                    std::lock_guard<std::mutex> errorLock(queue.m_callbackError->mutex);
-                    recordedException = queue.m_callbackError->exception;
-                }
+                std::unique_lock<std::recursive_mutex> queueLock(queue.m_mutex, std::defer_lock);
+                if(queue.m_isBlocking)
+                    queueLock.lock();
                 // open a scope to avoid logging during we hold the lock for this class
                 {
                     // Setting the event state (e.g. the future) and enqueuing it has to be atomic.
@@ -470,53 +414,29 @@ namespace alpaka::onHost
                                 event.m_timestamp = std::chrono::steady_clock::now();
                             event.m_lastReadyEnqueueCount = std::max(enqueueCount, event.m_lastReadyEnqueueCount);
                         }
-                        // apply a fulfilled future, carrying a preceding callback failure if present
+                        // apply a fulfilled future
                         std::promise<void> p;
-                        if(recordedException)
-                            p.set_exception(recordedException);
-                        else
-                            p.set_value();
+                        p.set_value();
                         event.m_future = p.get_future();
                     }
                     else
                     {
                         auto sharedEvent = event.getSharedPtr();
-                        /* The finalize task runs after this recording returns and may outlive the queue, e.g.
-                         * when a preceding callback released the last queue handle. Capture the shared error slot
-                         * instead of the queue so the bookkeeping never touches a destroyed queue.
-                         */
-                        auto callbackError = queue.m_callbackError;
-                        /* Enqueue a task that only resets the events flag if it is completed. It runs after all
-                         * previously enqueued callbacks, so a recorded failure belongs to a callback that precedes
-                         * the event. Later callbacks can not have failed yet.
-                         */
-                        event.m_future = queue.m_sharedCallbackThread->submit(
-                            [callbackError = std::move(callbackError),
-                             sharedEvent,
-                             enqueueCount,
-                             recordedException]() mutable
+                        // Enqueue a task that only resets the events flag if it is completed.
+                        event.m_future = queue.submit(
+                            [sharedEvent, enqueueCount]() mutable
                             {
                                 auto const timestamp = std::chrono::steady_clock::now();
-                                std::exception_ptr callbackException = recordedException;
-                                {
-                                    // Keep the error-before-event lock order of the recording path.
-                                    std::lock_guard<std::mutex> errorLock(callbackError->mutex);
-                                    // Catch a failure whose callback only completed after the event was enqueued.
-                                    if(!callbackException)
-                                        callbackException = callbackError->exception;
-                                    std::unique_lock<std::mutex> lk2(sharedEvent->m_mutex);
+                                std::unique_lock<std::mutex> lk2(sharedEvent->m_mutex);
 
-                                    // Nothing to do if it has been re-enqueued to a later position in the queue.
-                                    if(enqueueCount == sharedEvent->m_enqueueCount)
-                                    {
-                                        if(sharedEvent->m_timingEnabled)
-                                            sharedEvent->m_timestamp = timestamp;
-                                        sharedEvent->m_lastReadyEnqueueCount
-                                            = std::max(enqueueCount, sharedEvent->m_lastReadyEnqueueCount);
-                                    }
+                                // Nothing to do if it has been re-enqueued to a later position in the queue.
+                                if(enqueueCount == sharedEvent->m_enqueueCount)
+                                {
+                                    if(sharedEvent->m_timingEnabled)
+                                        sharedEvent->m_timestamp = timestamp;
+                                    sharedEvent->m_lastReadyEnqueueCount
+                                        = std::max(enqueueCount, sharedEvent->m_lastReadyEnqueueCount);
                                 }
-                                if(callbackException)
-                                    std::rethrow_exception(callbackException);
                             });
                     }
                 }
